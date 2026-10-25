@@ -5,6 +5,16 @@ import { parseProject, projectDuration } from '../engine/project';
 import { ExportDialog } from './ExportDialog';
 import { download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
+
+function Emblem({ size }: { size: number }) {
+  // The full Capstan emblem (assets/ui, from assets/brand/emblem-*.png), one per theme.
+  return (
+    <>
+      <img className="only-light" src="/assets/emblem-light.png" alt="Capstan" width={size} height={size} />
+      <img className="only-dark" src="/assets/emblem-dark.png" alt="Capstan" width={size} height={size} />
+    </>
+  );
+}
 import { Inspector } from './Inspector';
 import { endSession, isBusy, onEngineState, sessionToken, startHeartbeat, type EngineState } from './lifecycle';
 import { MediaBin } from './MediaBin';
@@ -243,7 +253,7 @@ export function App() {
   if (ended) {
     return (
       <div className="session-ended fl-empty" role="main">
-        <img src="/assets/icon.svg" alt="" width={64} height={64} />
+        <Emblem size={240} />
         <h2>Session ended</h2>
         <p>Capstan has stopped. Your projects and media are saved in this browser. You can close this window; run Launch-Capstan.bat to start again.</p>
         <button className="button primary fl-btn fl-btn--primary" onClick={() => window.close()}>
@@ -257,19 +267,8 @@ export function App() {
     <div className={`app${collapsed ? ' sidebar-collapsed' : ''}`}>
       <aside className="sidebar" aria-label="Capstan">
         <div className="sidebar-brand" title="Capstan">
-          <img src="/assets/icon.svg" alt="" width={collapsed ? 36 : 40} height={collapsed ? 36 : 40} />
-          {!collapsed && (
-            <div className="wordmark">
-              <span className="wordmark-name">CAPSTAN</span>
-              <span className="wordmark-rule" aria-hidden>
-                <span />
-                <svg viewBox="0 0 16 16" width="10" height="10">
-                  <path d="M8 0 9.6 6.4 16 8 9.6 9.6 8 16 6.4 9.6 0 8 6.4 6.4Z" />
-                </svg>
-                <span />
-              </span>
-            </div>
-          )}
+          {/* Expanded: the full emblem with its wordmark. Collapsed rail: the emblem's circle. */}
+          {collapsed ? <img src="/assets/icon-256.png" alt="Capstan" width={40} height={40} /> : <Emblem size={184} />}
         </div>
         <nav className="fl-nav sidebar-nav" aria-label="Capstan">
           <button aria-current="page" title="Editor">

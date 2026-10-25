@@ -153,13 +153,16 @@ h2 { font-size: var(--fl-text-section); font-weight: 600; }
   background: var(--fl-sidebar); border-right: 1px solid var(--fl-border);
   padding: 12px 0;
 }
-.sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 12px; min-height: var(--fl-header-height); border-bottom: 1px solid var(--fl-border); }
+.sidebar-brand { display: flex; flex-direction: column; align-items: center; padding: 0 12px 8px; min-height: var(--fl-header-height); border-bottom: 1px solid var(--fl-border); }
 .sidebar-collapsed .sidebar-brand { justify-content: center; padding: 0 0 12px; }
-.wordmark { display: grid; gap: 4px; line-height: 1; }
-.wordmark-name { font: var(--fl-text-page) var(--fl-font-display); letter-spacing: 0.14em; color: var(--fl-foreground); }
-.wordmark-rule { display: flex; align-items: center; gap: 4px; color: var(--fl-brass); }
-.wordmark-rule > span { height: 1px; width: 24px; background: currentColor; }
-.wordmark-rule svg { fill: currentColor; }
+/* Theme-specific artwork: the Night watch or Chart room version of the emblem. */
+.only-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .only-dark { display: block; }
+  :root:not([data-theme='light']) .only-light { display: none; }
+}
+:root[data-theme='dark'] .only-dark { display: block; }
+:root[data-theme='dark'] .only-light { display: none; }
 .sidebar-nav { display: grid; gap: 4px; padding-top: 4px; }
 .sidebar-foot { display: grid; gap: 4px; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--fl-border); }
 .sidebar .fl-nav button {
