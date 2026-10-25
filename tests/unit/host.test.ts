@@ -58,3 +58,72 @@ test('committed dist/ was built from the current sources (run `bun run build`)',
   const { sourceHash } = await import('../../scripts/source-hash');
   expect(read('dist/SOURCE_HASH').trim()).toBe(sourceHash(root));
 });
+
+// ---- Lifecycle (TechStack.md, "Lifecycle rules"). The behaviour itself is exercised on Windows by
+// tests/ps/Lifecycle.Tests.ps1; these keep the pieces wired together on every platform.
+const lifecycle = read('modules/Lifecycle.ps1');
+const csharpBlocks = (text: string) => [...text.matchAll(/Add-Type -TypeDefinition @'([\s\S]*?)'@/g)].map((m) => m[1]);
+
+test('Add-Type C# stays within C# 5 (.NET Framework 4.8.1 compiler)', () => {
+  for (const cs of [...csharpBlocks(lifecycle), ...csharpBlocks(read('modules/LocalHttp.ps1'))]) {
+    expect(cs).not.toMatch(/\?\.|\$"|\bnameof\b|\bout var\b|\)\s*=>/);
+  }
+});
+
+test('presence rule: 20 s heartbeat timeout, 5 s leaving grace, waits for jobs', () => {
+  expect(lifecycle).toContain('HeartbeatTimeout = TimeSpan.FromSeconds(20)');
+  expect(lifecycle).toContain('LeavingGrace = TimeSpan.FromSeconds(5)');
+  expect(lifecycle).toMatch(/if \(!Enabled \|\| !seen \|\| jobs > 0\) return false;/);
+});
+
+test('host wires the heartbeat, End session, runtime file and off switch', () => {
+  expect(host).toContain("modules/Lifecycle.ps1");
+  expect(host).toContain("'/api/heartbeat'");
+  expect(host).toContain("'/api/session/stop'");
+  expect(host).toContain('$server.TryAccept(');
+  expect(host).toContain('Write-OpenTapeRuntimeFile');
+  expect(host).toMatch(/finally \{[\s\S]*Remove-OpenTapeRuntimeFile/);
+  expect(lifecycle).toContain('OPENTAPE_AUTO_STOP');
+  expect(host).toMatch(/'\^--\?stay\$'/);
+  expect(host).toMatch(/'\^--\?replace\$'/);
+  expect(host).toContain('Stop it and start fresh?');
+});
+
+test('session token in a body is accepted on the heartbeat route only, never from the query string', () => {
+  const bodyTokenUses = [...host.matchAll(/Get-OpenTapeBodyText \$body 'session'/g)];
+  expect(bodyTokenUses.length).toBe(1);
+  const heartbeat = host.slice(host.indexOf("if ($path -eq '/api/heartbeat'"), host.indexOf('# Everything below needs'));
+  expect(heartbeat).toContain("Get-OpenTapeBodyText $body 'session'");
+  expect(host).not.toMatch(/QueryString/);
+  // The runtime file is written without the token.
+  expect(lifecycle).not.toContain('$sessionToken');
+  const runtimeFn = lifecycle.slice(lifecycle.indexOf('function Write-OpenTapeRuntimeFile'), lifecycle.indexOf('function Remove-OpenTapeRuntimeFile'));
+  expect(runtimeFn).toContain('pid = $PID; port = $Port; url = $Url; startedAt');
+  expect(runtimeFn.replace(/<#[\s\S]*?#>/, '')).not.toMatch(/token|session/i);
+});
+
+test('Stop-OpenTape.ps1 finds hosts by runtime file and command line', () => {
+  const stop = read('Stop-OpenTape.ps1');
+  expect(stop).toContain('Stop-OpenTapeProcesses');
+  expect(lifecycle).toContain("opentape-server-*.json");
+  expect(lifecycle).toMatch(/CommandLine -match 'Start-OpenTape\\\.ps1'/);
+});
+
+test('build and test server stop a running host first', () => {
+  expect(read('scripts/build.ts')).toContain("stopOpenTape('build')");
+  expect(read('tests/serve.mjs')).toContain("stopOpenTape('serve')");
+});
+
+test('built UI sends the heartbeat and the leaving beacon', () => {
+  const js = read('dist/assets/app.js');
+  expect(js).toContain('/api/heartbeat');
+  expect(js).toContain('sendBeacon');
+  expect(js).toContain('/api/session/stop');
+  expect(js).toContain('End session');
+});
+
+test('PowerShell files are ASCII (Windows PowerShell 5.1 reads BOM-less files as ANSI)', () => {
+  for (const f of ['Start-OpenTape.ps1', 'Stop-OpenTape.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'tests/ps/Lifecycle.Tests.ps1']) {
+    expect(/[^\x00-\x7f]/.test(read(f))).toBe(false);
+  }
+});
