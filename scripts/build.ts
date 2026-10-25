@@ -35,8 +35,14 @@ if (!result.success) {
   process.exit(1);
 }
 
-copyFileSync(join(root, 'src/styles.css'), join(assets, 'app.css'));
-copyFileSync(join(root, 'src/icon.svg'), join(assets, 'icon.svg'));
+// The shared Fleet tokens and components come first so Capstan's own rules build on them. One
+// stylesheet keeps the host's served-file list unchanged.
+const fleetCss = readFileSync(join(root, 'vendor/fleet/fleet.css'), 'utf8');
+writeFileSync(join(assets, 'app.css'), fleetCss + '\n' + readFileSync(join(root, 'src/styles.css'), 'utf8'));
+copyFileSync(join(root, 'assets/brand/mark.svg'), join(assets, 'icon.svg'));
+// The detailed emblem for the sidebar and empty screens, and the favicon / taskbar icon cut from its
+// circle (assets/ui: copies of assets/brand/emblem-*.png with the backdrop made transparent).
+for (const f of ['emblem-dark.png', 'emblem-light.png', 'icon-256.png', 'favicon.ico']) copyFileSync(join(root, 'assets/ui', f), join(assets, f));
 writeFileSync(join(dist, 'index.html'), readFileSync(join(root, 'src/index.html'), 'utf8'));
 writeFileSync(join(dist, 'VERSION'), version + '\n');
 // Lets CI confirm the committed dist/ was built from the committed sources.

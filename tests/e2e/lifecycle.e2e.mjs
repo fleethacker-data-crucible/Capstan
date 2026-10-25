@@ -29,14 +29,14 @@ const page = await context.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(base + '/');
-await page.waitForSelector('.media-bin');
+await page.waitForSelector('.statusbar');
 
 let all = fresh(await waitFor((a) => fresh(a).some((b) => b.tab && !b.leaving)));
 const first = all.find((b) => b.tab && !b.leaving);
 check('page sends a heartbeat on load, with the session header', !!first && first.header, JSON.stringify(first));
 
 await page.reload();
-await page.waitForSelector('.media-bin');
+await page.waitForSelector('.statusbar');
 all = fresh(await waitFor((a) => fresh(a).some((b) => b.tab && b.tab !== first.tab && !b.leaving)));
 const left = all.find((b) => b.tab === first.tab && b.leaving);
 const second = all.find((b) => b.tab && b.tab !== first.tab && !b.leaving);
@@ -46,7 +46,7 @@ check('the reloaded page beats with a new page id', !!second);
 // A second window counts on its own.
 const other = await context.newPage();
 await other.goto(base + '/');
-await other.waitForSelector('.media-bin');
+await other.waitForSelector('.statusbar');
 all = fresh(await waitFor((a) => new Set(fresh(a).filter((b) => b.tab && !b.leaving).map((b) => b.tab)).size >= 3));
 check('a second window has its own page id', new Set(all.filter((b) => b.tab && !b.leaving).map((b) => b.tab)).size >= 3);
 await other.close({ runBeforeUnload: false });

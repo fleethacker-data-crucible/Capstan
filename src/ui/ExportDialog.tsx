@@ -4,6 +4,7 @@ import { projectDuration } from '../engine/project';
 import { bytes, download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
 import { markBusy } from './lifecycle';
+import { useModal } from './shell';
 import type { Editor } from './useEditor';
 
 type Quality = 'standard' | 'high' | 'small';
@@ -67,18 +68,21 @@ export function ExportDialog({ editor, onClose }: { editor: Editor; onClose(): v
   };
 
   const busy = !!progress;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Esc closes only while the close button is shown: never mid-export.
+  useModal(dialogRef, busy ? undefined : onClose);
   const pct = progress ? Math.round(progress.fraction * 100) : 0;
   const elapsed = (performance.now() - started.current) / 1000;
   const eta = progress && progress.fraction > 0.08 ? (elapsed / progress.fraction) * (1 - progress.fraction) : null;
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="export-title">
+      <div ref={dialogRef} tabIndex={-1} className="modal fl-dialog" role="dialog" aria-modal="true" aria-labelledby="export-title">
         <header className="modal-head">
           <h2 id="export-title">Export video</h2>
           {!busy && (
-            <button className="icon-button" onClick={onClose} title="Close">
-              <Icon name="close" size={16} />
+            <button className="icon-button" onClick={onClose} title="Close (Esc)">
+              <Icon name="close" />
             </button>
           )}
         </header>
