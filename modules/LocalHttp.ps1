@@ -1,5 +1,5 @@
 <#
-  Capstan loopback-only HTTP adapter (derived from Lasso). Uses TcpListener instead of HttpListener,
+  Capstan loopback-only HTTP adapter (derived from SnapShackle, formerly Lasso). Uses TcpListener instead of HttpListener,
   so ordinary users do not need a Windows HTTP.sys URL ACL reservation.
   One request per connection, Connection: close, no chunked transfer encoding.
   Body and header limits are enforced before handing requests to the app.
