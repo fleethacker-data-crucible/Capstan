@@ -13,7 +13,7 @@ import { RecordDialog } from './RecordDialog';
 import { Timeline } from './Timeline';
 import { useEditor } from './useEditor';
 
-declare const __OPENTAPE_VERSION__: string;
+declare const __CAPSTAN_VERSION__: string;
 
 const SHORTCUTS: Array<[string, string]> = [
   ['Space', 'Play or pause'],
@@ -41,7 +41,7 @@ export function App() {
   const { project, selection } = editor;
   const duration = projectDuration(project);
 
-  // This window owns the local host: it stops by itself once no OpenTape window is open.
+  // This window owns the local host: it stops by itself once no Capstan window is open.
   const stopHeartbeat = useRef<() => void>(() => {});
   useEffect(() => {
     stopHeartbeat.current = startHeartbeat();
@@ -50,7 +50,7 @@ export function App() {
 
   const quit = async () => {
     const busyNote = isBusy() ? ' An export or recording is still running and will be lost.' : '';
-    if (!window.confirm(`End this OpenTape session? The local server stops; your projects and media stay saved in this browser.${busyNote}`)) return;
+    if (!window.confirm(`End this Capstan session? The local server stops; your projects and media stay saved in this browser.${busyNote}`)) return;
     try {
       await endSession();
       stopHeartbeat.current();
@@ -156,8 +156,8 @@ export function App() {
 
   const saveProjectFile = () => {
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
-    download(blob, `${safeFileName(project.name)}.opentape`);
-    editor.setStatus('Project file saved. Media stays in OpenTape on this computer.');
+    download(blob, `${safeFileName(project.name)}.capstan`);
+    editor.setStatus('Project file saved. Media stays in Capstan on this computer.');
   };
 
   const openProjectFile = async (file: File) => {
@@ -174,7 +174,7 @@ export function App() {
     return (
       <div className="session-ended" role="main">
         <h1>Session ended</h1>
-        <p>OpenTape has stopped. Your projects and media are saved in this browser. You can close this window; run OpenTape.bat to start again.</p>
+        <p>Capstan has stopped. Your projects and media are saved in this browser. You can close this window; run Launch-Capstan.bat to start again.</p>
         <button className="button" onClick={() => window.close()}>
           Close window
         </button>
@@ -185,18 +185,18 @@ export function App() {
   return (
     <div className="app">
       <header className="toolbar">
-        <div className="brand" aria-label="OpenTape">
+        <div className="brand" aria-label="Capstan">
           <svg viewBox="0 0 28 20" width="28" height="20" aria-hidden>
             <rect x="0.75" y="0.75" width="26.5" height="18.5" rx="3" fill="none" stroke="currentColor" strokeWidth="1.5" />
             <circle cx="8.5" cy="9" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
             <circle cx="19.5" cy="9" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
             <path d="M8.5 12.2h11" stroke="currentColor" strokeWidth="1.5" />
           </svg>
-          <span>OpenTape</span>
+          <span>Capstan</span>
         </div>
         <div className="tool-group">
           <button className="icon-button" title="New project" onClick={() => {
-            if (project.clips.length && !window.confirm('Start a new project? The current project and its media will be removed from OpenTape.')) return;
+            if (project.clips.length && !window.confirm('Start a new project? The current project and its media will be removed from Capstan.')) return;
             editor.newProject();
           }}>
             <Icon name="newDoc" />
@@ -210,7 +210,7 @@ export function App() {
           <input
             ref={openInput}
             type="file"
-            accept=".opentape,application/json"
+            accept=".capstan,application/json"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -248,7 +248,7 @@ export function App() {
           Export video
         </button>
         {sessionToken() && (
-          <button className="icon-button labelled end-session" title="End session: stop OpenTape's local server" onClick={() => void quit()}>
+          <button className="icon-button labelled end-session" title="End session: stop Capstan's local server" onClick={() => void quit()}>
             <Icon name="power" />
             <span>End session</span>
           </button>
@@ -310,7 +310,7 @@ export function App() {
 
       <footer className="statusbar">
         <span role="status">{editor.status}</span>
-        <span className="version">OpenTape {__OPENTAPE_VERSION__} · works offline</span>
+        <span className="version">Capstan {__CAPSTAN_VERSION__} · works offline</span>
       </footer>
 
       {dragging && (

@@ -6,7 +6,7 @@ import { timecode } from './format';
 import { Icon } from './icons';
 import type { Editor } from './useEditor';
 
-export const MEDIA_DRAG_TYPE = 'application/x-opentape-media';
+export const MEDIA_DRAG_TYPE = 'application/x-capstan-media';
 const HEADER_WIDTH = 176;
 const RULER_HEIGHT = 28;
 const LANE_HEIGHT = 58;

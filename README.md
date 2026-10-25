@@ -1,35 +1,37 @@
-# OpenTape
+# Capstan
 
 **An open-source, local-first screen recorder and video editor for Windows.** The goal is a full-featured Camtasia alternative that runs on a locked-down work PC: no installer, no administrator rights, no Node or Python on the machine, no network calls. Record your screen, cut it on a multi-track timeline, and export an MP4, all on your own computer.
 
-**Status: v0.1, foundation.** The editor below works end to end and is covered by automated tests. It is not yet feature-complete; [the roadmap](docs/ROADMAP.md) tracks every Camtasia feature and when it lands. The Windows host is adapted from [Lasso](https://github.com/sun-of-anton/lasso)'s tested loopback server, but **this build has not yet been run on a real Windows PC**. Please try it and report back before relying on it.
+The name comes from the capstan: the drum a ship's crew turns to haul in line, and the spinning shaft that pulls tape past the heads in a tape recorder. Capstan was briefly called **OpenTape**; projects saved under that name do not carry over.
 
-![OpenTape editor](docs/editor.png)
+**Status: v0.1, foundation.** The editor below works end to end and is covered by automated tests. It is not yet feature-complete; [the roadmap](docs/ROADMAP.md) tracks every Camtasia feature and when it lands. The Windows host is adapted from [SnapShackle](https://github.com/sun-of-anton/SnapShackle)'s tested loopback server, but **this build has not yet been run on a real Windows PC**. Please try it and report back before relying on it.
+
+![Capstan editor](docs/editor.png)
 
 ## Run it on Windows
 
 1. Download or clone the repository and keep the whole folder together, including `dist/` and `modules/`.
-2. Double-click **`OpenTape.bat`**.
-3. OpenTape opens in a Microsoft Edge app window (or your default browser if Edge is missing). Keep the console window open while you work.
+2. Double-click **`Launch-Capstan.bat`**.
+3. Capstan opens in a Microsoft Edge app window (or your default browser if Edge is missing). Keep the console window open while you work.
 
-**Quitting.** Close the OpenTape window and the local server stops by itself a few seconds later (a reload does not stop it, and with several OpenTape windows open it waits for the last one). It waits while an export or recording is still running in an open window. You can also click **End session** in the toolbar, press Ctrl+C in the console, or run `Stop-OpenTape.ps1`, which finds and stops every running OpenTape without needing a process ID. Starting OpenTape while it is already running asks whether to stop the old one and start fresh.
+**Quitting.** Close the Capstan window and the local server stops by itself a few seconds later (a reload does not stop it, and with several Capstan windows open it waits for the last one). It waits while an export or recording is still running in an open window. You can also click **End session** in the toolbar, press Ctrl+C in the console, or run `Stop-Capstan.ps1`, which finds and stops every running Capstan without needing a process ID. Starting Capstan while it is already running asks whether to stop the old one and start fresh.
 
 Options:
 
 ```bat
-OpenTape.bat -NoBrowser        rem print the address instead of opening a window
-OpenTape.bat -Port 9000        rem preferred port (default 8790); falls back if busy
-OpenTape.bat -DefaultBrowser   rem use the default browser instead of an Edge app window
-OpenTape.bat -Diagnostics      rem check PowerShell, policy, loopback binding and Edge, then exit
-OpenTape.bat --stay            rem keep the server running after the window closes
-OpenTape.bat --replace         rem stop a running OpenTape and start fresh without asking
+Launch-Capstan.bat -NoBrowser        rem print the address instead of opening a window
+Launch-Capstan.bat -Port 9000        rem preferred port (default 8790); falls back if busy
+Launch-Capstan.bat -DefaultBrowser   rem use the default browser instead of an Edge app window
+Launch-Capstan.bat -Diagnostics      rem check PowerShell, policy, loopback binding and Edge, then exit
+Launch-Capstan.bat --stay            rem keep the server running after the window closes
+Launch-Capstan.bat --replace         rem stop a running Capstan and start fresh without asking
 ```
 
-Set `OPENTAPE_AUTO_STOP=0` in the environment to turn off stopping when the window closes, like `--stay`. While it runs, the host writes `logs\opentape-server-<pid>.json` (process ID, port, address and start time, never the session token) so `Stop-OpenTape.ps1` and the launcher can find it; the file is removed when it stops.
+Set `CAPSTAN_AUTO_STOP=0` in the environment to turn off stopping when the window closes, like `--stay`. While it runs, the host writes `logs\capstan-server-<pid>.json` (process ID, port, address and start time, never the session token) so `Stop-Capstan.ps1` and the launcher can find it; the file is removed when it stops.
 
-`OpenTape.bat` starts Windows PowerShell 5.1 with `-ExecutionPolicy Bypass` for **that one process only**. It does not change machine or user policy, elevate privileges, or get around Group Policy, AppLocker, WDAC or endpoint protection. If your organisation blocks it, ask IT for an approved route.
+`Launch-Capstan.bat` starts Windows PowerShell 5.1 with `-ExecutionPolicy Bypass` for **that one process only**. It does not change machine or user policy, elevate privileges, or get around Group Policy, AppLocker, WDAC or endpoint protection. If your organisation blocks it, ask IT for an approved route.
 
-Use a current **Edge or Chrome**: OpenTape needs WebCodecs (video encoding) and screen capture, which they provide.
+Use a current **Edge or Chrome**: Capstan needs WebCodecs (video encoding) and screen capture, which they provide.
 
 ## What works in v0.1
 
@@ -42,12 +44,12 @@ Use a current **Edge or Chrome**: OpenTape needs WebCodecs (video encoding) and 
 | Clip properties | Position, scale, rotation, opacity, volume. Picture-in-picture is just a smaller clip on a higher track. |
 | Playback | Play, pause, frame step, jump to start or end. Press ? for every shortcut. |
 | Undo | Unlimited undo and redo within a session (Ctrl+Z, Ctrl+Y). |
-| Saving | Projects and media autosave inside the browser on this computer and come back when you reopen OpenTape. **Save project file** writes an `.opentape` file of the edit (media stays in OpenTape). |
+| Saving | Projects and media autosave inside the browser on this computer and come back when you reopen Capstan. **Save project file** writes an `.capstan` file of the edit (media stays in Capstan). |
 | Export | MP4 with H.264 video and AAC audio (Opus where the browser cannot encode AAC). Same size as the project, 1080p or 720p, at three quality levels. Frame-accurate: every frame is rendered with the same compositor as the preview. |
 
 ## Known limitations in v0.1
 
-- **Media lives in the browser's storage for this address.** If port 8790 is taken and OpenTape falls back to another port, your earlier projects will not show until it runs on 8790 again (the console says so). Moving the library to files on disk is the first item on the roadmap.
+- **Media lives in the browser's storage for this address.** If port 8790 is taken and Capstan falls back to another port, your earlier projects will not show until it runs on 8790 again (the console says so). Moving the library to files on disk is the first item on the roadmap.
 - Export renders and seeks frame by frame, so it is slower than it will be once the roadmap's WASM demuxer lands, and it holds the finished file in memory, so very long exports need plenty of RAM. Streaming export to disk is on the roadmap.
 - No annotations, transitions, animations, cursor effects, captions or audio effects yet. See [the roadmap](docs/ROADMAP.md).
 - The record button uses the browser's screen-capture picker. Global hotkeys, region capture and cursor data come with the native recorder.
@@ -55,16 +57,16 @@ Use a current **Edge or Chrome**: OpenTape needs WebCodecs (video encoding) and 
 ## Privacy and security
 
 - The host listens on `127.0.0.1` only, checks the `Host`, `Origin` and `Sec-Fetch-Site` headers, serves a fixed allowlist of compiled files, and sends a strict Content-Security-Policy (no inline script, no remote anything).
-- Recording, editing and export happen in the browser. Media is never uploaded; OpenTape makes no network requests.
+- Recording, editing and export happen in the browser. Media is never uploaded; Capstan makes no network requests.
 - This is a single-user local tool. It is not a security boundary against other programs already running as you.
 
 ## Building (maintainers, off the workstation)
 
-The Windows machine only runs the compiled `dist/`. To change OpenTape, build on a development machine:
+The Windows machine only runs the compiled `dist/`. To change Capstan, build on a development machine:
 
 ```sh
 npm install              # React, TypeScript, Playwright (dev only)
-bun run build            # bundles src/ into dist/ (commit dist/ with your change); on Windows it stops a running OpenTape first
+bun run build            # bundles src/ into dist/ (commit dist/ with your change); on Windows it stops a running Capstan first
 npm run typecheck
 bun test tests/unit      # engine, MP4, host and "dist is up to date" checks
 node tests/serve.mjs &   # test server that mirrors the PowerShell host

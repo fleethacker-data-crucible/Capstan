@@ -1,13 +1,13 @@
 // Test-only static server that mirrors the PowerShell host's routing and security headers,
-// so browser tests run on Linux CI. Not shipped; Windows users run Start-OpenTape.ps1.
+// so browser tests run on Linux CI. Not shipped; Windows users run Start-Capstan.ps1.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stopOpenTape } from '../scripts/stop-opentape.mjs';
+import { stopCapstan } from '../scripts/stop-capstan.mjs';
 
-// On Windows a running OpenTape host holds port 8790; stop it first and say so.
-stopOpenTape('serve');
+// On Windows a running Capstan host holds port 8790; stop it first and say so.
+stopCapstan('serve');
 
 const root = resolve(fileURLToPath(import.meta.url), '../..');
 const port = Number(process.argv[2] ?? 8790);
@@ -35,19 +35,19 @@ const server = createServer(async (req, res) => {
   else if (url.pathname === '/harness') file = join(root, 'tests/e2e/harness.html');
   else if (url.pathname === '/harness.js') file = join(root, 'tests/e2e/.build/harness.js');
   else if (url.pathname === '/api/heartbeat' && req.method === 'POST') {
-    // Mirrors the host: token in X-OpenTape-Token, or in the JSON body for this route only (sendBeacon).
+    // Mirrors the host: token in X-Capstan-Token, or in the JSON body for this route only (sendBeacon).
     let raw = '';
     for await (const chunk of req) raw += chunk;
     let body = {};
     try {
       body = JSON.parse(raw || '{}');
     } catch {}
-    const token = req.headers['x-opentape-token'] ?? body.session;
+    const token = req.headers['x-capstan-token'] ?? body.session;
     if (token !== 'test-token') {
       res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Invalid session' }));
       return;
     }
-    heartbeats.push({ tab: body.tab, leaving: !!body.leaving, busy: !!body.busy, hidden: !!body.hidden, header: !!req.headers['x-opentape-token'] });
+    heartbeats.push({ tab: body.tab, leaving: !!body.leaving, busy: !!body.busy, hidden: !!body.hidden, header: !!req.headers['x-capstan-token'] });
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, autoStop: false }));
     return;
   } else if (url.pathname === '/api/test/heartbeats') {
@@ -56,13 +56,13 @@ const server = createServer(async (req, res) => {
     return;
   } else if (url.pathname === '/api/session/stop' && req.method === 'POST') {
     // The test server keeps running so later suites still work; it only records the request.
-    const ok = req.headers['x-opentape-token'] === 'test-token';
+    const ok = req.headers['x-capstan-token'] === 'test-token';
     if (ok) heartbeats.push({ stop: true });
     res.writeHead(ok ? 200 : 403, { 'content-type': 'application/json' }).end(JSON.stringify(ok ? { ok: true, stopping: true } : { error: 'Invalid session' }));
     return;
   } else if (url.pathname === '/api/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ app: 'OpenTape', host: 'test-server', offline: true }));
+    res.end(JSON.stringify({ app: 'Capstan', host: 'test-server', offline: true }));
     return;
   }
   if (!file || !file.startsWith(root)) {

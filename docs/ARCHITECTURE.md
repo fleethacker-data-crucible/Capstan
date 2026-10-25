@@ -1,11 +1,11 @@
-# OpenTape architecture
+# Capstan architecture
 
 ```
-OpenTape.bat ──► Start-OpenTape.ps1 (PowerShell 5.1)
+Launch-Capstan.bat ──► Start-Capstan.ps1 (PowerShell 5.1)
                   └─ modules/LocalHttp.ps1  TcpListener on 127.0.0.1, port fallback
                        serves dist/ (allowlist) + /api/health, /api/heartbeat,
                        /api/session/stop (session token)
-                  └─ modules/Lifecycle.ps1  presence rule, runtime file, Stop-OpenTape.ps1
+                  └─ modules/Lifecycle.ps1  presence rule, runtime file, Stop-Capstan.ps1
                                 │
                                 ▼
                  Edge app window: dist/assets/app.js (React 19)
@@ -44,13 +44,13 @@ OpenTape.bat ──► Start-OpenTape.ps1 (PowerShell 5.1)
 
 ## Storage
 
-IndexedDB database `opentape`: store `media` (Blob per media id), `projects` (project JSON by id) and `meta` (`lastProjectId`). The project autosaves 400 ms after each change. Because browser storage is per origin and the origin includes the port, the 0.2 release moves the library to files on disk through the host.
+IndexedDB database `capstan`: store `media` (Blob per media id), `projects` (project JSON by id) and `meta` (`lastProjectId`). The project autosaves 400 ms after each change. Because browser storage is per origin and the origin includes the port, the 0.2 release moves the library to files on disk through the host.
 
 ## Lifecycle
 
-The window owns the host (TechStack.md, "Lifecycle rules"). `src/ui/lifecycle.ts` sends `POST /api/heartbeat` every 5 s with a per-page id, and a `navigator.sendBeacon` leaving signal on `pagehide`. The beacon cannot set headers, so that one route also accepts the session token in the JSON body. The host loop wakes at least once a second (`TryAccept(1000)`) and asks `OpenTape.Lifecycle.Presence` whether any page is alive: a page is gone 20 s after its last heartbeat, or 5 s after its leaving signal with no new heartbeat. A reload is a new page that beats at once, so it never stops the host. Export and recording run in the page, so while they run the heartbeat says `busy` (and a minimised window says `hidden`); such a page gets 90 s before a missing heartbeat counts, because browsers throttle timers in hidden windows. Host-side jobs (`BeginJob`/`EndJob`, for the on-disk library planned in v0.2) also hold the stop. Requests are handled one at a time on the loop thread, so a stop never cuts one off.
+The window owns the host (TechStack.md, "Lifecycle rules"). `src/ui/lifecycle.ts` sends `POST /api/heartbeat` every 5 s with a per-page id, and a `navigator.sendBeacon` leaving signal on `pagehide`. The beacon cannot set headers, so that one route also accepts the session token in the JSON body. The host loop wakes at least once a second (`TryAccept(1000)`) and asks `Capstan.Lifecycle.Presence` whether any page is alive: a page is gone 20 s after its last heartbeat, or 5 s after its leaving signal with no new heartbeat. A reload is a new page that beats at once, so it never stops the host. Export and recording run in the page, so while they run the heartbeat says `busy` (and a minimised window says `hidden`); such a page gets 90 s before a missing heartbeat counts, because browsers throttle timers in hidden windows. Host-side jobs (`BeginJob`/`EndJob`, for the on-disk library planned in v0.2) also hold the stop. Requests are handled one at a time on the loop thread, so a stop never cuts one off.
 
-The host writes `logs\opentape-server-<pid>.json` and deletes it in a `finally` (Ctrl+C included). `Stop-OpenTape.ps1` reads these, removes stale ones, and also scans for PowerShell processes running `Start-OpenTape.ps1`. The launcher uses the same lookup to offer *stop it and start fresh?*; `--replace` answers yes and `--stay` (or `OPENTAPE_AUTO_STOP=0`) turns auto-stop off. `bun run build` and `tests/serve.mjs` call `Stop-OpenTape.ps1` on Windows before they start.
+The host writes `logs\capstan-server-<pid>.json` and deletes it in a `finally` (Ctrl+C included). `Stop-Capstan.ps1` reads these, removes stale ones, and also scans for PowerShell processes running `Start-Capstan.ps1`. The launcher uses the same lookup to offer *stop it and start fresh?*; `--replace` answers yes and `--stay` (or `CAPSTAN_AUTO_STOP=0`) turns auto-stop off. `bun run build` and `tests/serve.mjs` call `Stop-Capstan.ps1` on Windows before they start.
 
 ## Security
 
@@ -66,6 +66,6 @@ The host writes `logs\opentape-server-<pid>.json` and deletes it in a `finally` 
 | `tests/e2e/editor.e2e.mjs` | Headless Chromium | Import, drag to timeline, move with snapping, split, undo/redo, trim, inspector, playback, reload persistence, export from the dialog |
 | `tests/e2e/record.e2e.mjs` | Headless Chromium, fake capture devices | Record, pause/resume, stop; recording lands in the bin and timeline with the pause excluded |
 | `tests/e2e/lifecycle.e2e.mjs` | Headless Chromium | Heartbeat with the session header, leaving beacon with the token in the body, new page id after reload, one id per window, End session |
-| `tests/ps/Lifecycle.Tests.ps1` | Windows PowerShell 5.1 (CI `windows-host` job) | Presence rule with simulated time (timeouts, reload, two windows, jobs, busy/hidden, off switch); real host: runtime file without token, heartbeat auth, self-stop after the beacon, End session, `Stop-OpenTape.ps1` |
+| `tests/ps/Lifecycle.Tests.ps1` | Windows PowerShell 5.1 (CI `windows-host` job) | Presence rule with simulated time (timeouts, reload, two windows, jobs, busy/hidden, off switch); real host: runtime file without token, heartbeat auth, self-stop after the beacon, End session, `Stop-Capstan.ps1` |
 
-PowerShell runs in CI only for the lifecycle job above. `tests/serve.mjs` mirrors the host's routing and headers; the real host still needs a Windows run (`OpenTape.bat -Diagnostics`, then a normal launch).
+PowerShell runs in CI only for the lifecycle job above. `tests/serve.mjs` mirrors the host's routing and headers; the real host still needs a Windows run (`Launch-Capstan.bat -Diagnostics`, then a normal launch).
