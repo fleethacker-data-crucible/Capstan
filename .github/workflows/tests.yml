@@ -1,0 +1,40 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install build tools
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Type-check (engine and UI)
+        run: npx tsc -p tsconfig.json
+      - name: Unit and host checks (includes "dist/ is up to date")
+        run: bun test tests/unit
+      - name: Browser tests against the committed dist/
+        run: |
+          node tests/serve.mjs 8790 &
+          sleep 1
+          npm run test:e2e
+      - name: Keep screenshots and exported files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-output
+          path: tests/e2e/.out/
+          if-no-files-found: ignore
