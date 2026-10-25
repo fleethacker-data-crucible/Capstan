@@ -1,5 +1,5 @@
 <#
- OpenTape local host. Windows PowerShell 5.1, no elevated privileges, installers, services
+ Capstan local host. Windows PowerShell 5.1, no elevated privileges, installers, services
  or network access. Serves the prebuilt editor in dist/ on 127.0.0.1 only. Editing,
  recording and export all run inside the browser; media never leaves this computer.
 #>
@@ -14,12 +14,12 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSEdition -eq 'Core' -and -not $IsWindows) {
-    throw 'OpenTape requires Windows. On other systems, see tests/serve.mjs for the development server.'
+    throw 'Capstan requires Windows. On other systems, see tests/serve.mjs for the development server.'
 }
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dist = Join-Path $root 'dist'
 . (Join-Path $root 'modules/LocalHttp.ps1')
-$OpenTapeVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
+$CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
 # Only these compiled files are ever served. Anything else is a 404.
 $StaticFiles = @{
@@ -30,11 +30,11 @@ $StaticFiles = @{
 }
 foreach ($entry in $StaticFiles.Values) {
     if (-not (Test-Path -LiteralPath (Join-Path $dist $entry.File))) {
-        throw ("OpenTape is incomplete: dist/" + $entry.File + " is missing. Extract the whole release archive, including the dist folder.")
+        throw ("Capstan is incomplete: dist/" + $entry.File + " is missing. Extract the whole release archive, including the dist folder.")
     }
 }
 
-function Find-OpenTapeEdge {
+function Find-CapstanEdge {
     $candidates = @()
     foreach ($dir in @(${env:ProgramFiles(x86)}, $env:ProgramFiles, $env:LOCALAPPDATA)) {
         if ($dir) { $candidates += (Join-Path $dir 'Microsoft\Edge\Application\msedge.exe') }
@@ -44,15 +44,15 @@ function Find-OpenTapeEdge {
 }
 
 if ($Diagnostics) {
-    Write-Host ('OpenTape ' + $OpenTapeVersion + ' launcher and host diagnostics') -ForegroundColor Cyan
+    Write-Host ('Capstan ' + $CapstanVersion + ' launcher and host diagnostics') -ForegroundColor Cyan
     Write-Host ('PowerShell: ' + $PSVersionTable.PSVersion.ToString())
     Write-Host ('Process policy: ' + (Get-ExecutionPolicy -Scope Process))
     Write-Host ('Effective policy: ' + (Get-ExecutionPolicy))
     Write-Host 'Machine policy and application-control rules remain in force.'
-    $testServer = [OpenTape.Transport.Server]::new($Port,$PortScanCount)
+    $testServer = [Capstan.Transport.Server]::new($Port,$PortScanCount)
     try { Write-Host ('Loopback socket bind: PASS (http://127.0.0.1:' + $testServer.Port + '/)') }
     finally { $testServer.Dispose() }
-    $edge = Find-OpenTapeEdge
+    $edge = Find-CapstanEdge
     Write-Host ('Microsoft Edge: ' + $(if ($edge) { $edge } else { 'not found (the default browser will be used)' }))
     Write-Host 'Diagnostics passed. No long-running server was started.' -ForegroundColor Green
     return
@@ -61,13 +61,13 @@ if ($Diagnostics) {
 $sessionToken = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
 # Bind directly to 127.0.0.1: no HttpListener URL ACL and no admin rights. The socket is held
 # from selection through shutdown, so there is no free-port check/bind race.
-$server = [OpenTape.Transport.Server]::new($Port,$PortScanCount)
+$server = [Capstan.Transport.Server]::new($Port,$PortScanCount)
 $requestedPort = $Port
 $Port = $server.Port
 if ($requestedPort -ne $Port) {
     Write-Host ("Preferred port $requestedPort is unavailable; using free loopback port $Port instead.") -ForegroundColor Yellow
-    # The browser keeps OpenTape's media and projects per address, and the port is part of it.
-    Write-Host ("Projects saved while OpenTape ran on port $requestedPort will not show up on this port. Close whatever uses port $requestedPort and start OpenTape again to get them back.") -ForegroundColor Yellow
+    # The browser keeps Capstan's media and projects per address, and the port is part of it.
+    Write-Host ("Projects saved while Capstan ran on port $requestedPort will not show up on this port. Close whatever uses port $requestedPort and start Capstan again to get them back.") -ForegroundColor Yellow
 }
 
 $ContentSecurityPolicy = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
@@ -92,7 +92,7 @@ function Send-Json($Context, $Payload, [int]$Status=200) {
     Send-Response $Context ([Text.Encoding]::UTF8.GetBytes($text)) 'application/json; charset=utf-8' $Status
 }
 
-function Invoke-OpenTapeRequest($Context) {
+function Invoke-CapstanRequest($Context) {
     $request=$Context.Request; $path=$request.Url.AbsolutePath; $method=$request.HttpMethod
     if (-not [Net.IPAddress]::IsLoopback($request.RemoteEndPoint.Address)) { Send-Json $Context @{error='Local clients only'} 403;return }
     if ($request.Url.Host -ne '127.0.0.1' -or $request.Url.Port -ne $Port) { Send-Json $Context @{error='Invalid host'} 403;return }
@@ -115,20 +115,20 @@ function Invoke-OpenTapeRequest($Context) {
     if ($path -eq '/favicon.ico') { Send-Response $Context ([byte[]]@()) 'image/x-icon' 404; return }
 
     # Everything below needs the per-launch session token from index.html.
-    if ($request.Headers['X-OpenTape-Token'] -ne $sessionToken) { Send-Json $Context @{error='Invalid session'} 403;return }
+    if ($request.Headers['X-Capstan-Token'] -ne $sessionToken) { Send-Json $Context @{error='Invalid session'} 403;return }
     if ($path -eq '/api/health' -and $method -eq 'GET') {
-        Send-Json $Context @{app='OpenTape';version=$OpenTapeVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()};return
+        Send-Json $Context @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()};return
     }
     Send-Json $Context @{error='Route not found'} 404
 }
 
 $base="http://127.0.0.1:$Port/"
-Write-Host "OpenTape $OpenTapeVersion local server: $base" -ForegroundColor Yellow
+Write-Host "Capstan $CapstanVersion local server: $base" -ForegroundColor Yellow
 Write-Host 'Your media and projects stay in this browser profile on this computer.'
-Write-Host 'Press Ctrl+C in this console to stop OpenTape.'
+Write-Host 'Press Ctrl+C in this console to stop Capstan.'
 if (-not $NoBrowser) {
     try {
-        $edge = if ($DefaultBrowser) { $null } else { Find-OpenTapeEdge }
+        $edge = if ($DefaultBrowser) { $null } else { Find-CapstanEdge }
         # An Edge app window has no tabs or address bar, so the editor feels like a desktop app.
         if ($edge) { Start-Process -FilePath $edge -ArgumentList @("--app=$base") }
         else { Start-Process $base }
@@ -141,7 +141,7 @@ try {
         $context=$null
         try {
             $context=$server.Accept()
-            Invoke-OpenTapeRequest $context
+            Invoke-CapstanRequest $context
         } catch [System.IO.InvalidDataException] {
             Write-Warning ('Rejected malformed local HTTP request: ' + $_.Exception.Message)
         } catch {

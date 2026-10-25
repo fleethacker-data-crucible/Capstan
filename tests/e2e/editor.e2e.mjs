@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 
-const base = process.env.OPENTAPE_URL ?? 'http://127.0.0.1:8790';
+const base = process.env.CAPSTAN_URL ?? 'http://127.0.0.1:8790';
 const out = 'tests/e2e/.out';
 mkdirSync(out, { recursive: true });
 

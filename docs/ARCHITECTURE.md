@@ -1,7 +1,7 @@
-# OpenTape architecture
+# Capstan architecture
 
 ```
-OpenTape.bat ──► Start-OpenTape.ps1 (PowerShell 5.1)
+Capstan.bat ──► Start-Capstan.ps1 (PowerShell 5.1)
                   └─ modules/LocalHttp.ps1  TcpListener on 127.0.0.1, port fallback
                        serves dist/ (allowlist) + /api/health (session token)
                                 │
@@ -42,7 +42,7 @@ OpenTape.bat ──► Start-OpenTape.ps1 (PowerShell 5.1)
 
 ## Storage
 
-IndexedDB database `opentape`: store `media` (Blob per media id), `projects` (project JSON by id) and `meta` (`lastProjectId`). The project autosaves 400 ms after each change. Because browser storage is per origin and the origin includes the port, the 0.2 release moves the library to files on disk through the host.
+IndexedDB database `capstan`: store `media` (Blob per media id), `projects` (project JSON by id) and `meta` (`lastProjectId`). The project autosaves 400 ms after each change. Because browser storage is per origin and the origin includes the port, the 0.2 release moves the library to files on disk through the host.
 
 ## Security
 
@@ -58,4 +58,4 @@ IndexedDB database `opentape`: store `media` (Blob per media id), `projects` (pr
 | `tests/e2e/editor.e2e.mjs` | Headless Chromium | Import, drag to timeline, move with snapping, split, undo/redo, trim, inspector, playback, reload persistence, export from the dialog |
 | `tests/e2e/record.e2e.mjs` | Headless Chromium, fake capture devices | Record, pause/resume, stop; recording lands in the bin and timeline with the pause excluded |
 
-PowerShell itself does not run in CI (Linux). `tests/serve.mjs` mirrors the host's routing and headers; the real host still needs a Windows run (`OpenTape.bat -Diagnostics`, then a normal launch).
+PowerShell itself does not run in CI (Linux). `tests/serve.mjs` mirrors the host's routing and headers; the real host still needs a Windows run (`Capstan.bat -Diagnostics`, then a normal launch).

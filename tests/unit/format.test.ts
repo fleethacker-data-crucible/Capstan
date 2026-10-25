@@ -11,5 +11,5 @@ test('timecode rounds float error to the nearest frame', () => {
 
 test('file names are made safe for Windows', () => {
   expect(safeFileName('a/b:c*?"<>|d')).toBe('a b c d');
-  expect(safeFileName('   ')).toBe('OpenTape export');
+  expect(safeFileName('   ')).toBe('Capstan export');
 });

@@ -23,9 +23,9 @@ Local web apps: PowerShell 5.1 serves a browser UI on `127.0.0.1` (Edge/Chrome).
 - Bundle all deps — no CDNs or runtime network calls
 - No admin, installers, or services on the workstation
 
-## OpenTape: how it applies
+## Capstan: how it applies
 
-| Area | OpenTape choice | Why |
+| Area | Capstan choice | Why |
 | --- | --- | --- |
 | UI framework | React 19 + TypeScript, bundled with Bun into `dist/` | Panels, dialogs and the timeline are React; shares the stack with Lasso and ARC |
 | Rendering engine | Framework-free TypeScript (`src/engine/`) on Canvas 2D | One compositor draws both the preview and every exported frame. React never runs per frame. |
@@ -33,7 +33,7 @@ Local web apps: PowerShell 5.1 serves a browser UI on `127.0.0.1` (Edge/Chrome).
 | MP4 container | Own muxer (`src/engine/mp4/muxer.ts`) | WebCodecs only produces encoded frames; the muxer writes standards-compliant MP4 (validated with ffprobe in CI) |
 | Audio mix | Web Audio `OfflineAudioContext` | Sample-accurate mixdown of every clip with its volume |
 | Recording | `getDisplayMedia` + `MediaRecorder` | Browser permission prompt, no native hooks needed for v0.1. Native cursor/hotkey capture (C# via `Add-Type`) comes later, as in Lasso. |
-| Storage | IndexedDB: media as Blobs, projects as JSON | Per the stack. **Planned exception (v0.2):** media library as files under `%LOCALAPPDATA%\OpenTape`, like Lasso's captures, so recordings survive browser resets and port changes. |
+| Storage | IndexedDB: media as Blobs, projects as JSON | Per the stack. **Planned exception (v0.2):** media library as files under `%LOCALAPPDATA%\Capstan`, like Lasso's captures, so recordings survive browser resets and port changes. |
 | CSP | `script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; media-src 'self' blob:` | WASM and workers are ready for the Rust compute phase; `blob:` media lets the editor play local files |
 | Native | Edge `--app` window when Edge is present | Feels like a desktop app without installing one |
 
