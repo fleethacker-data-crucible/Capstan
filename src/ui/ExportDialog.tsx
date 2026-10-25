@@ -3,6 +3,7 @@ import { type ExportProgress, type ExportResult, defaultExportOptions, exportMp4
 import { projectDuration } from '../engine/project';
 import { bytes, download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
+import { markBusy } from './lifecycle';
 import type { Editor } from './useEditor';
 
 type Quality = 'standard' | 'high' | 'small';
@@ -42,6 +43,8 @@ export function ExportDialog({ editor, onClose }: { editor: Editor; onClose(): v
     const controller = new AbortController();
     abort.current = controller;
     started.current = performance.now();
+    // Export renders in this page; tell the host so it never gives up on this window mid-export.
+    const release = markBusy();
     try {
       const r = await exportMp4(
         project,
@@ -57,6 +60,7 @@ export function ExportDialog({ editor, onClose }: { editor: Editor; onClose(): v
       const err = e as Error;
       setError(err.name === 'AbortError' ? 'Export cancelled.' : err.message);
     } finally {
+      release();
       abort.current = null;
       setProgress(null);
     }
