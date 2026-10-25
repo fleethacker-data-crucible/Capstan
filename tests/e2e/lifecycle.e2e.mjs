@@ -3,7 +3,7 @@
 // Usage: node tests/e2e/lifecycle.e2e.mjs   (expects tests/serve.mjs on port 8790)
 import { chromium } from 'playwright';
 
-const base = process.env.OPENTAPE_URL ?? 'http://127.0.0.1:8790';
+const base = process.env.CAPSTAN_URL ?? 'http://127.0.0.1:8790';
 let failures = 0;
 const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail !== '' ? '  ' + detail : ''}`);

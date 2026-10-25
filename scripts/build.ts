@@ -3,7 +3,7 @@
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { sourceHash } from './source-hash';
-import { stopOpenTape } from './stop-opentape.mjs';
+import { stopCapstan } from './stop-capstan.mjs';
 
 const root = resolve(import.meta.dir, '..');
 const dist = join(root, 'dist');
@@ -12,7 +12,7 @@ const version = readFileSync(join(root, 'VERSION'), 'utf8').trim();
 const dev = process.argv.includes('--dev');
 
 // A running host would keep serving the old dist/ from memory-mapped files; stop it first.
-stopOpenTape('build');
+stopCapstan('build');
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(assets, { recursive: true });
@@ -26,7 +26,7 @@ const result = await Bun.build({
   minify: !dev,
   sourcemap: dev ? 'inline' : 'none',
   define: {
-    __OPENTAPE_VERSION__: JSON.stringify(version),
+    __CAPSTAN_VERSION__: JSON.stringify(version),
     'process.env.NODE_ENV': JSON.stringify(dev ? 'development' : 'production'),
   },
 });
@@ -43,4 +43,4 @@ writeFileSync(join(dist, 'VERSION'), version + '\n');
 writeFileSync(join(dist, 'SOURCE_HASH'), sourceHash(root) + '\n');
 
 const size = (f: string) => `${(Bun.file(join(assets, f)).size / 1024).toFixed(0)} KB`;
-console.log(`OpenTape ${version} built: app.js ${size('app.js')}, app.css ${size('app.css')}`);
+console.log(`Capstan ${version} built: app.js ${size('app.js')}, app.css ${size('app.css')}`);
