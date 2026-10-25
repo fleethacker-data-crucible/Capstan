@@ -12,7 +12,13 @@ function walk(dir: string): string[] {
 }
 
 export function sourceHash(root: string): string {
-  const files = [...walk(join(root, 'src')), join(root, 'VERSION'), join(root, 'scripts/build.ts')].sort();
+  const files = [
+    ...walk(join(root, 'src')),
+    join(root, 'VERSION'),
+    join(root, 'scripts/build.ts'),
+    join(root, 'vendor/fleet/fleet.css'),
+    join(root, 'assets/brand/mark.svg'),
+  ].sort();
   const h = createHash('sha256');
   for (const f of files) {
     h.update(relative(root, f).replaceAll('\\', '/') + '\0');
