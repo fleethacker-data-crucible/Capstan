@@ -5,6 +5,7 @@ import { ScreenRecorder } from '../engine/recorder';
 import { timecode } from './format';
 import { Icon } from './icons';
 import { markBusy } from './lifecycle';
+import { useModal } from './shell';
 import type { Editor } from './useEditor';
 
 export function RecordDialog({ editor, onClose }: { editor: Editor; onClose(): void }) {
@@ -15,6 +16,9 @@ export function RecordDialog({ editor, onClose }: { editor: Editor; onClose(): v
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState('');
   const recorder = useRef<ScreenRecorder | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Esc closes only while the close button is shown: never mid-recording.
+  useModal(dialogRef, state === 'setup' ? onClose : undefined);
 
   useEffect(() => {
     if (state !== 'recording') return;
@@ -69,12 +73,12 @@ export function RecordDialog({ editor, onClose }: { editor: Editor; onClose(): v
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="record-title">
+      <div ref={dialogRef} tabIndex={-1} className="modal fl-dialog" role="dialog" aria-modal="true" aria-labelledby="record-title">
         <header className="modal-head">
           <h2 id="record-title">Record screen</h2>
           {state === 'setup' && (
-            <button className="icon-button" onClick={onClose} title="Close">
-              <Icon name="close" size={16} />
+            <button className="icon-button" onClick={onClose} title="Close (Esc)">
+              <Icon name="close" />
             </button>
           )}
         </header>
