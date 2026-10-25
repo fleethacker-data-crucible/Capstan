@@ -59,6 +59,10 @@ h2 { font-size: 13px; font-weight: 600; margin: 0; }
 .brand svg { color: var(--amber); }
 .tool-group { display: flex; gap: 2px; padding-left: 10px; border-left: 1px solid var(--line-soft); }
 .project-title { flex: 1; text-align: center; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 12px; }
+.end-session { margin-left: 2px; }
+.session-ended { max-width: 60ch; margin: 18vh auto 0; padding: 0 24px; color: var(--text-dim); line-height: 1.55; }
+.session-ended h1 { color: var(--text); font-size: 20px; margin: 0 0 10px; }
+.session-ended p { margin: 0 0 18px; }
 .kbd-hint { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 1px solid var(--text-faint); border-radius: 50%; font-size: 11px; font-weight: 600; }
 
 .icon-button {

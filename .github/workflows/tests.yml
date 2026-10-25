@@ -38,3 +38,14 @@ jobs:
           name: e2e-output
           path: tests/e2e/.out/
           if-no-files-found: ignore
+
+  windows-host:
+    # The real PowerShell 5.1 host: lifecycle rule with simulated time, then a live host that must
+    # write its runtime file, accept the heartbeat and leaving beacon, and stop itself.
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host lifecycle (Windows PowerShell 5.1)
+        shell: powershell
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1

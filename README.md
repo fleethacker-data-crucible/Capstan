@@ -10,7 +10,9 @@
 
 1. Download or clone the repository and keep the whole folder together, including `dist/` and `modules/`.
 2. Double-click **`OpenTape.bat`**.
-3. OpenTape opens in a Microsoft Edge app window (or your default browser if Edge is missing). Keep the console window open while you work; press Ctrl+C there to quit.
+3. OpenTape opens in a Microsoft Edge app window (or your default browser if Edge is missing). Keep the console window open while you work.
+
+**Quitting.** Close the OpenTape window and the local server stops by itself a few seconds later (a reload does not stop it, and with several OpenTape windows open it waits for the last one). It waits while an export or recording is still running in an open window. You can also click **End session** in the toolbar, press Ctrl+C in the console, or run `Stop-OpenTape.ps1`, which finds and stops every running OpenTape without needing a process ID. Starting OpenTape while it is already running asks whether to stop the old one and start fresh.
 
 Options:
 
@@ -19,7 +21,11 @@ OpenTape.bat -NoBrowser        rem print the address instead of opening a window
 OpenTape.bat -Port 9000        rem preferred port (default 8790); falls back if busy
 OpenTape.bat -DefaultBrowser   rem use the default browser instead of an Edge app window
 OpenTape.bat -Diagnostics      rem check PowerShell, policy, loopback binding and Edge, then exit
+OpenTape.bat --stay            rem keep the server running after the window closes
+OpenTape.bat --replace         rem stop a running OpenTape and start fresh without asking
 ```
+
+Set `OPENTAPE_AUTO_STOP=0` in the environment to turn off stopping when the window closes, like `--stay`. While it runs, the host writes `logs\opentape-server-<pid>.json` (process ID, port, address and start time, never the session token) so `Stop-OpenTape.ps1` and the launcher can find it; the file is removed when it stops.
 
 `OpenTape.bat` starts Windows PowerShell 5.1 with `-ExecutionPolicy Bypass` for **that one process only**. It does not change machine or user policy, elevate privileges, or get around Group Policy, AppLocker, WDAC or endpoint protection. If your organisation blocks it, ask IT for an approved route.
 
@@ -58,12 +64,14 @@ The Windows machine only runs the compiled `dist/`. To change OpenTape, build on
 
 ```sh
 npm install              # React, TypeScript, Playwright (dev only)
-bun run build            # bundles src/ into dist/ (commit dist/ with your change)
+bun run build            # bundles src/ into dist/ (commit dist/ with your change); on Windows it stops a running OpenTape first
 npm run typecheck
 bun test tests/unit      # engine, MP4, host and "dist is up to date" checks
 node tests/serve.mjs &   # test server that mirrors the PowerShell host
 npm run test:e2e         # headless Chromium: export validated with ffprobe, editor driven end to end
 ```
+
+On Windows, `powershell -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1` checks the real host's lifecycle (CI runs it on `windows-latest`).
 
 See [TechStack.md](TechStack.md) for how the shared stack applies and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit.
 
