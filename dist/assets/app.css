@@ -189,6 +189,18 @@ h2 { font-size: var(--fl-text-section); font-weight: 600; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tool-group { display: flex; gap: 4px; padding-left: 12px; border-left: 1px solid var(--fl-border); }
+/* Welcome: the landing view of an empty project. Takes the workspace, transport and timeline rows. */
+.welcome {
+  grid-row: 2 / -1; min-height: 0; overflow-y: auto;
+  align-content: center; padding: 24px; background: var(--fl-background); color: var(--fl-muted-foreground);
+}
+.welcome .welcome-emblem { width: clamp(200px, 42vh, 380px); height: auto; }
+.welcome h2 { margin: 0; color: var(--fl-foreground); }
+.welcome p { margin: 0; max-width: 56ch; font-size: var(--fl-text-body); }
+.welcome-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 8px; }
+.welcome-actions .button { height: 36px; padding: 0 16px; }
+.welcome-skip { min-height: 32px; padding: 0 12px; border: 0; background: transparent; color: var(--fl-accent); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.welcome-hint { font-size: var(--fl-text-caption); }
 .session-ended { max-width: 60ch; margin: 18vh auto 0; padding: 0 24px; color: var(--fl-muted-foreground); }
 .session-ended p { margin: 0 0 8px; }
 
