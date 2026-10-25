@@ -124,7 +124,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Streaming export straight to a file | Fragmented MP4 written through the host, flat memory use | 0.2 | ⬜ |
 | Fast export (decode with WebCodecs, not seeking) | Rust → WASM MP4/WebM demuxer feeding `VideoDecoder` | 0.2 | ⬜ |
 | Export part of the timeline, single frame as PNG | Range selection | 0.4 | ⬜ |
-| Animated GIF | Port SnapShackle's GIF encoder / `lasso-core` quantiser | 1.0 | ⬜ |
+| Animated GIF | Port SnapShackle's GIF encoder and quantiser | 1.0 | ⬜ |
 | Audio-only (M4A / WAV) | Muxer audio-only path | 1.0 | ⬜ |
 | Presets and batch export | Saved option sets, queue | 1.0 | ⬜ |
 | Interactive player (quizzes, hotspots, TOC) | Static HTML player bundle | 1.x | ⬜ |

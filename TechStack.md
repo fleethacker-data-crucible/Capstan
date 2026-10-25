@@ -40,5 +40,5 @@ Local web apps: PowerShell 5.1 serves a browser UI on `127.0.0.1` (Edge/Chrome).
 ### Current deviations (to close)
 
 - **Styling is plain CSS with design tokens, not Tailwind 4 + Radix yet.** The first build was made in an environment without package-registry access. Move to Tailwind/Radix once the build runs where `npm install` works (CI already installs packages).
-- **No Rust → WASM yet.** Planned for the heavy lifting the browser cannot do natively: MP4/WebM demuxing for fast export, noise removal, waveform analysis and GIF quantisation (shared with SnapShackle's `lasso-core`).
+- **No Rust → WASM yet.** Planned for the heavy lifting the browser cannot do natively: MP4/WebM demuxing for fast export, noise removal, waveform analysis and GIF quantisation (potentially shared with SnapShackle's GIF code).
 - **Bundler is Bun.** It is only used off the workstation to produce `dist/`; nothing about it ships.
