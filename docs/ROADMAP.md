@@ -1,6 +1,6 @@
-# OpenTape roadmap
+# Capstan roadmap
 
-OpenTape aims to cover the full range of screen recording and video editing, within the stack rules in [TechStack.md](../TechStack.md): no installer, no admin rights, no network, compiled JS/CSS/WASM only. This page lists each feature area, how OpenTape will build it, and the release it is planned for.
+Capstan aims to cover the full range of screen recording and video editing, within the stack rules in [TechStack.md](../TechStack.md): no installer, no admin rights, no network, compiled JS/CSS/WASM only. This page lists each feature area, how Capstan will build it, and the release it is planned for.
 
 **Status key:** ✅ done · 🟡 partial · ⬜ planned
 
@@ -11,8 +11,8 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Release | Theme | Headline |
 | --- | --- | --- |
 | **0.1** ✅ | Foundation | Record, import, multi-track timeline, trim/split/move, transform, undo, autosave, MP4 export |
-| **0.2** | Durable library | Media and projects as files under `%LOCALAPPDATA%\OpenTape`; streaming export to disk; fast export via WASM demux; waveforms and filmstrips |
-| **0.3** | Recorder | Native recorder with hotkeys and tray (from Lasso), region/window capture, webcam track, cursor data, countdown |
+| **0.2** | Durable library | Media and projects as files under `%LOCALAPPDATA%\Capstan`; streaming export to disk; fast export via WASM demux; waveforms and filmstrips |
+| **0.3** | Recorder | Native recorder with hotkeys and tray (from SnapShackle), region/window capture, webcam track, cursor data, countdown |
 | **0.4** | Annotations | Callouts, text, shapes, arrows, highlight, blur/pixelate, keystroke callouts |
 | **0.5** | Animation | Keyframes, zoom-n-pan, transitions, behaviors, easing |
 | **0.6** | Cursor effects | Smoothing, highlight, click effects, magnify, spotlight, hide/replace cursor |
@@ -31,8 +31,8 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Screen, window, tab recording | `getDisplayMedia` + `MediaRecorder` | 0.1 | ✅ |
 | Microphone and system audio, mixed | Web Audio mix into one track | 0.1 | ✅ |
 | Pause / resume | `MediaRecorder.pause()` | 0.1 | ✅ |
-| Global hotkeys, tray, studio not in the shot | Port Lasso's `RegisterHotKey` + tray (C# via `Add-Type`) | 0.3 | ⬜ |
-| Region and exact-window capture | Lasso's selection overlay drives a cropped capture | 0.3 | ⬜ |
+| Global hotkeys, tray, studio not in the shot | Port SnapShackle's `RegisterHotKey` + tray (C# via `Add-Type`) | 0.3 | ⬜ |
+| Region and exact-window capture | SnapShackle's selection overlay drives a cropped capture | 0.3 | ⬜ |
 | Webcam as its own track | `getUserMedia` recorded in parallel, placed as a separate clip | 0.3 | ⬜ |
 | Separate mic / system audio tracks | Parallel recorders, one clip per source | 0.3 | ⬜ |
 | Cursor data (position, clicks, keys) | Low-level hooks in C# log cursor/clicks/keys with timestamps alongside the video; record with `cursor: 'never'` and re-draw it | 0.3 | ⬜ |
@@ -114,7 +114,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Captions track and editor | Timed text clips | 0.9 | ⬜ |
 | SRT / VTT import and export | Parser/writer | 0.9 | ⬜ |
 | Burned-in captions | Compositor text | 0.9 | ⬜ |
-| Speech-to-text | Windows speech recognition via WinRT from PowerShell (as Lasso does OCR), with an optional bundled WASM model | 0.9 | ⬜ |
+| Speech-to-text | Windows speech recognition via WinRT from PowerShell (as SnapShackle does OCR), with an optional bundled WASM model | 0.9 | ⬜ |
 
 ### Export and sharing
 
@@ -124,7 +124,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Streaming export straight to a file | Fragmented MP4 written through the host, flat memory use | 0.2 | ⬜ |
 | Fast export (decode with WebCodecs, not seeking) | Rust → WASM MP4/WebM demuxer feeding `VideoDecoder` | 0.2 | ⬜ |
 | Export part of the timeline, single frame as PNG | Range selection | 0.4 | ⬜ |
-| Animated GIF | Port Lasso's GIF encoder / `lasso-core` quantiser | 1.0 | ⬜ |
+| Animated GIF | Port SnapShackle's GIF encoder and quantiser | 1.0 | ⬜ |
 | Audio-only (M4A / WAV) | Muxer audio-only path | 1.0 | ⬜ |
 | Presets and batch export | Saved option sets, queue | 1.0 | ⬜ |
 | Interactive player (quizzes, hotspots, TOC) | Static HTML player bundle | 1.x | ⬜ |
@@ -134,8 +134,8 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
 | Autosave and restore | IndexedDB | 0.1 | ✅ |
-| Project file (`.opentape`) | JSON | 0.1 | 🟡 (edit only; media stays in OpenTape) |
-| Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\OpenTape` | 0.2 | ⬜ |
+| Project file (`.capstan`) | JSON | 0.1 | 🟡 (edit only; media stays in Capstan) |
+| Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\Capstan` | 0.2 | ⬜ |
 | Self-contained project package | Zip with media | 0.2 | ⬜ |
 | Templates, themes, reusable assets | Library collections | 1.0 | ⬜ |
-| Import Lasso captures | Read `%LOCALAPPDATA%\Lasso\Captures` | 0.2 | ⬜ |
+| Import SnapShackle captures | Read `%LOCALAPPDATA%\SnapShackle\Captures` (older installs: `CutterMk` or `Lasso`) | 0.2 | ⬜ |

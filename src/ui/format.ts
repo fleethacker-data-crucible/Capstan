@@ -30,7 +30,7 @@ export function bytes(n: number): string {
 }
 
 export function safeFileName(name: string): string {
-  return name.replace(/[\\/:*?"<>|\x00-\x1f]+/g, ' ').trim().slice(0, 100) || 'OpenTape export';
+  return name.replace(/[\\/:*?"<>|\x00-\x1f]+/g, ' ').trim().slice(0, 100) || 'Capstan export';
 }
 
 export function download(blob: Blob, filename: string): void {

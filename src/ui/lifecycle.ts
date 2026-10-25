@@ -1,14 +1,14 @@
 // The page owns the local host (TechStack.md, "Lifecycle rules"): it sends a heartbeat every 5 s
-// and a leaving beacon on pagehide; the host stops itself once no OpenTape page is alive. Export
+// and a leaving beacon on pagehide; the host stops itself once no Capstan page is alive. Export
 // and recording run in this page, so while they run the heartbeat says "busy" and the host waits
 // longer before giving up on a late beat.
 
-const HEADER = 'X-OpenTape-Token';
+const HEADER = 'X-Capstan-Token';
 let busyCount = 0;
 
 /** The per-launch token the host writes into index.html. Empty when the page was not served by the host. */
 export function sessionToken(): string {
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="opentape-session"]');
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="capstan-session"]');
   const t = meta?.content ?? '';
   return t && !t.startsWith('__') ? t : '';
 }
@@ -93,7 +93,7 @@ export function startHeartbeat(intervalMs = 5000): () => void {
 /** Asks the host to stop ("End session"). */
 export async function endSession(): Promise<void> {
   const token = sessionToken();
-  if (!token) throw new Error('This page was not opened by OpenTape.bat, so there is no session to end.');
+  if (!token) throw new Error('This page was not opened by Launch-Capstan.bat, so there is no session to end.');
   const res = await fetch('/api/session/stop', { method: 'POST', headers: { 'Content-Type': 'application/json', [HEADER]: token }, body: '{}' });
-  if (!res.ok) throw new Error(`OpenTape did not stop (HTTP ${res.status}).`);
+  if (!res.ok) throw new Error(`Capstan did not stop (HTTP ${res.status}).`);
 }

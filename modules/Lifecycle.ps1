@@ -1,18 +1,18 @@
 <#
-  OpenTape process lifecycle (see TechStack.md, "Lifecycle rules"). Dot-sourced by Start-OpenTape.ps1,
-  Stop-OpenTape.ps1 and tests/ps/Lifecycle.Tests.ps1.
+  Capstan process lifecycle (see TechStack.md, "Lifecycle rules"). Dot-sourced by Start-Capstan.ps1,
+  Stop-Capstan.ps1 and tests/ps/Lifecycle.Tests.ps1.
 
-  - OpenTape.Lifecycle.Presence: the "tab owns the server" rule. Each open OpenTape page sends a
+  - Capstan.Lifecycle.Presence: the "tab owns the server" rule. Each open Capstan page sends a
     heartbeat every 5 s and a leaving beacon on pagehide; the host stops once no page is alive.
-  - Runtime files logs\opentape-server-<pid>.json (pid, port, url, startedAt; never the session
-    token) so Stop-OpenTape.ps1 and the launcher can find running hosts without knowing PIDs.
+  - Runtime files logs\capstan-server-<pid>.json (pid, port, url, startedAt; never the session
+    token) so Stop-Capstan.ps1 and the launcher can find running hosts without knowing PIDs.
 #>
-if (-not ('OpenTape.Lifecycle.Presence' -as [type])) {
+if (-not ('Capstan.Lifecycle.Presence' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.Collections.Generic;
 
-namespace OpenTape.Lifecycle {
+namespace Capstan.Lifecycle {
     // Times are passed in (UTC) so tests can simulate them instead of sleeping.
     public sealed class Presence {
         sealed class Tab { public DateTime LastBeat; public DateTime? LeavingAt; public bool Patient; }
@@ -93,47 +93,47 @@ namespace OpenTape.Lifecycle {
 '@
 }
 
-function Test-OpenTapeAutoStop {
-    # OPENTAPE_AUTO_STOP=0 (or false/no/off) keeps the host running after its window closes.
-    $v = $env:OPENTAPE_AUTO_STOP
+function Test-CapstanAutoStop {
+    # CAPSTAN_AUTO_STOP=0 (or false/no/off) keeps the host running after its window closes.
+    $v = $env:CAPSTAN_AUTO_STOP
     if ($null -eq $v) { return $true }
     return -not ($v.Trim() -match '^(0|false|no|off)$')
 }
 
-function Get-OpenTapeLogDirectory {
+function Get-CapstanLogDirectory {
     param([Parameter(Mandatory = $true)][string]$Root)
     return (Join-Path $Root 'logs')
 }
 
-function Write-OpenTapeRuntimeFile {
-    <# Writes logs\opentape-server-<pid>.json and returns its path. Never includes the session token. #>
+function Write-CapstanRuntimeFile {
+    <# Writes logs\capstan-server-<pid>.json and returns its path. Never includes the session token. #>
     param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][int]$Port, [Parameter(Mandatory = $true)][string]$Url)
-    $logs = Get-OpenTapeLogDirectory -Root $Root
+    $logs = Get-CapstanLogDirectory -Root $Root
     if (-not (Test-Path -LiteralPath $logs)) { [void](New-Item -ItemType Directory -Path $logs -Force) }
-    $file = Join-Path $logs ('opentape-server-' + $PID + '.json')
+    $file = Join-Path $logs ('capstan-server-' + $PID + '.json')
     $info = [ordered]@{ pid = $PID; port = $Port; url = $Url; startedAt = (Get-Date).ToUniversalTime().ToString('o') }
     [IO.File]::WriteAllText($file, (ConvertTo-Json -InputObject $info -Compress))
     return $file
 }
 
-function Remove-OpenTapeRuntimeFile {
+function Remove-CapstanRuntimeFile {
     param([string]$Path)
     if ($Path) { Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue }
 }
 
-function Get-OpenTapeProcesses {
+function Get-CapstanProcesses {
     <#
     .SYNOPSIS
-      Running OpenTape hosts (Pid, Port, Url, Started, RuntimeFile): from the runtime files under logs\,
-      then any PowerShell whose command line runs Start-OpenTape.ps1. Stale runtime files are removed.
+      Running Capstan hosts (Pid, Port, Url, Started, RuntimeFile): from the runtime files under logs\,
+      then any PowerShell whose command line runs Start-Capstan.ps1. Stale runtime files are removed.
       The calling process is never included.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Root)
     $found = @{}
-    $logs = Get-OpenTapeLogDirectory -Root $Root
+    $logs = Get-CapstanLogDirectory -Root $Root
     if (Test-Path -LiteralPath $logs) {
-        foreach ($f in @(Get-ChildItem -LiteralPath $logs -Filter 'opentape-server-*.json' -ErrorAction SilentlyContinue)) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $logs -Filter 'capstan-server-*.json' -ErrorAction SilentlyContinue)) {
             $keep = $false
             try {
                 $info = [IO.File]::ReadAllText($f.FullName) | ConvertFrom-Json
@@ -151,7 +151,7 @@ function Get-OpenTapeProcesses {
     # A host whose runtime file is missing (deleted logs\, or a build from before runtime files).
     try {
         Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'" -ErrorAction Stop |
-            Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine -match 'Start-OpenTape\.ps1' } |
+            Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine -match 'Start-Capstan\.ps1' } |
             ForEach-Object {
                 $id = [int]$_.ProcessId
                 if (-not $found.ContainsKey($id)) {
@@ -162,27 +162,27 @@ function Get-OpenTapeProcesses {
     return @($found.Values | Sort-Object Pid)
 }
 
-function Stop-OpenTapeProcesses {
+function Stop-CapstanProcesses {
     <#
     .SYNOPSIS
-      Stops every running OpenTape host and returns what was stopped (the Get-OpenTapeProcesses
+      Stops every running Capstan host and returns what was stopped (the Get-CapstanProcesses
       objects). A host started from an elevated window is reported, not thrown.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Root)
     $stopped = @()
-    foreach ($p in @(Get-OpenTapeProcesses -Root $Root)) {
+    foreach ($p in @(Get-CapstanProcesses -Root $Root)) {
         try {
             Stop-Process -Id $p.Pid -Force -ErrorAction Stop
             # A killed host cannot run its own cleanup.
-            Remove-OpenTapeRuntimeFile -Path $p.RuntimeFile
+            Remove-CapstanRuntimeFile -Path $p.RuntimeFile
             $stopped += $p
         } catch {
             if (-not (Get-Process -Id $p.Pid -ErrorAction SilentlyContinue)) {
-                Remove-OpenTapeRuntimeFile -Path $p.RuntimeFile
+                Remove-CapstanRuntimeFile -Path $p.RuntimeFile
                 $stopped += $p
             } else {
-                Write-Warning ('Could not stop OpenTape PID ' + $p.Pid + ': ' + $_.Exception.Message + ' Close its console window, or stop it from the window it was started in.')
+                Write-Warning ('Could not stop Capstan PID ' + $p.Pid + ': ' + $_.Exception.Message + ' Close its console window, or stop it from the window it was started in.')
             }
         }
     }
@@ -191,7 +191,7 @@ function Stop-OpenTapeProcesses {
     return $stopped
 }
 
-function Format-OpenTapeProcess {
+function Format-CapstanProcess {
     param($Process)
     if ($Process.Url) { return ($Process.Url + ' (PID ' + $Process.Pid + ')') }
     return ('PID ' + $Process.Pid)

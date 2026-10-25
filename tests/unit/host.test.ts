@@ -1,12 +1,12 @@
 // Static checks for the Windows host. PowerShell does not run on the Linux build machine, so
-// these keep Start-OpenTape.ps1, the launcher and dist/ from drifting apart.
+// these keep Start-Capstan.ps1, the launcher and dist/ from drifting apart.
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = join(import.meta.dir, '../..');
 const read = (f: string) => readFileSync(join(root, f), 'utf8');
-const host = read('Start-OpenTape.ps1');
+const host = read('Start-Capstan.ps1');
 
 test('every file the host serves exists in dist/', () => {
   const files = [...host.matchAll(/File='([^']+)'/g)].map((m) => m[1]);
@@ -35,9 +35,9 @@ test('host binds loopback only and checks Host, Origin and fetch site', () => {
 });
 
 test('launcher uses Windows PowerShell 5.1, CRLF and the right script', () => {
-  const bat = read('OpenTape.bat');
+  const bat = read('Launch-Capstan.bat');
   expect(bat).toContain('\r\n');
-  expect(bat).toContain('Start-OpenTape.ps1');
+  expect(bat).toContain('Start-Capstan.ps1');
   expect(bat).toContain('WindowsPowerShell\\v1.0\\powershell.exe');
   expect(bat).not.toMatch(/Lasso/);
 });
@@ -81,37 +81,37 @@ test('host wires the heartbeat, End session, runtime file and off switch', () =>
   expect(host).toContain("'/api/heartbeat'");
   expect(host).toContain("'/api/session/stop'");
   expect(host).toContain('$server.TryAccept(');
-  expect(host).toContain('Write-OpenTapeRuntimeFile');
-  expect(host).toMatch(/finally \{[\s\S]*Remove-OpenTapeRuntimeFile/);
-  expect(lifecycle).toContain('OPENTAPE_AUTO_STOP');
+  expect(host).toContain('Write-CapstanRuntimeFile');
+  expect(host).toMatch(/finally \{[\s\S]*Remove-CapstanRuntimeFile/);
+  expect(lifecycle).toContain('CAPSTAN_AUTO_STOP');
   expect(host).toMatch(/'\^--\?stay\$'/);
   expect(host).toMatch(/'\^--\?replace\$'/);
   expect(host).toContain('Stop it and start fresh?');
 });
 
 test('session token in a body is accepted on the heartbeat route only, never from the query string', () => {
-  const bodyTokenUses = [...host.matchAll(/Get-OpenTapeBodyText \$body 'session'/g)];
+  const bodyTokenUses = [...host.matchAll(/Get-CapstanBodyText \$body 'session'/g)];
   expect(bodyTokenUses.length).toBe(1);
   const heartbeat = host.slice(host.indexOf("if ($path -eq '/api/heartbeat'"), host.indexOf('# Everything below needs'));
-  expect(heartbeat).toContain("Get-OpenTapeBodyText $body 'session'");
+  expect(heartbeat).toContain("Get-CapstanBodyText $body 'session'");
   expect(host).not.toMatch(/QueryString/);
   // The runtime file is written without the token.
   expect(lifecycle).not.toContain('$sessionToken');
-  const runtimeFn = lifecycle.slice(lifecycle.indexOf('function Write-OpenTapeRuntimeFile'), lifecycle.indexOf('function Remove-OpenTapeRuntimeFile'));
+  const runtimeFn = lifecycle.slice(lifecycle.indexOf('function Write-CapstanRuntimeFile'), lifecycle.indexOf('function Remove-CapstanRuntimeFile'));
   expect(runtimeFn).toContain('pid = $PID; port = $Port; url = $Url; startedAt');
   expect(runtimeFn.replace(/<#[\s\S]*?#>/, '')).not.toMatch(/token|session/i);
 });
 
-test('Stop-OpenTape.ps1 finds hosts by runtime file and command line', () => {
-  const stop = read('Stop-OpenTape.ps1');
-  expect(stop).toContain('Stop-OpenTapeProcesses');
-  expect(lifecycle).toContain("opentape-server-*.json");
-  expect(lifecycle).toMatch(/CommandLine -match 'Start-OpenTape\\\.ps1'/);
+test('Stop-Capstan.ps1 finds hosts by runtime file and command line', () => {
+  const stop = read('Stop-Capstan.ps1');
+  expect(stop).toContain('Stop-CapstanProcesses');
+  expect(lifecycle).toContain("capstan-server-*.json");
+  expect(lifecycle).toMatch(/CommandLine -match 'Start-Capstan\\\.ps1'/);
 });
 
 test('build and test server stop a running host first', () => {
-  expect(read('scripts/build.ts')).toContain("stopOpenTape('build')");
-  expect(read('tests/serve.mjs')).toContain("stopOpenTape('serve')");
+  expect(read('scripts/build.ts')).toContain("stopCapstan('build')");
+  expect(read('tests/serve.mjs')).toContain("stopCapstan('serve')");
 });
 
 test('built UI sends the heartbeat and the leaving beacon', () => {
@@ -123,7 +123,7 @@ test('built UI sends the heartbeat and the leaving beacon', () => {
 });
 
 test('PowerShell files are ASCII (Windows PowerShell 5.1 reads BOM-less files as ANSI)', () => {
-  for (const f of ['Start-OpenTape.ps1', 'Stop-OpenTape.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'tests/ps/Lifecycle.Tests.ps1']) {
+  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'tests/ps/Lifecycle.Tests.ps1']) {
     expect(/[^\x00-\x7f]/.test(read(f))).toBe(false);
   }
 });
