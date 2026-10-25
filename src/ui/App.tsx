@@ -5,16 +5,7 @@ import { parseProject, projectDuration } from '../engine/project';
 import { ExportDialog } from './ExportDialog';
 import { download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
-
-function Emblem({ size }: { size: number }) {
-  // The full Capstan emblem (assets/ui, from assets/brand/emblem-*.png), one per theme.
-  return (
-    <>
-      <img className="only-light" src="/assets/emblem-light.png" alt="Capstan" width={size} height={size} />
-      <img className="only-dark" src="/assets/emblem-dark.png" alt="Capstan" width={size} height={size} />
-    </>
-  );
-}
+import { Emblem, Welcome } from './Welcome';
 import { Inspector } from './Inspector';
 import { endSession, isBusy, onEngineState, sessionToken, startHeartbeat, type EngineState } from './lifecycle';
 import { MediaBin } from './MediaBin';
@@ -99,6 +90,8 @@ export function App() {
   const [dialog, setDialog] = useState<'record' | 'export' | 'shortcuts' | null>(null);
   const [dragging, setDragging] = useState(false);
   const [ended, setEnded] = useState(false);
+  // An empty project opens on the Welcome landing view until there is media or the viewer asks for the editor.
+  const [editorAnyway, setEditorAnyway] = useState(false);
   const [theme, setTheme] = useState<ThemeChoice>(readTheme);
   const [collapsedPref, setCollapsedPref] = useState(readSidebarCollapsed);
   const [engine, setEngine] = useState<EngineState>('connecting');
@@ -378,6 +371,15 @@ export function App() {
         </button>
       </header>
 
+      {!editorAnyway && project.media.length === 0 && project.clips.length === 0 ? (
+        <Welcome
+          onRecord={() => setDialog('record')}
+          onImport={() => importInput.current?.click()}
+          onOpen={() => openInput.current?.click()}
+          onEditor={() => setEditorAnyway(true)}
+        />
+      ) : (
+      <>
       <main className="workspace">
         <MediaBin editor={editor} time={time} onRecord={() => setDialog('record')} />
         <Preview editor={editor} time={time} onPlayer={setPlayer} />
@@ -430,6 +432,8 @@ export function App() {
       </div>
 
       <Timeline editor={editor} player={player} time={time} playing={playing} zoom={zoom} setZoom={setZoom} snapping={snapping} />
+      </>
+      )}
       </div>
 
       <footer className="statusbar">

@@ -24,6 +24,7 @@ for (const [theme, scheme] of [['night-watch', 'dark'], ['chart-room', 'light']]
     for (const db of (await indexedDB.databases?.()) ?? []) if (db.name) indexedDB.deleteDatabase(db.name);
   });
   await page.reload();
+  await page.getByRole('button', { name: 'Go to the editor' }).click();
   await page.waitForSelector('.media-bin');
   await page.setInputFiles('.bin-actions input[type=file]', ['tests/fixtures/clip.webm', 'tests/fixtures/card.png', 'tests/fixtures/tone.wav']);
   await page.waitForFunction(() => document.querySelectorAll('.bin-item').length === 3);
