@@ -6,6 +6,7 @@ import { ExportDialog } from './ExportDialog';
 import { download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
 import { Inspector } from './Inspector';
+import { endSession, isBusy, sessionToken, startHeartbeat } from './lifecycle';
 import { MediaBin } from './MediaBin';
 import { Preview } from './Preview';
 import { RecordDialog } from './RecordDialog';
@@ -35,9 +36,30 @@ export function App() {
   const [snapping, setSnapping] = useState(true);
   const [dialog, setDialog] = useState<'record' | 'export' | 'shortcuts' | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [ended, setEnded] = useState(false);
   const openInput = useRef<HTMLInputElement>(null);
   const { project, selection } = editor;
   const duration = projectDuration(project);
+
+  // This window owns the local host: it stops by itself once no OpenTape window is open.
+  const stopHeartbeat = useRef<() => void>(() => {});
+  useEffect(() => {
+    stopHeartbeat.current = startHeartbeat();
+    return () => stopHeartbeat.current();
+  }, []);
+
+  const quit = async () => {
+    const busyNote = isBusy() ? ' An export or recording is still running and will be lost.' : '';
+    if (!window.confirm(`End this OpenTape session? The local server stops; your projects and media stay saved in this browser.${busyNote}`)) return;
+    try {
+      await endSession();
+      stopHeartbeat.current();
+      player?.pause();
+      setEnded(true);
+    } catch (e) {
+      editor.setStatus((e as Error).message);
+    }
+  };
 
   useEffect(() => {
     if (!player) return;
@@ -148,6 +170,18 @@ export function App() {
     }
   };
 
+  if (ended) {
+    return (
+      <div className="session-ended" role="main">
+        <h1>Session ended</h1>
+        <p>OpenTape has stopped. Your projects and media are saved in this browser. You can close this window; run OpenTape.bat to start again.</p>
+        <button className="button" onClick={() => window.close()}>
+          Close window
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -213,6 +247,12 @@ export function App() {
           <Icon name="export" size={16} />
           Export video
         </button>
+        {sessionToken() && (
+          <button className="icon-button labelled end-session" title="End session: stop OpenTape's local server" onClick={() => void quit()}>
+            <Icon name="power" />
+            <span>End session</span>
+          </button>
+        )}
       </header>
 
       <main className="workspace">
