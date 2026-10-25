@@ -44,6 +44,11 @@ $StaticFiles = @{
     '/assets/app.js'   = @{ File='assets/app.js';    Type='application/javascript; charset=utf-8' }
     '/assets/app.css'  = @{ File='assets/app.css';   Type='text/css; charset=utf-8' }
     '/assets/icon.svg' = @{ File='assets/icon.svg';  Type='image/svg+xml' }
+    # The emblem (backdrop made transparent, one per theme) and the icon cut from its circle.
+    '/assets/emblem-dark.png'  = @{ File='assets/emblem-dark.png';  Type='image/png' }
+    '/assets/emblem-light.png' = @{ File='assets/emblem-light.png'; Type='image/png' }
+    '/assets/icon-256.png'     = @{ File='assets/icon-256.png';     Type='image/png' }
+    '/favicon.ico'             = @{ File='assets/favicon.ico';      Type='image/x-icon' }
 }
 foreach ($entry in $StaticFiles.Values) {
     if (-not (Test-Path -LiteralPath (Join-Path $dist $entry.File))) {

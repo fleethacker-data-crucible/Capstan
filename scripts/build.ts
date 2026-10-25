@@ -39,8 +39,10 @@ if (!result.success) {
 // stylesheet keeps the host's served-file list unchanged.
 const fleetCss = readFileSync(join(root, 'vendor/fleet/fleet.css'), 'utf8');
 writeFileSync(join(assets, 'app.css'), fleetCss + '\n' + readFileSync(join(root, 'src/styles.css'), 'utf8'));
-// The favicon and the sidebar mark are the brand mark itself.
 copyFileSync(join(root, 'assets/brand/mark.svg'), join(assets, 'icon.svg'));
+// The detailed emblem for the sidebar and empty screens, and the favicon / taskbar icon cut from its
+// circle (assets/ui: copies of assets/brand/emblem-*.png with the backdrop made transparent).
+for (const f of ['emblem-dark.png', 'emblem-light.png', 'icon-256.png', 'favicon.ico']) copyFileSync(join(root, 'assets/ui', f), join(assets, f));
 writeFileSync(join(dist, 'index.html'), readFileSync(join(root, 'src/index.html'), 'utf8'));
 writeFileSync(join(dist, 'VERSION'), version + '\n');
 // Lets CI confirm the committed dist/ was built from the committed sources.
