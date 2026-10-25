@@ -12,11 +12,21 @@ function walk(dir: string): string[] {
 }
 
 export function sourceHash(root: string): string {
-  const files = [...walk(join(root, 'src')), join(root, 'VERSION'), join(root, 'scripts/build.ts')].sort();
+  const files = [
+    ...walk(join(root, 'src')),
+    join(root, 'VERSION'),
+    join(root, 'scripts/build.ts'),
+    join(root, 'vendor/fleet/fleet.css'),
+    join(root, 'assets/brand/mark.svg'),
+    ...walk(join(root, 'assets/ui')),
+  ].sort();
   const h = createHash('sha256');
   for (const f of files) {
     h.update(relative(root, f).replaceAll('\\', '/') + '\0');
-    h.update(readFileSync(f, 'utf8').replace(/\r\n/g, '\n') + '\0');
+    // Images are hashed as bytes; text with line endings normalised.
+    if (/\.(png|ico)$/.test(f)) h.update(readFileSync(f));
+    else h.update(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
+    h.update('\0');
   }
   return h.digest('hex');
 }
