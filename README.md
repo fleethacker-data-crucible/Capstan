@@ -4,26 +4,32 @@
 
 The name comes from the capstan: the drum a ship's crew turns to haul in line, and the spinning shaft that pulls tape past the heads in a tape recorder. Capstan was briefly called **OpenTape**; projects saved under that name do not carry over.
 
-**Status: v0.1, foundation.** The editor below works end to end and is covered by automated tests. It is not yet feature-complete; [the roadmap](docs/ROADMAP.md) tracks every Camtasia feature and when it lands. The Windows host is adapted from [Lasso](https://github.com/sun-of-anton/lasso)'s tested loopback server, but **this build has not yet been run on a real Windows PC**. Please try it and report back before relying on it.
+**Status: v0.1, foundation.** The editor below works end to end and is covered by automated tests. It is not yet feature-complete; [the roadmap](docs/ROADMAP.md) tracks every Camtasia feature and when it lands. The Windows host is adapted from [SnapShackle](https://github.com/sun-of-anton/SnapShackle)'s tested loopback server, but **this build has not yet been run on a real Windows PC**. Please try it and report back before relying on it.
 
 ![Capstan editor](docs/editor.png)
 
 ## Run it on Windows
 
 1. Download or clone the repository and keep the whole folder together, including `dist/` and `modules/`.
-2. Double-click **`Capstan.bat`**.
-3. Capstan opens in a Microsoft Edge app window (or your default browser if Edge is missing). Keep the console window open while you work; press Ctrl+C there to quit.
+2. Double-click **`Launch-Capstan.bat`**.
+3. Capstan opens in a Microsoft Edge app window (or your default browser if Edge is missing). Keep the console window open while you work.
+
+**Quitting.** Close the Capstan window and the local server stops by itself a few seconds later (a reload does not stop it, and with several Capstan windows open it waits for the last one). It waits while an export or recording is still running in an open window. You can also click **End session** in the toolbar, press Ctrl+C in the console, or run `Stop-Capstan.ps1`, which finds and stops every running Capstan without needing a process ID. Starting Capstan while it is already running asks whether to stop the old one and start fresh.
 
 Options:
 
 ```bat
-Capstan.bat -NoBrowser        rem print the address instead of opening a window
-Capstan.bat -Port 9000        rem preferred port (default 8790); falls back if busy
-Capstan.bat -DefaultBrowser   rem use the default browser instead of an Edge app window
-Capstan.bat -Diagnostics      rem check PowerShell, policy, loopback binding and Edge, then exit
+Launch-Capstan.bat -NoBrowser        rem print the address instead of opening a window
+Launch-Capstan.bat -Port 9000        rem preferred port (default 8790); falls back if busy
+Launch-Capstan.bat -DefaultBrowser   rem use the default browser instead of an Edge app window
+Launch-Capstan.bat -Diagnostics      rem check PowerShell, policy, loopback binding and Edge, then exit
+Launch-Capstan.bat --stay            rem keep the server running after the window closes
+Launch-Capstan.bat --replace         rem stop a running Capstan and start fresh without asking
 ```
 
-`Capstan.bat` starts Windows PowerShell 5.1 with `-ExecutionPolicy Bypass` for **that one process only**. It does not change machine or user policy, elevate privileges, or get around Group Policy, AppLocker, WDAC or endpoint protection. If your organisation blocks it, ask IT for an approved route.
+Set `CAPSTAN_AUTO_STOP=0` in the environment to turn off stopping when the window closes, like `--stay`. While it runs, the host writes `logs\capstan-server-<pid>.json` (process ID, port, address and start time, never the session token) so `Stop-Capstan.ps1` and the launcher can find it; the file is removed when it stops.
+
+`Launch-Capstan.bat` starts Windows PowerShell 5.1 with `-ExecutionPolicy Bypass` for **that one process only**. It does not change machine or user policy, elevate privileges, or get around Group Policy, AppLocker, WDAC or endpoint protection. If your organisation blocks it, ask IT for an approved route.
 
 Use a current **Edge or Chrome**: Capstan needs WebCodecs (video encoding) and screen capture, which they provide.
 
@@ -60,12 +66,14 @@ The Windows machine only runs the compiled `dist/`. To change Capstan, build on 
 
 ```sh
 npm install              # React, TypeScript, Playwright (dev only)
-bun run build            # bundles src/ into dist/ (commit dist/ with your change)
+bun run build            # bundles src/ into dist/ (commit dist/ with your change); on Windows it stops a running Capstan first
 npm run typecheck
 bun test tests/unit      # engine, MP4, host and "dist is up to date" checks
 node tests/serve.mjs &   # test server that mirrors the PowerShell host
 npm run test:e2e         # headless Chromium: export validated with ffprobe, editor driven end to end
 ```
+
+On Windows, `powershell -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1` checks the real host's lifecycle (CI runs it on `windows-latest`).
 
 See [TechStack.md](TechStack.md) for how the shared stack applies and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit.
 
