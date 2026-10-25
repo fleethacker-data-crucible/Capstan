@@ -1,6 +1,6 @@
-# OpenTape roadmap: full Camtasia parity
+# Capstan roadmap: full Camtasia parity
 
-OpenTape aims to cover everything people use Camtasia for, within the stack rules in [TechStack.md](../TechStack.md): no installer, no admin rights, no network, compiled JS/CSS/WASM only. This page lists each Camtasia feature area, how OpenTape will build it, and the release it is planned for.
+Capstan aims to cover everything people use Camtasia for, within the stack rules in [TechStack.md](../TechStack.md): no installer, no admin rights, no network, compiled JS/CSS/WASM only. This page lists each Camtasia feature area, how Capstan will build it, and the release it is planned for.
 
 **Status key:** ✅ done · 🟡 partial · ⬜ planned
 
@@ -11,7 +11,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Release | Theme | Headline |
 | --- | --- | --- |
 | **0.1** ✅ | Foundation | Record, import, multi-track timeline, trim/split/move, transform, undo, autosave, MP4 export |
-| **0.2** | Durable library | Media and projects as files under `%LOCALAPPDATA%\OpenTape`; streaming export to disk; fast export via WASM demux; waveforms and filmstrips |
+| **0.2** | Durable library | Media and projects as files under `%LOCALAPPDATA%\Capstan`; streaming export to disk; fast export via WASM demux; waveforms and filmstrips |
 | **0.3** | Recorder | Native recorder with hotkeys and tray (from Lasso), region/window capture, webcam track, cursor data, countdown |
 | **0.4** | Annotations | Callouts, text, shapes, arrows, highlight, blur/pixelate, keystroke callouts |
 | **0.5** | Animation | Keyframes, zoom-n-pan, transitions, behaviors, easing |
@@ -134,8 +134,8 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
 | Autosave and restore | IndexedDB | 0.1 | ✅ |
-| Project file (`.opentape`) | JSON | 0.1 | 🟡 (edit only; media stays in OpenTape) |
-| Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\OpenTape` | 0.2 | ⬜ |
+| Project file (`.capstan`) | JSON | 0.1 | 🟡 (edit only; media stays in Capstan) |
+| Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\Capstan` | 0.2 | ⬜ |
 | Self-contained project package | Zip with media | 0.2 | ⬜ |
 | Templates, themes, reusable assets | Library collections | 1.0 | ⬜ |
 | Import Lasso captures | Read `%LOCALAPPDATA%\Lasso\Captures` | 0.2 | ⬜ |

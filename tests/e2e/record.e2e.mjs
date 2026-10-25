@@ -2,7 +2,7 @@
 // on the timeline. Usage: node tests/e2e/record.e2e.mjs   (expects tests/serve.mjs on 8790)
 import { chromium } from 'playwright';
 
-const base = process.env.OPENTAPE_URL ?? 'http://127.0.0.1:8790';
+const base = process.env.CAPSTAN_URL ?? 'http://127.0.0.1:8790';
 let failures = 0;
 const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail !== '' ? '  ' + detail : ''}`);
@@ -14,8 +14,8 @@ const browser = await chromium.launch({
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
     '--auto-accept-this-tab-capture',
-    '--auto-select-tab-capture-source-by-title=OpenTape',
-    '--auto-select-desktop-capture-source=OpenTape',
+    '--auto-select-tab-capture-source-by-title=Capstan',
+    '--auto-select-desktop-capture-source=Capstan',
   ],
 });
 const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });

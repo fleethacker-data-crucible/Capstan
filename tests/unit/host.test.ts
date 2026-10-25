@@ -1,12 +1,12 @@
 // Static checks for the Windows host. PowerShell does not run on the Linux build machine, so
-// these keep Start-OpenTape.ps1, the launcher and dist/ from drifting apart.
+// these keep Start-Capstan.ps1, the launcher and dist/ from drifting apart.
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = join(import.meta.dir, '../..');
 const read = (f: string) => readFileSync(join(root, f), 'utf8');
-const host = read('Start-OpenTape.ps1');
+const host = read('Start-Capstan.ps1');
 
 test('every file the host serves exists in dist/', () => {
   const files = [...host.matchAll(/File='([^']+)'/g)].map((m) => m[1]);
@@ -35,9 +35,9 @@ test('host binds loopback only and checks Host, Origin and fetch site', () => {
 });
 
 test('launcher uses Windows PowerShell 5.1, CRLF and the right script', () => {
-  const bat = read('OpenTape.bat');
+  const bat = read('Capstan.bat');
   expect(bat).toContain('\r\n');
-  expect(bat).toContain('Start-OpenTape.ps1');
+  expect(bat).toContain('Start-Capstan.ps1');
   expect(bat).toContain('WindowsPowerShell\\v1.0\\powershell.exe');
   expect(bat).not.toMatch(/Lasso/);
 });

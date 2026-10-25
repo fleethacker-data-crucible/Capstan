@@ -1,4 +1,4 @@
-// OpenTape project model. Plain, serialisable data: the timeline is the source of truth,
+// Capstan project model. Plain, serialisable data: the timeline is the source of truth,
 // and every edit is a pure function from one Project to the next (see ops.ts).
 
 export type MediaKind = 'video' | 'audio' | 'image';
@@ -132,7 +132,7 @@ export function activeClipsAt(project: Project, time: number): Clip[] {
 export function parseProject(input: unknown): Project {
   const p = input as Partial<Project> | null;
   if (!p || p.version !== 1 || !Array.isArray(p.tracks) || !Array.isArray(p.clips) || !Array.isArray(p.media)) {
-    throw new Error('Not an OpenTape project file');
+    throw new Error('Not an Capstan project file');
   }
   const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
   const width = Math.round(Math.min(7680, Math.max(16, num(p.width, 1920))));
