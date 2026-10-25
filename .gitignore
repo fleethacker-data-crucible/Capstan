@@ -4,6 +4,7 @@ tests/e2e/.build/
 .DS_Store
 Thumbs.db
 *.log
+logs/
 
 # Local environment files (secrets)
 .env

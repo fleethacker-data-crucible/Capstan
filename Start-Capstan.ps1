@@ -3,22 +3,39 @@
  or network access. Serves the prebuilt editor in dist/ on 127.0.0.1 only. Editing,
  recording and export all run inside the browser; media never leaves this computer.
 #>
-[CmdletBinding()]
+[CmdletBinding(PositionalBinding=$false)]
 param(
     [ValidateRange(1024,65535)][int]$Port=8790,
     [switch]$NoBrowser,
     [ValidateRange(1,500)][int]$PortScanCount=100,
     [switch]$Diagnostics,
     # Open in the default browser instead of an Edge app window.
-    [switch]$DefaultBrowser
+    [switch]$DefaultBrowser,
+    # Keep running after the Capstan window closes (by default the host stops itself once no
+    # Capstan page is open). Also: --stay, or CAPSTAN_AUTO_STOP=0.
+    [switch]$Stay,
+    # If Capstan is already running, stop it and start fresh without asking. Also: --replace
+    [switch]$Replace,
+    [Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest
 )
 $ErrorActionPreference = 'Stop'
+foreach ($a in @($Rest)) {
+    switch -Regex ($a) {
+        '^--?stay$' { $Stay = $true }
+        '^--?replace$' { $Replace = $true }
+        '^--?no-browser$' { $NoBrowser = $true }
+        '^--?default-browser$' { $DefaultBrowser = $true }
+        '^--?diagnostics$' { $Diagnostics = $true }
+        default { if ($a) { Write-Warning ('Ignoring unknown option ' + $a) } }
+    }
+}
 if ($PSVersionTable.PSEdition -eq 'Core' -and -not $IsWindows) {
     throw 'Capstan requires Windows. On other systems, see tests/serve.mjs for the development server.'
 }
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dist = Join-Path $root 'dist'
 . (Join-Path $root 'modules/LocalHttp.ps1')
+. (Join-Path $root 'modules/Lifecycle.ps1')
 $CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
 # Only these compiled files are ever served. Anything else is a 404.
@@ -58,6 +75,27 @@ if ($Diagnostics) {
     return
 }
 
+# One instance: a second host would hold a second port, and the browser keeps projects per port.
+$running = @(Get-CapstanProcesses -Root $root)
+if ($running.Count -gt 0) {
+    $where = ($running | ForEach-Object { Format-CapstanProcess $_ }) -join ', '
+    Write-Host ('Capstan is already running: ' + $where) -ForegroundColor Yellow
+    $answer = 'y'
+    if (-not $Replace) { $answer = Read-Host 'Stop it and start fresh? [Y/n]' }
+    if ($answer -eq '' -or $answer -match '^[Yy]') {
+        foreach ($p in @(Stop-CapstanProcesses -Root $root)) { Write-Host ('  stopped ' + (Format-CapstanProcess $p)) -ForegroundColor DarkGray }
+    } else {
+        Write-Host 'Leaving the running Capstan alone. Use "End session" in its window, or Stop-Capstan.ps1.' -ForegroundColor DarkGray
+        return
+    }
+}
+
+$autoStop = (-not $Stay) -and (Test-CapstanAutoStop)
+# The tab owns the server: each Capstan page sends a heartbeat every 5 s and a leaving beacon
+# when it closes; once no page is alive the host stops itself (see modules/Lifecycle.ps1).
+$presence = New-Object Capstan.Lifecycle.Presence -ArgumentList $autoStop
+$script:CapstanStopReason = $null
+
 $sessionToken = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
 # Bind directly to 127.0.0.1: no HttpListener URL ACL and no admin rights. The socket is held
 # from selection through shutdown, so there is no free-port check/bind race.
@@ -92,6 +130,19 @@ function Send-Json($Context, $Payload, [int]$Status=200) {
     Send-Response $Context ([Text.Encoding]::UTF8.GetBytes($text)) 'application/json; charset=utf-8' $Status
 }
 
+function Read-CapstanJsonBody($Request) {
+    # Small JSON bodies only (the lifecycle routes). Bodies are never logged.
+    if ($Request.ContentLength64 -le 0) { return $null }
+    $reader = New-Object System.IO.StreamReader -ArgumentList $Request.InputStream, ([Text.Encoding]::UTF8)
+    try { $text = $reader.ReadToEnd() } finally { $reader.Dispose() }
+    try { return ($text | ConvertFrom-Json) } catch { return $null }
+}
+
+function Get-CapstanBodyText($Body, [string]$Name) {
+    if ($null -eq $Body -or -not $Body.PSObject.Properties[$Name]) { return '' }
+    return [string]$Body.$Name
+}
+
 function Invoke-CapstanRequest($Context) {
     $request=$Context.Request; $path=$request.Url.AbsolutePath; $method=$request.HttpMethod
     if (-not [Net.IPAddress]::IsLoopback($request.RemoteEndPoint.Address)) { Send-Json $Context @{error='Local clients only'} 403;return }
@@ -114,8 +165,29 @@ function Invoke-CapstanRequest($Context) {
     }
     if ($path -eq '/favicon.ico') { Send-Response $Context ([byte[]]@()) 'image/x-icon' 404; return }
 
+    # Lifecycle heartbeat. navigator.sendBeacon (the leaving signal) cannot set headers, so on THIS
+    # route only the token may also come in the JSON body. Never in the query string; never logged.
+    if ($path -eq '/api/heartbeat' -and $method -eq 'POST') {
+        if ($request.ContentLength64 -gt 4096) { Send-Json $Context @{error='Request body too large'} 413;return }
+        $body = Read-CapstanJsonBody $request
+        $token = $request.Headers['X-Capstan-Token']
+        if (-not $token) { $token = Get-CapstanBodyText $body 'session' }
+        if ($token -ne $sessionToken) { Send-Json $Context @{error='Invalid session'} 403;return }
+        $tab = Get-CapstanBodyText $body 'tab'
+        $now = [DateTime]::UtcNow
+        if ((Get-CapstanBodyText $body 'leaving') -eq 'True') { $presence.Leaving($tab, $now) }
+        else { $presence.Beat($tab, ((Get-CapstanBodyText $body 'hidden') -eq 'True'), ((Get-CapstanBodyText $body 'busy') -eq 'True'), $now) }
+        Send-Json $Context @{ok=$true;autoStop=$presence.Enabled;tabs=$presence.LiveTabs($now)};return
+    }
+
     # Everything below needs the per-launch session token from index.html.
     if ($request.Headers['X-Capstan-Token'] -ne $sessionToken) { Send-Json $Context @{error='Invalid session'} 403;return }
+    if ($path -eq '/api/session/stop' -and $method -eq 'POST') {
+        # "End session" in the editor. The loop stops after this response is sent.
+        Send-Json $Context @{ok=$true;stopping=$true}
+        $script:CapstanStopReason = 'End session was chosen in the Capstan window.'
+        return
+    }
     if ($path -eq '/api/health' -and $method -eq 'GET') {
         Send-Json $Context @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()};return
     }
@@ -123,24 +195,36 @@ function Invoke-CapstanRequest($Context) {
 }
 
 $base="http://127.0.0.1:$Port/"
-Write-Host "Capstan $CapstanVersion local server: $base" -ForegroundColor Yellow
-Write-Host 'Your media and projects stay in this browser profile on this computer.'
-Write-Host 'Press Ctrl+C in this console to stop Capstan.'
-if (-not $NoBrowser) {
-    try {
-        $edge = if ($DefaultBrowser) { $null } else { Find-CapstanEdge }
-        # An Edge app window has no tabs or address bar, so the editor feels like a desktop app.
-        if ($edge) { Start-Process -FilePath $edge -ArgumentList @("--app=$base") }
-        else { Start-Process $base }
-    } catch {
-        Write-Warning ('Browser did not open automatically: ' + $_.Exception.Message + '. Open ' + $base + ' manually.')
-    }
-}
+$runtimeFile = $null
 try {
-    while ($true) {
+    $runtimeFile = Write-CapstanRuntimeFile -Root $root -Port $Port -Url $base
+    Write-Host "Capstan $CapstanVersion local server: $base" -ForegroundColor Yellow
+    Write-Host 'Your media and projects stay in this browser profile on this computer.'
+    if ($autoStop) {
+        Write-Host 'Capstan stops by itself when its window closes. To quit now: "End session" in the window, Ctrl+C here, or Stop-Capstan.ps1.'
+    } else {
+        Write-Host 'Auto-stop is off (-Stay or CAPSTAN_AUTO_STOP=0). To quit: "End session" in the window, Ctrl+C here, or Stop-Capstan.ps1.'
+    }
+    if (-not $NoBrowser) {
+        try {
+            $edge = if ($DefaultBrowser) { $null } else { Find-CapstanEdge }
+            # An Edge app window has no tabs or address bar, so the editor feels like a desktop app.
+            if ($edge) { Start-Process -FilePath $edge -ArgumentList @("--app=$base") }
+            else { Start-Process $base }
+        } catch {
+            Write-Warning ('Browser did not open automatically: ' + $_.Exception.Message + '. Open ' + $base + ' manually.')
+        }
+    }
+    while ($null -eq $script:CapstanStopReason) {
+        if ($presence.ShouldStop([DateTime]::UtcNow)) {
+            $script:CapstanStopReason = 'The Capstan window was closed (set CAPSTAN_AUTO_STOP=0 or use -Stay to keep it running).'
+            break
+        }
         $context=$null
         try {
-            $context=$server.Accept()
+            # Wake at least once a second for the lifecycle tick; this also lets Ctrl+C through.
+            $context=$server.TryAccept(1000)
+            if ($null -eq $context) { continue }
             Invoke-CapstanRequest $context
         } catch [System.IO.InvalidDataException] {
             Write-Warning ('Rejected malformed local HTTP request: ' + $_.Exception.Message)
@@ -153,6 +237,9 @@ try {
             if ($null -ne $context) { $context.Dispose() }
         }
     }
+    if ($script:CapstanStopReason) { Write-Host ('Capstan stopped: ' + $script:CapstanStopReason) -ForegroundColor Yellow }
 } finally {
     $server.Dispose()
+    # Also runs on Ctrl+C.
+    Remove-CapstanRuntimeFile -Path $runtimeFile
 }
