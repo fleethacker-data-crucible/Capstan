@@ -2,7 +2,7 @@
 // profile on this computer. Nothing is uploaded anywhere.
 import { type Project, parseProject } from './project';
 
-const DB_NAME = 'opentape';
+const DB_NAME = 'capstan';
 const DB_VERSION = 1;
 const MEDIA = 'media';
 const PROJECTS = 'projects';

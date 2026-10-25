@@ -303,7 +303,7 @@ export class Mp4Muxer {
         .u32(0)
         .str(isVideo ? 'vide' : 'soun')
         .zeros(12)
-        .str(isVideo ? 'OpenTape Video' : 'OpenTape Audio')
+        .str(isVideo ? 'Capstan Video' : 'Capstan Audio')
         .u8(0)
         .done(),
     );
@@ -330,9 +330,10 @@ export class Mp4Muxer {
         .u32(0x00480000)
         .u32(0)
         .u16(1)
-        .u8(8)
-        .str('OpenTape')
-        .zeros(23)
+        // compressorname: fixed 32 bytes (length byte + name + padding).
+        .u8(7)
+        .str('Capstan')
+        .zeros(24)
         .u16(0x0018)
         .i16(-1)
         .done();

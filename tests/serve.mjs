@@ -1,5 +1,5 @@
 // Test-only static server that mirrors the PowerShell host's routing and security headers,
-// so browser tests run on Linux CI. Not shipped; Windows users run Start-OpenTape.ps1.
+// so browser tests run on Linux CI. Not shipped; Windows users run Start-Capstan.ps1.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
@@ -30,7 +30,7 @@ const server = createServer(async (req, res) => {
   else if (url.pathname === '/harness.js') file = join(root, 'tests/e2e/.build/harness.js');
   else if (url.pathname === '/api/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ app: 'OpenTape', host: 'test-server', offline: true }));
+    res.end(JSON.stringify({ app: 'Capstan', host: 'test-server', offline: true }));
     return;
   }
   if (!file || !file.startsWith(root)) {

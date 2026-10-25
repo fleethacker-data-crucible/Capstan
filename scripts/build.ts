@@ -22,7 +22,7 @@ const result = await Bun.build({
   minify: !dev,
   sourcemap: dev ? 'inline' : 'none',
   define: {
-    __OPENTAPE_VERSION__: JSON.stringify(version),
+    __CAPSTAN_VERSION__: JSON.stringify(version),
     'process.env.NODE_ENV': JSON.stringify(dev ? 'development' : 'production'),
   },
 });
@@ -39,4 +39,4 @@ writeFileSync(join(dist, 'VERSION'), version + '\n');
 writeFileSync(join(dist, 'SOURCE_HASH'), sourceHash(root) + '\n');
 
 const size = (f: string) => `${(Bun.file(join(assets, f)).size / 1024).toFixed(0)} KB`;
-console.log(`OpenTape ${version} built: app.js ${size('app.js')}, app.css ${size('app.css')}`);
+console.log(`Capstan ${version} built: app.js ${size('app.js')}, app.css ${size('app.css')}`);
