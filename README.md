@@ -1,10 +1,12 @@
+<p align="center"><img src="assets/brand/emblem-light.png" width="280" alt="Capstan"></p>
+
 # Capstan
 
 **An open-source, local-first screen recorder and video editor for Windows.** The goal is a full-featured Camtasia alternative that runs on a locked-down work PC: no installer, no administrator rights, no Node or Python on the machine, no network calls. Record your screen, cut it on a multi-track timeline, and export an MP4, all on your own computer.
 
 The name comes from the capstan: the drum a ship's crew turns to haul in line, and the spinning shaft that pulls tape past the heads in a tape recorder. Capstan was briefly called **OpenTape**; projects saved under that name do not carry over.
 
-**Status: v0.1, foundation.** The editor below works end to end and is covered by automated tests. It is not yet feature-complete; [the roadmap](docs/ROADMAP.md) tracks every Camtasia feature and when it lands. The Windows host is adapted from [Lasso](https://github.com/sun-of-anton/lasso)'s tested loopback server, but **this build has not yet been run on a real Windows PC**. Please try it and report back before relying on it.
+**Status: v0.1, foundation.** The editor below works end to end and is covered by automated tests. It is not yet feature-complete; [the roadmap](docs/ROADMAP.md) tracks every Camtasia feature and when it lands. The Windows host is adapted from [SnapShackle](https://github.com/sun-of-anton/SnapShackle)'s tested loopback server, but **this build has not yet been run on a real Windows PC**. Please try it and report back before relying on it.
 
 ![Capstan editor](docs/editor.png)
 
