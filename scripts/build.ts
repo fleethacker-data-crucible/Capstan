@@ -3,12 +3,16 @@
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { sourceHash } from './source-hash';
+import { stopCapstan } from './stop-capstan.mjs';
 
 const root = resolve(import.meta.dir, '..');
 const dist = join(root, 'dist');
 const assets = join(dist, 'assets');
 const version = readFileSync(join(root, 'VERSION'), 'utf8').trim();
 const dev = process.argv.includes('--dev');
+
+// A running host would keep serving the old dist/ from memory-mapped files; stop it first.
+stopCapstan('build');
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(assets, { recursive: true });
