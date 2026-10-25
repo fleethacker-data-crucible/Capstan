@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/brand/emblem-light.png" width="280" alt="Capstan"></p>
+
 # Capstan
 
 **An open-source, local-first screen recorder and video editor for Windows.** The goal is a full-featured editor that runs on a locked-down work PC: no installer, no administrator rights, no Node or Python on the machine, no network calls. Record your screen, cut it on a multi-track timeline, and export an MP4, all on your own computer.
