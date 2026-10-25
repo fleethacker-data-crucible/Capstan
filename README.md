@@ -1,4 +1,9 @@
-<p align="center"><img src="assets/brand/emblem-light.png" width="280" alt="Capstan"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/emblem-dark.png">
+    <img src="assets/brand/emblem-light.png" width="280" alt="Capstan emblem: a ship's capstan wound with film instead of rope, inside a brass compass ring">
+  </picture>
+</p>
 
 # Capstan
 
