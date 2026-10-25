@@ -4,6 +4,7 @@ import { projectDuration } from '../engine/project';
 import { ScreenRecorder } from '../engine/recorder';
 import { timecode } from './format';
 import { Icon } from './icons';
+import { markBusy } from './lifecycle';
 import type { Editor } from './useEditor';
 
 export function RecordDialog({ editor, onClose }: { editor: Editor; onClose(): void }) {
@@ -22,6 +23,10 @@ export function RecordDialog({ editor, onClose }: { editor: Editor; onClose(): v
   }, [state]);
 
   useEffect(() => () => recorder.current?.cancel(), []);
+
+  // Recording and saving run in this page; tell the host so it never gives up on this window meanwhile.
+  const active = state !== 'setup';
+  useEffect(() => (active ? markBusy() : undefined), [active]);
 
   const finish = async () => {
     const r = recorder.current;

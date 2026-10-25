@@ -7,8 +7,14 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    # Self-hosted Windows build PC (GitHub-hosted jobs are blocked by the account's spending limit).
+    # ffmpeg is installed on the machine; Node and Bun come from the pinned setup actions.
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
+    defaults:
+      run:
+        # Windows PowerShell 5.1: the Store-installed pwsh cannot be started by the runner service.
+        shell: powershell
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -20,17 +26,36 @@ jobs:
       - name: Install build tools
         run: |
           npm install --no-audit --no-fund
-          npx playwright install --with-deps chromium
-          sudo apt-get update && sudo apt-get install -y ffmpeg
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npx playwright install chromium
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { Write-Host '::error::ffmpeg is not on PATH for the runner account'; exit 1 }
+          $ffmpeg = @(ffmpeg -hide_banner -version)
+          $ffmpeg[0]
       - name: Type-check (engine and UI)
         run: npx tsc -p tsconfig.json
       - name: Unit and host checks (includes "dist/ is up to date")
         run: bun test tests/unit
       - name: Browser tests against the committed dist/
         run: |
-          node tests/serve.mjs 8790 &
-          sleep 1
+          $server = Start-Process node -ArgumentList 'tests/serve.mjs','8790' -WindowStyle Hidden -PassThru
+          Set-Content -Path (Join-Path $env:RUNNER_TEMP 'capstan-serve.pid') -Value $server.Id
+          $deadline = (Get-Date).AddSeconds(15)
+          function Test-Port { $c = New-Object Net.Sockets.TcpClient; try { $c.Connect('127.0.0.1', 8790); $true } catch { $false } finally { $c.Dispose() } }
+          while (-not (Test-Port)) {
+            if ($server.HasExited -or (Get-Date) -gt $deadline) { Write-Host '::error::tests/serve.mjs did not start on port 8790'; exit 1 }
+            Start-Sleep -Milliseconds 250
+          }
           npm run test:e2e
+      - name: Stop the test server
+        # Always runs, so a failed or cancelled job does not leave node.exe holding port 8790 on the runner.
+        if: always()
+        run: |
+          $pidFile = Join-Path $env:RUNNER_TEMP 'capstan-serve.pid'
+          if (Test-Path $pidFile) {
+            Stop-Process -Id ([int](Get-Content $pidFile)) -Force -ErrorAction SilentlyContinue
+            Remove-Item $pidFile
+          }
       - name: Keep screenshots and exported files
         if: always()
         uses: actions/upload-artifact@v4
@@ -38,3 +63,14 @@ jobs:
           name: e2e-output
           path: tests/e2e/.out/
           if-no-files-found: ignore
+
+  windows-host:
+    # The real PowerShell 5.1 host: lifecycle rule with simulated time, then a live host that must
+    # write its runtime file, accept the heartbeat and leaving beacon, and stop itself.
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host lifecycle (Windows PowerShell 5.1)
+        shell: powershell
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1

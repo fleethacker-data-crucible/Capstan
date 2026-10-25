@@ -4,6 +4,10 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stopCapstan } from '../scripts/stop-capstan.mjs';
+
+// On Windows a running Capstan host holds port 8790; stop it first and say so.
+stopCapstan('serve');
 
 const root = resolve(fileURLToPath(import.meta.url), '../..');
 const port = Number(process.argv[2] ?? 8790);
@@ -20,6 +24,8 @@ const TYPES = {
 export const CSP =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
+const heartbeats = [];
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
   let file;
@@ -28,7 +34,33 @@ const server = createServer(async (req, res) => {
   else if (url.pathname.startsWith('/fixtures/')) file = join(root, 'tests', normalize(url.pathname));
   else if (url.pathname === '/harness') file = join(root, 'tests/e2e/harness.html');
   else if (url.pathname === '/harness.js') file = join(root, 'tests/e2e/.build/harness.js');
-  else if (url.pathname === '/api/health') {
+  else if (url.pathname === '/api/heartbeat' && req.method === 'POST') {
+    // Mirrors the host: token in X-Capstan-Token, or in the JSON body for this route only (sendBeacon).
+    let raw = '';
+    for await (const chunk of req) raw += chunk;
+    let body = {};
+    try {
+      body = JSON.parse(raw || '{}');
+    } catch {}
+    const token = req.headers['x-capstan-token'] ?? body.session;
+    if (token !== 'test-token') {
+      res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Invalid session' }));
+      return;
+    }
+    heartbeats.push({ tab: body.tab, leaving: !!body.leaving, busy: !!body.busy, hidden: !!body.hidden, header: !!req.headers['x-capstan-token'] });
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, autoStop: false }));
+    return;
+  } else if (url.pathname === '/api/test/heartbeats') {
+    // Test-only: what the page sent, so e2e tests can check the lifecycle signals.
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(heartbeats));
+    return;
+  } else if (url.pathname === '/api/session/stop' && req.method === 'POST') {
+    // The test server keeps running so later suites still work; it only records the request.
+    const ok = req.headers['x-capstan-token'] === 'test-token';
+    if (ok) heartbeats.push({ stop: true });
+    res.writeHead(ok ? 200 : 403, { 'content-type': 'application/json' }).end(JSON.stringify(ok ? { ok: true, stopping: true } : { error: 'Invalid session' }));
+    return;
+  } else if (url.pathname === '/api/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ app: 'Capstan', host: 'test-server', offline: true }));
     return;

@@ -17,6 +17,7 @@ const paths: Record<string, ReactElement> = {
       <path d="M3 6.5h4.5v7H3m14-7h-4.5v7H17" />
     </>
   ),
+  power: <path d="M10 3v6.5M6.2 5.6a6 6 0 1 0 7.6 0" />,
   trash: <path d="M4 6h12M8 6V4h4v2m-6 0 .7 10h6.6L14 6" />,
   play: <path d="M6.5 4.5v11l9-5.5-9-5.5Z" fill="currentColor" />,
   pause: (
