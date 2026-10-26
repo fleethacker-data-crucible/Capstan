@@ -27,9 +27,9 @@ Select **Import media**, or drop files anywhere in the window. They land in the 
 
 ### 3. Edit on the timeline
 
-Drag clips onto tracks, trim their edges and press **S** to split at the playhead. The demo clip used here is a short recording of Scrimshaw's welcome screen.
+Drag clips onto tracks, trim their edges and press **S** to split at the playhead. The demo clip used here is a short recording of Capstan's own welcome screen.
 
-![Capstan editor with the demo clip of Scrimshaw's welcome screen split at the playhead on track 1, and the title card on track 2.](../assets/walkthrough/03-timeline-edit.png)
+![Capstan editor with the demo clip of Capstan's welcome screen split at the playhead at 0:00:05;00 on track 1, and the title card on track 2.](../assets/walkthrough/03-timeline-edit.png)
 
 ### 4. Adjust a clip
 
@@ -45,10 +45,10 @@ Select a clip. The **Inspector** sets its position, scale, rotation, opacity and
 
 ### 6. Export
 
-**Export video** writes an MP4 (H.264) to your Downloads folder. Choose the size and quality, and whether to include audio.
+**Export video** writes an MP4 (H.264) to your Downloads folder. Choose the size (by default the project's own size) and quality, and whether to include audio.
 
-![Capstan Export video dialog for a 10-second MP4 with 1080p size, Standard quality and Include audio selected.](../assets/walkthrough/06-export-dialog.png)
+![Capstan Export video dialog for a roughly 10-second MP4 with Same as project (1920x1080) size, Standard quality and Include audio selected.](../assets/walkthrough/06-export-dialog.png)
 
 ## About these images
 
-Images live in [`docs/assets/walkthrough/`](../assets/walkthrough/), named `NN-<screen>.png` after the step they belong to. They are 1440x900 at 100% scale in the Night watch (dark) theme, and show demo data only.
+Images live in [`docs/assets/walkthrough/`](../assets/walkthrough/), named `NN-<screen>.png` after the step they belong to. They are 1440x900 at 100% scale in the Night watch (dark) theme, and show demo data only. To retake them from the current build, run `node tests/serve.mjs 8790` and then `node tests/e2e/walkthrough.mjs`, which also makes the demo media.
