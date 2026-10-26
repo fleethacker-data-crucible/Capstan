@@ -8,7 +8,7 @@ on:
 jobs:
   build-and-test:
     # Self-hosted Windows build PC (GitHub-hosted jobs are blocked by the account's spending limit).
-    # ffmpeg is installed on the machine; Node and Bun come from the pinned setup actions.
+    # Node comes from the pinned setup action; Bun and ffmpeg (test-only) from pinned, hash-checked downloads.
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     defaults:
@@ -17,9 +17,60 @@ jobs:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.4
+      - name: Install Bun 1.4.4 (pinned download; bunx is a copy, not a symlink)
+        # oven-sh/setup-bun symlinks bunx.exe, which fails with EPERM for a runner account
+        # without the symlink privilege. Download the pinned release, check its hash, and copy instead.
+        env:
+          BUN_VERSION: 1.4.4
+          BUN_SHA256: cd2c0fccc78f3ede1f50ca827a15f063eda13d4d150a3d0674f4f6e323d864a5
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+          $root = Join-Path $env:RUNNER_TEMP "bun-$env:BUN_VERSION"
+          if (Test-Path $root) { Remove-Item $root -Recurse -Force }
+          New-Item -ItemType Directory -Path $root | Out-Null
+          $zip = Join-Path $root 'bun-windows-x64.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/oven-sh/bun/releases/download/bun-v$env:BUN_VERSION/bun-windows-x64.zip" -OutFile $zip
+          $hash = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BUN_SHA256) { Write-Host "::error::bun-windows-x64.zip SHA256 mismatch (got $hash)"; exit 1 }
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+          $bin = Join-Path $root 'bun-windows-x64'
+          Copy-Item -Path (Join-Path $bin 'bun.exe') -Destination (Join-Path $bin 'bunx.exe') -Force
+          Add-Content -Path $env:GITHUB_PATH -Value $bin -Encoding UTF8
+          & (Join-Path $bin 'bun.exe') --version
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & (Join-Path $bin 'bunx.exe') --version
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Install ffmpeg 9.0.2 (pinned download; test-only, used by tests/e2e to validate exported MP4s)
+        # Gyan.dev essentials build (includes ffprobe) from its versioned GitHub release. Nothing is installed
+        # on the machine: it is unpacked under RUNNER_TEMP and added to PATH for later steps only.
+        env:
+          FFMPEG_VERSION: 9.0.2
+          FFMPEG_SHA256: 60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+          $root = Join-Path $env:RUNNER_TEMP "ffmpeg-$env:FFMPEG_VERSION"
+          if (Test-Path $root) { Remove-Item $root -Recurse -Force }
+          New-Item -ItemType Directory -Path $root | Out-Null
+          $name = "ffmpeg-$env:FFMPEG_VERSION-essentials_build"
+          $zip = Join-Path $root "$name.zip"
+          # WebClient, not Invoke-WebRequest: on Windows PowerShell 5.1 Invoke-WebRequest manages ~0.4 MB/s for this 115 MB file.
+          (New-Object Net.WebClient).DownloadFile("https://github.com/GyanD/codexffmpeg/releases/download/$env:FFMPEG_VERSION/$name.zip", $zip)
+          $hash = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:FFMPEG_SHA256) { Write-Host "::error::$name.zip SHA256 mismatch (got $hash)"; exit 1 }
+          # ZipFile, not Expand-Archive, which is very slow on 5.1 for a ~320 MB unpacked archive.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory($zip, $root)
+          Remove-Item $zip
+          $bin = Join-Path (Join-Path $root $name) 'bin'
+          Add-Content -Path $env:GITHUB_PATH -Value $bin -Encoding UTF8
+          & (Join-Path $bin 'ffmpeg.exe') -hide_banner -version
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & (Join-Path $bin 'ffprobe.exe') -hide_banner -version
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -29,7 +80,9 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           npx playwright install chromium
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { Write-Host '::error::ffmpeg is not on PATH for the runner account'; exit 1 }
+          foreach ($tool in 'ffmpeg', 'ffprobe') {
+            if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { Write-Host "::error::$tool is not on PATH (expected from the pinned ffmpeg step)"; exit 1 }
+          }
           $ffmpeg = @(ffmpeg -hide_banner -version)
           $ffmpeg[0]
       - name: Type-check (engine and UI)

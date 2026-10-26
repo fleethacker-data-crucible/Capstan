@@ -1,6 +1,6 @@
 // Exports a fixture timeline in headless Chromium and validates the MP4 with ffprobe/ffmpeg.
 // Usage: node tests/e2e/export.e2e.mjs   (expects tests/serve.mjs on port 8790)
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
@@ -46,8 +46,10 @@ for (const audio of [true, false]) {
     check('[a+v] audio 48 kHz stereo', a?.sample_rate === '48000' && a?.channels === 2, `${a?.sample_rate} ${a?.channels}`);
     // The tone clip covers 4.5-6.5s and the videos' own audio ends at 4s, so 7-8s is silent.
     const db = (from, len) => {
-      const r = execFileSync('sh', ['-c', `ffmpeg -ss ${from} -t ${len} -i '${file}' -vn -af volumedetect -f null - 2>&1 | grep mean_volume || true`]).toString();
-      const m = /mean_volume: (-?[\d.]+|-inf)/.exec(r);
+      // No shell: run ffmpeg directly and read volumedetect's report from stderr (exit code ignored, as before).
+      const r = spawnSync('ffmpeg', ['-ss', String(from), '-t', String(len), '-i', file, '-vn', '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+      const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+      const m = /mean_volume: (-?[\d.]+|-inf)/.exec(out);
       return m ? Number(m[1].replace('-inf', '-999')) : -999;
     };
     const loud = db(5, 1);
