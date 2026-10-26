@@ -1,6 +1,6 @@
 # Fleet Unified UI Requirements
 
-**Version 0.1 · 2026-10-25 · Status: proposed**
+**Version 0.2 · 2026-10-25 · Status: proposed**
 
 This file is identical in every Fleet repo. Change it in one place and copy it to all the others; never edit a single repo's copy on its own. When the `fleet-design` repo exists, it becomes the source of truth and this file points there.
 
@@ -25,6 +25,8 @@ Requirement words: **MUST** is required to call an app aligned. **SHOULD** is ex
 | Eight Bells | Eight-Bells | LogHawk | Watchstanding log intelligence | Plain JS | 8774 |
 | Capstan | Capstan | — | Screen recorder and video editor | React | 8772 |
 | Bowerbird | bowerbird | — | File intelligence and renaming | Plain HTML/JS | 8767 |
+| Fairlead | Fairlead | (new) | Model router: one local gateway to cloud and local LLMs | React + Tailwind, .NET engine | 8776 |
+| Windlass | Windlass | (new) | Layer-by-layer server for very large local models | No UI (Python, GPU box) | 8777 |
 
 Display names use the spelling in the first column (two words for Eight Bells and Halyard Ballast, one word everywhere else).
 
@@ -91,6 +93,7 @@ Every value below passes 4.5:1 against its theme's background, so it is safe for
 | Eight Bells | `#d6a258` bell bronze | `#8f5e22` bell bronze | The ship's bell |
 | Capstan | `#d9845a` copper | `#a14f28` copper | Winch drum and tape |
 | Bowerbird | `#9b98f3` satin blue | `#4b45b8` satin blue | The satin bowerbird collects blue things |
+| Fairlead | `#a3d65c` starboard green | `#4d7a1a` starboard green | The running light that says the channel is clear |
 
 SnapShackle's accent equals `--fl-danger`. SnapShackle **MUST** pair danger states with an icon and a label, so color is never the only signal.
 
@@ -228,7 +231,7 @@ Plain-HTML apps use these classes directly. Tailwind and component-framework app
 
 **React without Tailwind** (Capstan): import `fleet.css` once at the root and use the `.fl-*` classes.
 
-**No UI** (Halyard Ballast): only sections 8 (README) and 9 (naming) apply.
+**No UI** (Halyard Ballast, Windlass): only sections 8 (README) and 9 (naming) apply.
 
 ---
 
