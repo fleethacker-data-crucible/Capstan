@@ -43,7 +43,7 @@ Notes:
 - The beacon cannot set headers, so the server accepts the session token in the JSON body on that one route only — never in the query string, never logged.
 - A hidden PowerShell console counts: if the window is hidden or minimised, the user has no Ctrl+C.
 - To find what holds a DLL, use the Windows Restart Manager (`RmRegisterResources` + `RmGetList`); `Process.Modules` misses .NET-mapped assemblies.
-- Reference implementation: Halyard (formerly Cascade).
+- Reference implementation: Halyard (renamed from a previous name).
 
 ## Capstan: how it applies
 
