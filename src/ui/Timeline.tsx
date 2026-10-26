@@ -284,7 +284,7 @@ function TrackRow({
             aria-pressed={track.hidden}
             onClick={() => set({ hidden: !track.hidden })}
           >
-            <Icon name={track.hidden ? 'eyeOff' : 'eye'} size={15} />
+            <Icon name={track.hidden ? 'eyeOff' : 'eye'} />
           </button>
           <button
             className={`icon-button small${track.muted ? ' on' : ''}`}
@@ -292,7 +292,7 @@ function TrackRow({
             aria-pressed={track.muted}
             onClick={() => set({ muted: !track.muted })}
           >
-            <Icon name={track.muted ? 'speakerOff' : 'speaker'} size={15} />
+            <Icon name={track.muted ? 'speakerOff' : 'speaker'} />
           </button>
           <button
             className={`icon-button small${track.locked ? ' on' : ''}`}
@@ -300,7 +300,7 @@ function TrackRow({
             aria-pressed={track.locked}
             onClick={() => set({ locked: !track.locked })}
           >
-            <Icon name={track.locked ? 'lock' : 'unlock'} size={15} />
+            <Icon name={track.locked ? 'lock' : 'unlock'} />
           </button>
           {canRemove && (
             <button
@@ -311,7 +311,7 @@ function TrackRow({
                 editor.commit(removeTrack(editor.project, track.id));
               }}
             >
-              <Icon name="close" size={14} />
+              <Icon name="close" />
             </button>
           )}
         </div>

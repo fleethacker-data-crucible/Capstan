@@ -5,15 +5,66 @@ import { parseProject, projectDuration } from '../engine/project';
 import { ExportDialog } from './ExportDialog';
 import { download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
+import { Emblem, Welcome } from './Welcome';
 import { Inspector } from './Inspector';
-import { endSession, isBusy, sessionToken, startHeartbeat } from './lifecycle';
+import { endSession, isBusy, onEngineState, sessionToken, startHeartbeat, type EngineState } from './lifecycle';
 import { MediaBin } from './MediaBin';
 import { Preview } from './Preview';
 import { RecordDialog } from './RecordDialog';
+import { applyTheme, nextTheme, readSidebarCollapsed, readTheme, saveSidebarCollapsed, themeName, useModal, type ThemeChoice } from './shell';
 import { Timeline } from './Timeline';
 import { useEditor } from './useEditor';
 
 declare const __CAPSTAN_VERSION__: string;
+
+const ENGINE_WORD: Record<EngineState, string> = {
+  connecting: 'Connecting',
+  running: 'Running',
+  disconnected: 'Disconnected',
+  stopped: 'Stopped',
+  standalone: 'Standalone',
+};
+const THEME_ICON = { system: 'themeSystem', dark: 'themeDark', light: 'themeLight' } as const;
+
+function useNarrow(): boolean {
+  // Narrower than 1024 px the sidebar collapses by itself (docs/UNIFIED-UI.md section 5).
+  const query = '(max-width: 1023px)';
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return narrow;
+}
+
+function ShortcutsDialog({ onClose }: { onClose(): void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useModal(ref, onClose);
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div ref={ref} tabIndex={-1} className="modal fl-dialog" role="dialog" aria-modal="true" aria-labelledby="keys-title" onClick={(e) => e.stopPropagation()}>
+        <header className="modal-head">
+          <h2 id="keys-title">Keyboard shortcuts</h2>
+          <button className="icon-button" onClick={onClose} title="Close (Esc)">
+            <Icon name="close" />
+          </button>
+        </header>
+        <dl className="shortcuts">
+          {SHORTCUTS.map(([k, v]) => (
+            <div key={k}>
+              <dt>
+                <kbd>{k}</kbd>
+              </dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </div>
+  );
+}
 
 const SHORTCUTS: Array<[string, string]> = [
   ['Space', 'Play or pause'],
@@ -25,6 +76,8 @@ const SHORTCUTS: Array<[string, string]> = [
   ['Ctrl+Z / Ctrl+Y', 'Undo or redo'],
   ['Ctrl+A', 'Select all clips'],
   ['Ctrl+wheel', 'Zoom the timeline'],
+  ['?', 'Show these shortcuts'],
+  ['Esc', 'Clear the selection, or close a dialog'],
 ];
 
 export function App() {
@@ -37,7 +90,27 @@ export function App() {
   const [dialog, setDialog] = useState<'record' | 'export' | 'shortcuts' | null>(null);
   const [dragging, setDragging] = useState(false);
   const [ended, setEnded] = useState(false);
+  // An empty project opens on the Welcome landing view until there is media or the viewer asks for the editor.
+  const [editorAnyway, setEditorAnyway] = useState(false);
+  const [theme, setTheme] = useState<ThemeChoice>(readTheme);
+  const [collapsedPref, setCollapsedPref] = useState(readSidebarCollapsed);
+  const [engine, setEngine] = useState<EngineState>('connecting');
+  const narrow = useNarrow();
+  const collapsed = collapsedPref || narrow;
   const openInput = useRef<HTMLInputElement>(null);
+  const importInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => onEngineState(setEngine), []);
+
+  const cycleTheme = () => {
+    const t = nextTheme(theme);
+    applyTheme(t);
+    setTheme(t);
+  };
+  const toggleSidebar = () => {
+    saveSidebarCollapsed(!collapsedPref);
+    setCollapsedPref(!collapsedPref);
+  };
   const { project, selection } = editor;
   const duration = projectDuration(project);
 
@@ -172,10 +245,11 @@ export function App() {
 
   if (ended) {
     return (
-      <div className="session-ended" role="main">
-        <h1>Session ended</h1>
+      <div className="session-ended fl-empty" role="main">
+        <Emblem size={240} />
+        <h2>Session ended</h2>
         <p>Capstan has stopped. Your projects and media are saved in this browser. You can close this window; run Launch-Capstan.bat to start again.</p>
-        <button className="button" onClick={() => window.close()}>
+        <button className="button primary fl-btn fl-btn--primary" onClick={() => window.close()}>
           Close window
         </button>
       </div>
@@ -183,17 +257,71 @@ export function App() {
   }
 
   return (
-    <div className="app">
-      <header className="toolbar">
-        <div className="brand" aria-label="Capstan">
-          <svg viewBox="0 0 28 20" width="28" height="20" aria-hidden>
-            <rect x="0.75" y="0.75" width="26.5" height="18.5" rx="3" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <circle cx="8.5" cy="9" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <circle cx="19.5" cy="9" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M8.5 12.2h11" stroke="currentColor" strokeWidth="1.5" />
-          </svg>
-          <span>Capstan</span>
+    <div className={`app${collapsed ? ' sidebar-collapsed' : ''}`}>
+      <aside className="sidebar" aria-label="Capstan">
+        <div className="sidebar-brand" title="Capstan">
+          {/* Expanded: the full emblem with its wordmark. Collapsed rail: the emblem's circle. */}
+          {collapsed ? <img src="/assets/icon-256.png" alt="Capstan" width={40} height={40} /> : <Emblem size={184} />}
         </div>
+        <nav className="fl-nav sidebar-nav" aria-label="Capstan">
+          <button aria-current="page" title="Editor">
+            <Icon name="editor" size={20} />
+            <span>Editor</span>
+          </button>
+          <button className="nav-record" title="Record screen" onClick={() => setDialog('record')}>
+            <Icon name="record" size={20} />
+            <span>Record screen</span>
+          </button>
+          <button title="Import media" onClick={() => importInput.current?.click()}>
+            <Icon name="import" size={20} />
+            <span>Import media</span>
+          </button>
+          <button title="Export video" onClick={() => setDialog('export')}>
+            <Icon name="export" size={20} />
+            <span>Export video</span>
+          </button>
+          <input
+            ref={importInput}
+            type="file"
+            multiple
+            accept="video/*,audio/*,image/*"
+            hidden
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              e.target.value = '';
+              if (files.length) void editor.importFiles(files);
+            }}
+          />
+        </nav>
+        <div className="fl-nav sidebar-foot">
+          <button title="Keyboard shortcuts (?)" onClick={() => setDialog('shortcuts')}>
+            <Icon name="keyboard" size={20} />
+            <span>Shortcuts</span>
+          </button>
+          <button title={`Theme: ${themeName(theme)}. Click for ${themeName(nextTheme(theme))}.`} onClick={cycleTheme}>
+            <Icon name={THEME_ICON[theme]} size={20} />
+            <span>{themeName(theme)}</span>
+          </button>
+          {sessionToken() && (
+            <button className="end-session" title="End session: stop Capstan's local server" onClick={() => void quit()}>
+              <Icon name="power" size={20} />
+              <span>End session</span>
+            </button>
+          )}
+          {!narrow && (
+            <button title={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'} aria-expanded={!collapsed} onClick={toggleSidebar}>
+              <Icon name={collapsed ? 'expand' : 'collapse'} size={20} />
+              <span>Collapse</span>
+            </button>
+          )}
+        </div>
+      </aside>
+
+      <div className="main">
+      <header className="toolbar">
+        <h1 className="project-title" title={project.name}>
+          {project.name}
+        </h1>
         <div className="tool-group">
           <button className="icon-button" title="New project" onClick={() => {
             if (project.clips.length && !window.confirm('Start a new project? The current project and its media will be removed from Capstan.')) return;
@@ -237,24 +365,21 @@ export function App() {
             <span>Delete</span>
           </button>
         </div>
-        <div className="project-title" title={project.name}>
-          {project.name}
-        </div>
-        <button className="icon-button" title="Keyboard shortcuts (?)" onClick={() => setDialog('shortcuts')}>
-          <span className="kbd-hint">?</span>
-        </button>
-        <button className="button primary export" onClick={() => setDialog('export')}>
-          <Icon name="export" size={16} />
+        <button className="button primary export fl-btn fl-btn--primary" onClick={() => setDialog('export')}>
+          <Icon name="export" />
           Export video
         </button>
-        {sessionToken() && (
-          <button className="icon-button labelled end-session" title="End session: stop Capstan's local server" onClick={() => void quit()}>
-            <Icon name="power" />
-            <span>End session</span>
-          </button>
-        )}
       </header>
 
+      {!editorAnyway && project.media.length === 0 && project.clips.length === 0 ? (
+        <Welcome
+          onRecord={() => setDialog('record')}
+          onImport={() => importInput.current?.click()}
+          onOpen={() => openInput.current?.click()}
+          onEditor={() => setEditorAnyway(true)}
+        />
+      ) : (
+      <>
       <main className="workspace">
         <MediaBin editor={editor} time={time} onRecord={() => setDialog('record')} />
         <Preview editor={editor} time={time} onPlayer={setPlayer} />
@@ -269,7 +394,7 @@ export function App() {
           <Icon name="stepBack" />
         </button>
         <button className="play-button" title={playing ? 'Pause (Space)' : 'Play (Space)'} onClick={() => player?.toggle()} disabled={!duration}>
-          <Icon name={playing ? 'pause' : 'play'} size={20} />
+          <Icon name={playing ? 'pause' : 'play'} />
         </button>
         <button className="icon-button" title="Next frame (→)" onClick={() => player?.step(1)}>
           <Icon name="stepForward" />
@@ -307,10 +432,22 @@ export function App() {
       </div>
 
       <Timeline editor={editor} player={player} time={time} playing={playing} zoom={zoom} setZoom={setZoom} snapping={snapping} />
+      </>
+      )}
+      </div>
 
       <footer className="statusbar">
-        <span role="status">{editor.status}</span>
-        <span className="version">Capstan {__CAPSTAN_VERSION__} · works offline</span>
+        <span className={`engine engine-${engine}`}>
+          <span className="engine-dot" aria-hidden />
+          {ENGINE_WORD[engine]}
+        </span>
+        <span className="address" title="The address this Capstan is served from">
+          {window.location.host || 'file'}
+        </span>
+        <span className="message" role="status">
+          {editor.status}
+        </span>
+        <span className="version">Capstan {__CAPSTAN_VERSION__}</span>
       </footer>
 
       {dragging && (
@@ -320,28 +457,7 @@ export function App() {
       )}
       {dialog === 'record' && <RecordDialog editor={editor} onClose={() => setDialog(null)} />}
       {dialog === 'export' && <ExportDialog editor={editor} onClose={() => setDialog(null)} />}
-      {dialog === 'shortcuts' && (
-        <div className="modal-backdrop" role="presentation" onClick={() => setDialog(null)}>
-          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="keys-title" onClick={(e) => e.stopPropagation()}>
-            <header className="modal-head">
-              <h2 id="keys-title">Keyboard shortcuts</h2>
-              <button className="icon-button" onClick={() => setDialog(null)} title="Close">
-                <Icon name="close" size={16} />
-              </button>
-            </header>
-            <dl className="shortcuts">
-              {SHORTCUTS.map(([k, v]) => (
-                <div key={k}>
-                  <dt>
-                    <kbd>{k}</kbd>
-                  </dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      )}
+      {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
     </div>
   );
 }

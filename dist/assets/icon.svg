@@ -1,1 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="2" y="6" width="28" height="20" rx="4" fill="#24282f" stroke="#f0b03c" stroke-width="2"/><circle cx="11" cy="15" r="3.5" fill="none" stroke="#f0b03c" stroke-width="2"/><circle cx="21" cy="15" r="3.5" fill="none" stroke="#f0b03c" stroke-width="2"/><path d="M11 18.5h10" stroke="#f0b03c" stroke-width="2"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Capstan">
+  <title>Capstan</title>
+  <circle cx="32" cy="32" r="29.5" fill="#0d2233" stroke="#c9a66b" stroke-width="3"/>
+  <path d="M23 22 H41 Q35.5 34 40.5 46 H23.5 Q28.5 34 23 22 Z" fill="#d9845a"/>
+  <path d="M26.5 26 Q28.5 34 26.8 42 M37.5 26 Q35.5 34 37.2 42" fill="none" stroke="#9b7a52" stroke-width="1.1"/>
+  <rect x="21" y="15.5" width="22" height="7" rx="2.2" fill="#c9a66b"/>
+  <rect x="8.5" y="17.4" width="47" height="3.2" rx="1.6" fill="#f1e4c8"/>
+  <rect x="19" y="45.5" width="26" height="4.5" rx="1.2" fill="#9b7a52"/>
+  <polygon points="21.5,30 42.5,28.2 42.5,35.6 21.5,37.4" fill="#071420" stroke="#f1e4c8" stroke-width="0.8"/>
+  <circle cx="24.0" cy="31.40" r="0.75" fill="#f1e4c8"/><circle cx="24.0" cy="37.00" r="0.75" fill="#f1e4c8"/><circle cx="27.6" cy="30.96" r="0.75" fill="#f1e4c8"/><circle cx="27.6" cy="36.56" r="0.75" fill="#f1e4c8"/><circle cx="31.2" cy="30.52" r="0.75" fill="#f1e4c8"/><circle cx="31.2" cy="36.12" r="0.75" fill="#f1e4c8"/><circle cx="34.8" cy="30.08" r="0.75" fill="#f1e4c8"/><circle cx="34.8" cy="35.68" r="0.75" fill="#f1e4c8"/><circle cx="38.4" cy="29.64" r="0.75" fill="#f1e4c8"/><circle cx="38.4" cy="35.24" r="0.75" fill="#f1e4c8"/>
+</svg>
