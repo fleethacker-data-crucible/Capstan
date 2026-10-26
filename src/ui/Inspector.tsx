@@ -228,7 +228,7 @@ export function Inspector({ editor }: { editor: Editor }) {
             }
           }}
         >
-          <Icon name="copy" size={15} />
+          <Icon name="copy" />
           Duplicate
         </button>
       </div>

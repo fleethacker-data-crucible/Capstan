@@ -23,6 +23,11 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
 await page.goto(base + '/');
+await page.waitForSelector('.welcome');
+await page.screenshot({ path: `${out}/00-welcome.png` });
+check('an empty project opens on the Welcome view with the emblem', await page.isVisible('text=Haul in your footage.') && (await page.locator('.welcome img.welcome-emblem:visible').count()) === 1);
+check('Welcome offers record, import and open', (await page.locator('.welcome-actions button').allTextContents()).map((t) => t.trim()).join('|') === 'Record screen|Import media|Open project');
+await page.getByRole('button', { name: 'Go to the editor' }).click();
 await page.waitForSelector('.media-bin');
 await page.screenshot({ path: `${out}/01-empty.png` });
 check('empty state guides the user', await page.isVisible('text=Record your screen or import media'));

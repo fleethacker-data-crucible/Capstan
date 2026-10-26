@@ -9,11 +9,17 @@
 
 **An open-source, local-first screen recorder and video editor for Windows.** The goal is a full-featured editor that runs on a locked-down work PC: no installer, no administrator rights, no Node or Python on the machine, no network calls. Record your screen, cut it on a multi-track timeline, and export an MP4, all on your own computer.
 
-The name comes from the capstan: the drum a ship's crew turns to haul in line, and the spinning shaft that pulls tape past the heads in a tape recorder. Capstan was briefly called **OpenTape**; projects saved under that name do not carry over.
+## The name
 
-**Status: v0.1, foundation.** The editor below works end to end and is covered by automated tests. It is not yet feature-complete; [the roadmap](docs/ROADMAP.md) tracks every planned feature and when it lands. The Windows host is adapted from [SnapShackle](https://github.com/sun-of-anton/SnapShackle)'s tested loopback server, but **this build has not yet been run on a real Windows PC**. Please try it and report back before relying on it.
+A *capstan* is the drum on a ship's deck that the crew walks around to haul in a heavy line, turning steady effort into steady pull. In a tape recorder, the capstan is the spinning shaft that pulls the tape past the heads at an exact speed. Capstan does both jobs for your screen: it hauls in what you record, and it runs your footage through the timeline at an even pace to a finished video. Capstan was briefly called **OpenTape**; projects saved under that name do not carry over.
 
-![Capstan editor](docs/editor.png)
+**Status: v0.1, foundation.** The editor below works end to end and is covered by automated tests. It is not yet feature-complete; [the roadmap](docs/ROADMAP.md) tracks every planned feature and when it lands. The Windows host is adapted from [SnapShackle](https://github.com/fleethacker-data-crucible/SnapShackle)'s tested loopback server and passes its Windows PowerShell 5.1 tests on the build PC. Please report anything that misbehaves before relying on it.
+
+The interface follows the Fleet Unified UI ([docs/UNIFIED-UI.md](docs/UNIFIED-UI.md)): Night watch and Chart room themes that follow Windows (switch in the sidebar), a collapsible sidebar, and a status bar with the engine state and address.
+
+| Night watch (dark) | Chart room (light) |
+| --- | --- |
+| ![Capstan editor in the Night watch theme](docs/screenshots/editor-night-watch.png) | ![Capstan editor in the Chart room theme](docs/screenshots/editor-chart-room.png) |
 
 ## Run it on Windows
 
@@ -21,7 +27,7 @@ The name comes from the capstan: the drum a ship's crew turns to haul in line, a
 2. Double-click **`Launch-Capstan.bat`**.
 3. Capstan opens in a Microsoft Edge app window (or your default browser if Edge is missing). Keep the console window open while you work.
 
-**Quitting.** Close the Capstan window and the local server stops by itself a few seconds later (a reload does not stop it, and with several Capstan windows open it waits for the last one). It waits while an export or recording is still running in an open window. You can also click **End session** in the toolbar, press Ctrl+C in the console, or run `Stop-Capstan.ps1`, which finds and stops every running Capstan without needing a process ID. Starting Capstan while it is already running asks whether to stop the old one and start fresh.
+**Quitting.** Close the Capstan window and the local server stops by itself a few seconds later (a reload does not stop it, and with several Capstan windows open it waits for the last one). It waits while an export or recording is still running in an open window. You can also click **End session** in the sidebar, press Ctrl+C in the console, or run `Stop-Capstan.ps1`, which finds and stops every running Capstan without needing a process ID. Starting Capstan while it is already running asks whether to stop the old one and start fresh.
 
 Options:
 

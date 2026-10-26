@@ -24,9 +24,12 @@ const page = await context.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(base + '/');
+// An empty project opens on the Welcome view; this test drives the editor's Media panel.
+await page.getByRole('button', { name: 'Go to the editor' }).click();
 await page.waitForSelector('.media-bin');
 
-await page.getByRole('button', { name: 'Record screen' }).click();
+// The sidebar has its own Record screen entry; this test drives the one in the Media panel.
+await page.getByRole('region', { name: 'Media' }).getByRole('button', { name: 'Record screen' }).click();
 await page.getByRole('button', { name: 'Start recording' }).click();
 const started = await page
   .waitForSelector('.rec-status.recording', { timeout: 8000 })

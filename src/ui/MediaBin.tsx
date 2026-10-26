@@ -81,7 +81,7 @@ export function MediaBin({ editor, time, onRecord }: { editor: Editor; time: num
                 </div>
                 <div className="bin-item-actions">
                   <button className="icon-button small" title="Add at playhead" onClick={() => addToTimeline(m)}>
-                    <Icon name="plus" size={15} />
+                    <Icon name="plus" />
                   </button>
                   <button
                     className="icon-button small"
@@ -91,7 +91,7 @@ export function MediaBin({ editor, time, onRecord }: { editor: Editor; time: num
                       void editor.deleteMedia(m.id);
                     }}
                   >
-                    <Icon name="trash" size={15} />
+                    <Icon name="trash" />
                   </button>
                 </div>
               </li>
