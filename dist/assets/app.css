@@ -1,4 +1,4 @@
-/* Fleet UI v0.1 - shared tokens and components for the Fleet apps (docs/UNIFIED-UI.md).
+/* Fleet UI v0.2 - shared tokens and components for the Fleet apps (docs/UNIFIED-UI.md).
    Identical in every Fleet repo; change it in one place and copy it everywhere. When the
    fleet-design repo exists it becomes the source of truth.
    Themes: Night watch (dark) and Chart room (light). Follows prefers-color-scheme unless
@@ -16,6 +16,7 @@
 [data-app='eight-bells'] { --fl-accent-night: #d6a258; --fl-accent-chart: #8f5e22; }
 [data-app='capstan']     { --fl-accent-night: #d9845a; --fl-accent-chart: #a14f28; }
 [data-app='bowerbird']   { --fl-accent-night: #9b98f3; --fl-accent-chart: #4b45b8; }
+[data-app='fairlead']    { --fl-accent-night: #a3d65c; --fl-accent-chart: #4d7a1a; }
 
 /* ---- Night watch (default, and explicit data-theme="dark") ---- */
 :root,
@@ -364,7 +365,7 @@ h2 { font-size: var(--fl-text-section); font-weight: 600; }
 }
 .clip-name {
   position: relative; padding: 0 8px 2px; font-size: var(--fl-text-caption); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: var(--clip-ink); pointer-events: none;
+  color: var(--fl-foreground); background: var(--fl-background); pointer-events: none;
 }
 .clip-handle { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
 .clip-handle.start { left: 0; }
