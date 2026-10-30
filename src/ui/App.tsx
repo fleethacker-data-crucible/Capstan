@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { deleteClips, splitAt } from '../engine/ops';
+import { deleteClips, removeRedaction, splitAt } from '../engine/ops';
 import type { Player } from '../engine/player';
 import { parseProject, projectDuration } from '../engine/project';
 import { ExportDialog } from './ExportDialog';
@@ -69,7 +69,7 @@ function ShortcutsDialog({ onClose }: { onClose(): void }) {
 const SHORTCUTS: Array<[string, string]> = [
   ['Space', 'Play or pause'],
   ['S', 'Split at the playhead'],
-  ['Delete', 'Delete selected clips'],
+  ['Delete', 'Delete selected clips or blur region'],
   ['Shift+Delete', 'Delete and close the gap'],
   ['← / →', 'Step one frame (Shift: one second)'],
   ['Home / End', 'Go to start or end'],
@@ -149,7 +149,9 @@ export function App() {
   const remove = useCallback(
     (ripple: boolean) => {
       if (!selection.length) return;
-      editor.commit(deleteClips(editor.project, selection, ripple));
+      let next = deleteClips(editor.project, selection, ripple);
+      for (const id of selection) next = removeRedaction(next, id);
+      editor.commit(next);
       editor.setSelection([]);
     },
     [editor, selection],
@@ -383,7 +385,7 @@ export function App() {
       <main className="workspace">
         <MediaBin editor={editor} time={time} onRecord={() => setDialog('record')} />
         <Preview editor={editor} time={time} onPlayer={setPlayer} />
-        <Inspector editor={editor} />
+        <Inspector editor={editor} time={time} onSeek={(t) => player?.seek(t)} />
       </main>
 
       <div className="transport" role="toolbar" aria-label="Playback">

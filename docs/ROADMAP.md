@@ -29,6 +29,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
 | Screen, window, tab recording | `getDisplayMedia` + `MediaRecorder` | 0.1 | ✅ |
+| Choose tab / window / screen; refuse anything else | `displaySurface` hint, screens excluded from the picker, shared surface checked before recording | 0.1 | ✅ |
 | Microphone and system audio, mixed | Web Audio mix into one track | 0.1 | ✅ |
 | Pause / resume | `MediaRecorder.pause()` | 0.1 | ✅ |
 | Global hotkeys, tray, studio not in the shot | Port SnapShackle's `RegisterHotKey` + tray (C# via `Add-Type`) | 0.3 | ⬜ |
@@ -61,7 +62,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | --- | --- | --- | --- |
 | Text and callouts (speech bubbles, labels) | Vector "generated" clips drawn by the compositor | 0.4 | ⬜ |
 | Arrows, lines, shapes | Same generated-clip system | 0.4 | ⬜ |
-| Highlight, spotlight, blur and pixelate regions | Compositor effects over lower tracks | 0.4 | ⬜ |
+| Highlight, spotlight, blur and pixelate regions | Compositor effects over lower tracks | 0.4 | 🟡 (blur and pixelate regions over every track; highlight and spotlight to come) |
 | Keystroke callouts | From recorded key data (0.3) | 0.4 | ⬜ |
 | Sketch motion (animated drawing) | Path-length animation | 0.5 | ⬜ |
 | Text styles, fonts | Bundled fonts only (no web fonts) | 0.4 | ⬜ |
@@ -111,9 +112,9 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
-| Captions track and editor | Timed text clips | 0.9 | ⬜ |
-| SRT / VTT import and export | Parser/writer | 0.9 | ⬜ |
-| Burned-in captions | Compositor text | 0.9 | ⬜ |
+| Captions track and editor | Timed text clips | 0.9 | 🟡 (imported captions shown and exported; no editor or timeline lane yet) |
+| SRT / VTT import and export | Parser/writer | 0.9 | 🟡 (SRT and WebVTT in, SRT out) |
+| Burned-in captions | Compositor text | 0.9 | ✅ |
 | Speech-to-text | Windows speech recognition via WinRT from PowerShell (as SnapShackle does OCR), with an optional bundled WASM model | 0.9 | ⬜ |
 
 ### Export and sharing

@@ -1,8 +1,8 @@
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { clipRect } from '../engine/compositor';
-import { updateClipProps } from '../engine/ops';
+import { updateClipProps, updateRedaction } from '../engine/ops';
 import { Player } from '../engine/player';
-import { type Project, activeClipsAt, findMedia } from '../engine/project';
+import { type Project, type Redaction, activeClipsAt, activeRedactionsAt, findMedia } from '../engine/project';
 import type { Editor } from './useEditor';
 
 interface Props {
@@ -11,7 +11,9 @@ interface Props {
   onPlayer(player: Player | null): void;
 }
 
-type Drag = { kind: 'move' | 'scale'; clipId: string; before: Project; x: number; y: number; startScale: number; startDist: number };
+type Drag =
+  | { kind: 'move' | 'scale'; clipId: string; before: Project; x: number; y: number; startScale: number; startDist: number }
+  | { kind: 'region-move' | 'region-size'; region: Redaction; before: Project; x: number; y: number };
 
 export function Preview({ editor, time, onPlayer }: Props) {
   const { project, sources, sourcesVersion } = editor;
@@ -65,9 +67,21 @@ export function Preview({ editor, time, onPlayer }: Props) {
     return { x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k };
   };
 
+  const selectedRegion = selectedId ? activeRedactionsAt(project, time).find((r) => r.id === selectedId) : undefined;
+
   const onPointerDown = (e: ReactPointerEvent) => {
     if (e.button !== 0) return;
     const p = toCanvas(e);
+    // Blur regions sit above every track, so they are hit first (the most recently added on top).
+    const region = activeRedactionsAt(project, time)
+      .reverse()
+      .find((r) => p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height);
+    if (region) {
+      editor.setSelection([region.id]);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      drag.current = { kind: 'region-move', region, before: project, x: p.x, y: p.y };
+      return;
+    }
     // Topmost visible clip under the pointer.
     const hidden = new Set(project.tracks.filter((t) => t.hidden).map((t) => t.id));
     const hit = activeClipsAt(project, time)
@@ -96,23 +110,40 @@ export function Preview({ editor, time, onPlayer }: Props) {
     drag.current = { kind: 'scale', clipId: selected.id, before: project, x: p.x, y: p.y, startScale: selected.props.scale, startDist: dist };
   };
 
+  const onRegionHandleDown = (e: ReactPointerEvent) => {
+    if (!selectedRegion) return;
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const p = toCanvas(e);
+    drag.current = { kind: 'region-size', region: selectedRegion, before: project, x: p.x, y: p.y };
+  };
+
   const onPointerMove = (e: ReactPointerEvent) => {
     const d = drag.current;
     if (!d) return;
     const p = toCanvas(e);
-    const clip = d.before.clips.find((c) => c.id === d.clipId)!;
-    if (d.kind === 'move') {
-      let x = clip.props.x + (p.x - d.x);
-      let y = clip.props.y + (p.y - d.y);
+    if (d.kind === 'region-move' || d.kind === 'region-size') {
+      const dx = Math.round(p.x - d.x);
+      const dy = Math.round(p.y - d.y);
+      const r = d.region;
+      const patch = d.kind === 'region-move' ? { x: r.x + dx, y: r.y + dy } : { width: r.width + dx, height: r.height + dy };
+      editor.preview(updateRedaction(d.before, r.id, patch));
+      return;
+    }
+    const cd = d as Extract<Drag, { clipId: string }>;
+    const clip = cd.before.clips.find((c) => c.id === cd.clipId)!;
+    if (cd.kind === 'move') {
+      let x = clip.props.x + (p.x - cd.x);
+      let y = clip.props.y + (p.y - cd.y);
       // Snap the centre to the canvas centre lines.
       const snap = 10 / k;
       if (Math.abs(x - project.width / 2) < snap) x = project.width / 2;
       if (Math.abs(y - project.height / 2) < snap) y = project.height / 2;
-      editor.preview(updateClipProps(d.before, d.clipId, { x: Math.round(x), y: Math.round(y) }));
+      editor.preview(updateClipProps(cd.before, cd.clipId, { x: Math.round(x), y: Math.round(y) }));
     } else {
       const dist = Math.hypot(p.x - clip.props.x, p.y - clip.props.y);
-      const scale = Math.max(0.02, (d.startScale * dist) / Math.max(1, d.startDist));
-      editor.preview(updateClipProps(d.before, d.clipId, { scale: Math.round(scale * 1000) / 1000 }));
+      const scale = Math.max(0.02, (cd.startScale * dist) / Math.max(1, cd.startDist));
+      editor.preview(updateClipProps(cd.before, cd.clipId, { scale: Math.round(scale * 1000) / 1000 }));
     }
   };
 
@@ -148,6 +179,15 @@ export function Preview({ editor, time, onPlayer }: Props) {
             }}
           >
             <div className="scale-handle" onPointerDown={onHandleDown} title="Drag to resize" />
+          </div>
+        )}
+        {selectedRegion && (
+          <div
+            className="selection-box region-box"
+            aria-label="Selected blur region"
+            style={{ left: selectedRegion.x * k, top: selectedRegion.y * k, width: selectedRegion.width * k, height: selectedRegion.height * k }}
+          >
+            <div className="scale-handle" onPointerDown={onRegionHandleDown} title="Drag to resize the blur region" />
           </div>
         )}
         {empty && (

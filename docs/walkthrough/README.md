@@ -39,15 +39,21 @@ Select a clip. The **Inspector** sets its position, scale, rotation, opacity and
 
 ### 5. Record your screen
 
-**Record screen** asks your browser which screen, window or tab to record, with options for the microphone, computer sound and adding the recording to the end of the timeline.
+**Record screen** first asks what to record: a browser tab, a window or the entire screen. For a tab or a window, your browser's picker does not offer screens, and if anything else is shared Capstan stops before recording a frame. Options cover the microphone, computer sound and adding the recording to the end of the timeline.
 
-![Capstan Record screen dialog before a source is chosen, with microphone, computer sound and add-to-timeline options checked.](../assets/walkthrough/05-record-dialog.png)
+![Capstan Record screen dialog with "A window" chosen under What to record, and microphone, computer sound and add-to-timeline options checked.](../assets/walkthrough/05-record-dialog.png)
 
-### 6. Export
+### 6. Blur personal details and add captions
 
-**Export video** writes an MP4 (H.264) to your Downloads folder. Choose the size and quality, and whether to include audio.
+With no clip selected, the Inspector lists **Blur regions** and **Captions**. **Add blur region at playhead** puts a box over every track for three seconds; drag it in the preview, resize it from the corner, and set blur or pixelate and the strength. **Import captions** reads an SRT or WebVTT file; captions show in the preview.
 
-![Capstan Export video dialog for a 10-second MP4 with 1080p size, Standard quality and Include audio selected.](../assets/walkthrough/06-export-dialog.png)
+![Capstan with a blur region selected over the preview and its Inspector showing effect, strength, timing and position.](../assets/walkthrough/06-blur-and-captions.png)
+
+### 7. Export
+
+**Export video** writes an MP4 (H.264) to your Downloads folder. Choose the size and quality, whether to include audio and, when the project has captions, whether to burn them in.
+
+![Capstan Export video dialog for a 10-second MP4 with 1080p size, Standard quality and Include audio selected.](../assets/walkthrough/07-export-dialog.png)
 
 ## About these images
 

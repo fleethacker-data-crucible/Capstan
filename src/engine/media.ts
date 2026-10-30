@@ -76,7 +76,14 @@ function thumbFrom(source: CanvasImageSource, w: number, h: number): string {
   return canvas.toDataURL('image/jpeg', 0.7);
 }
 
-export async function probeMedia(file: Blob & { name?: string }, nameOverride?: string): Promise<MediaItem> {
+/** What the caller already knows about a file (a fresh recording knows all three). */
+export interface MediaHints {
+  duration?: number;
+  width?: number;
+  height?: number;
+}
+
+export async function probeMedia(file: Blob & { name?: string }, nameOverride?: string, hints: MediaHints = {}): Promise<MediaItem> {
   const name = nameOverride ?? file.name ?? 'Media';
   const kind = detectKind({ name, type: file.type });
   if (!kind) throw new Error(`${name}: unsupported file type`);
@@ -102,21 +109,28 @@ export async function probeMedia(file: Blob & { name?: string }, nameOverride?: 
     const loaded = once(el, 'loadedmetadata');
     el.src = url;
     await loaded;
-    const duration = await resolveDuration(el);
+    // A known duration skips the seek-past-the-end probe: browsers suspend decoding of muted
+    // video in a hidden window, so that probe can stall after a recording stopped in the background.
+    const known = hints.duration && hints.duration > 0 ? hints.duration : 0;
+    const duration = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : known || (await resolveDuration(el));
     if (!duration) throw new Error(`${name}: could not read the media duration`);
     if (kind === 'audio') {
       return { ...base, duration, width: 0, height: 0, hasAudio: true };
     }
     const video = el as HTMLVideoElement;
-    await seekTo(video, Math.min(1, duration / 3));
-    return {
-      ...base,
-      duration,
-      width: video.videoWidth,
-      height: video.videoHeight,
-      hasAudio: true,
-      thumb: thumbFrom(video, video.videoWidth, video.videoHeight),
-    };
+    const width = video.videoWidth || hints.width || 0;
+    const height = video.videoHeight || hints.height || 0;
+    // The thumbnail is optional: without it the bin shows the media-type icon.
+    let thumb: string | undefined;
+    try {
+      const seek = seekTo(video, Math.min(1, duration / 3));
+      seek.catch(() => undefined);
+      await Promise.race([seek, new Promise((_, reject) => setTimeout(() => reject(new Error('thumbnail timeout')), 4000))]);
+      thumb = thumbFrom(video, width, height);
+    } catch {
+      thumb = undefined;
+    }
+    return { ...base, duration, width, height, hasAudio: true, thumb };
   } finally {
     URL.revokeObjectURL(url);
   }
