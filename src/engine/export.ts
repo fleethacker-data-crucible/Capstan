@@ -4,6 +4,7 @@
 import { drawFrame } from './compositor';
 import { seekTo } from './media';
 import { type AudioTrackConfig, Mp4Muxer } from './mp4/muxer';
+import { resizeCanvas } from './ops';
 import { type Clip, type Project, activeClipsAt, findMedia, projectDuration } from './project';
 
 export interface ExportOptions {
@@ -13,6 +14,8 @@ export interface ExportOptions {
   /** Video bits per second. */
   videoBitrate: number;
   includeAudio: boolean;
+  /** Burn the project's captions into the picture (default true). */
+  captions?: boolean;
 }
 
 export interface ExportProgress {
@@ -29,6 +32,8 @@ export interface ExportResult {
   audioCodec: string | null;
   frames: number;
   seconds: number;
+  /** 'software' when the hardware encoder stalled or failed and the export was redone. */
+  encoder: 'hardware' | 'software';
 }
 
 export type BlobLookup = (mediaId: string) => Promise<Blob | null>;
@@ -54,13 +59,14 @@ function avcCandidates(width: number, height: number, fps: number): string[] {
   return [`avc1.6400${level}`, `avc1.4d00${level}`, `avc1.4200${level}`, 'avc1.640033', 'avc1.42001f'];
 }
 
-export async function pickVideoConfig(o: ExportOptions): Promise<VideoEncoderConfig> {
+export async function pickVideoConfig(o: ExportOptions, preference: 'hardware' | 'software' = 'hardware'): Promise<VideoEncoderConfig> {
   if (typeof VideoEncoder === 'undefined') {
     throw new Error('This browser has no WebCodecs video encoder. Use a current Edge or Chrome.');
   }
   if (o.width % 2 || o.height % 2) throw new Error('Width and height must be even numbers for H.264');
+  const modes = preference === 'software' ? (['prefer-software'] as const) : (['prefer-hardware', 'no-preference'] as const);
   for (const codec of avcCandidates(o.width, o.height, o.fps)) {
-    for (const hardwareAcceleration of ['prefer-hardware', 'no-preference'] as const) {
+    for (const hardwareAcceleration of modes) {
       const config: VideoEncoderConfig = {
         codec,
         width: o.width,
@@ -138,11 +144,48 @@ export async function mixAudio(project: Project, blobs: BlobLookup, seconds: num
   return ctx.startRendering();
 }
 
-function waitForQueue(encoder: { encodeQueueSize: number }, max: number): Promise<void> {
+/** The encoder took input but produced nothing for too long (seen with some hardware H.264 encoders). */
+export class EncoderStalled extends Error {
+  constructor() {
+    super('The video encoder stopped responding');
+    this.name = 'EncoderStalled';
+  }
+}
+
+export const STALL_MS = 10000;
+
+/** Waits until the encoder's queue is at most `max`; rejects if no output arrives for `stallMs`. */
+export function waitForQueue(encoder: { encodeQueueSize: number }, max: number, lastOutput: () => number, stallMs = STALL_MS): Promise<void> {
   if (encoder.encodeQueueSize <= max) return Promise.resolve();
-  return new Promise((resolve) => {
-    const check = () => (encoder.encodeQueueSize <= max ? resolve() : setTimeout(check, 2));
+  return new Promise((resolve, reject) => {
+    const check = () => {
+      if (encoder.encodeQueueSize <= max) resolve();
+      else if (performance.now() - lastOutput() > stallMs) reject(new EncoderStalled());
+      else setTimeout(check, 2);
+    };
     check();
+  });
+}
+
+/** encoder.flush(), unless the encoder has gone quiet for `stallMs`. */
+function flushOrStall(encoder: { flush(): Promise<void> }, lastOutput: () => number, stallMs = STALL_MS): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const watch = setInterval(() => {
+      if (performance.now() - lastOutput() > stallMs) {
+        clearInterval(watch);
+        reject(new EncoderStalled());
+      }
+    }, 250);
+    encoder.flush().then(
+      () => {
+        clearInterval(watch);
+        resolve();
+      },
+      (e) => {
+        clearInterval(watch);
+        reject(e);
+      },
+    );
   });
 }
 
@@ -150,6 +193,12 @@ function abortError(): Error {
   return new DOMException('Export cancelled', 'AbortError');
 }
 
+type EncoderPreference = 'hardware' | 'software';
+
+/**
+ * Exports the timeline. If the hardware video encoder stalls or fails, the export runs again with
+ * the software encoder.
+ */
 export async function exportMp4(
   project: Project,
   blobs: BlobLookup,
@@ -157,10 +206,27 @@ export async function exportMp4(
   onProgress: (p: ExportProgress) => void = () => undefined,
   signal?: AbortSignal,
 ): Promise<ExportResult> {
+  try {
+    return await renderMp4(project, blobs, options, onProgress, signal, 'hardware');
+  } catch (e) {
+    const retry = e instanceof EncoderStalled || (e as { videoEncoder?: boolean }).videoEncoder;
+    if (!retry || signal?.aborted) throw e;
+    return renderMp4(project, blobs, options, onProgress, signal, 'software');
+  }
+}
+
+async function renderMp4(
+  project: Project,
+  blobs: BlobLookup,
+  options: ExportOptions,
+  onProgress: (p: ExportProgress) => void,
+  signal: AbortSignal | undefined,
+  preference: EncoderPreference,
+): Promise<ExportResult> {
   const seconds = projectDuration(project);
   if (seconds <= 0) throw new Error('The timeline is empty');
   onProgress({ stage: 'preparing', fraction: 0 });
-  const videoConfig = await pickVideoConfig(options);
+  const videoConfig = await pickVideoConfig(options, preference);
   const audioChoice = options.includeAudio ? await pickAudioConfig() : null;
 
   // ---- audio ---------------------------------------------------------------------------
@@ -184,8 +250,10 @@ export async function exportMp4(
   };
 
   if (mixed && audioChoice) {
+    let audioOut = performance.now();
     const encoder = new AudioEncoder({
       output: (chunk, meta) => {
+        audioOut = performance.now();
         const desc = meta?.decoderConfig?.description;
         if (desc) muxer.setAudioDescription(toBytes(desc));
         const data = new Uint8Array(chunk.byteLength);
@@ -212,14 +280,16 @@ export async function exportMp4(
       });
       encoder.encode(data);
       data.close();
-      await waitForQueue(encoder, 32);
+      const waitStart = performance.now();
+      await waitForQueue(encoder, 32, () => Math.max(audioOut, waitStart));
       if (failure) throw failure;
       if (signal?.aborted) {
         encoder.close();
         throw abortError();
       }
     }
-    await encoder.flush();
+    const flushStart = performance.now();
+    await flushOrStall(encoder, () => Math.max(audioOut, flushStart));
     encoder.close();
   }
   if (failure) throw failure;
@@ -228,16 +298,8 @@ export async function exportMp4(
   const canvas = new OffscreenCanvas(options.width, options.height);
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('OffscreenCanvas 2D is not available');
-  const scale = { x: options.width / project.width, y: options.height / project.height };
-  const scaled: Project = {
-    ...project,
-    width: options.width,
-    height: options.height,
-    clips: project.clips.map((c) => ({
-      ...c,
-      props: { ...c.props, x: c.props.x * scale.x, y: c.props.y * scale.y },
-    })),
-  };
+  // Clip positions and blur regions follow the output size.
+  const scaled: Project = resizeCanvas(project, options.width, options.height);
 
   const urlFor = new Map<string, string>();
   const videos = new Map<string, HTMLVideoElement>();
@@ -269,15 +331,18 @@ export async function exportMp4(
     return el;
   };
 
+  let videoOut = performance.now();
   const encoder = new VideoEncoder({
     output: (chunk, meta) => {
+      videoOut = performance.now();
       const desc = meta?.decoderConfig?.description;
       if (desc) muxer.setVideoDescription(toBytes(desc));
       const data = new Uint8Array(chunk.byteLength);
       chunk.copyTo(data);
       muxer.addVideoSample(data, chunk.timestamp, chunk.duration ?? 1e6 / options.fps, chunk.type === 'key');
     },
-    error: fail,
+    // Marked so exportMp4 can retry in software.
+    error: (e) => fail(Object.assign(e instanceof Error ? e : new Error(String(e)), { videoEncoder: true })),
   });
   encoder.configure(videoConfig);
 
@@ -300,19 +365,22 @@ export async function exportMp4(
         const media = findMedia(scaled, clip.mediaId);
         if (media?.kind === 'image') return bitmaps.get(media.id) ?? null;
         return videos.get(clip.id) ?? null;
-      });
+      }, { captions: options.captions !== false });
       const frame = new VideoFrame(canvas, {
         timestamp: Math.round((f * 1e6) / options.fps),
         duration: Math.round(1e6 / options.fps),
       });
       encoder.encode(frame, { keyFrame: f % keyEvery === 0 });
       frame.close();
-      await waitForQueue(encoder, 8);
+      // Seeking can take a while on its own, so the stall clock starts when the wait does.
+      const waitStart = performance.now();
+      await waitForQueue(encoder, 8, () => Math.max(videoOut, waitStart));
       if (f % 5 === 0 || f === frames - 1) {
         onProgress({ stage: 'video', fraction: 0.05 + 0.9 * ((f + 1) / frames), frame: f + 1, frames });
       }
     }
-    await encoder.flush();
+    const flushStart = performance.now();
+    await flushOrStall(encoder, () => Math.max(videoOut, flushStart));
     if (failure) throw failure;
     onProgress({ stage: 'finishing', fraction: 0.97 });
     const blob = muxer.finalize();
@@ -323,6 +391,7 @@ export async function exportMp4(
       audioCodec: audioConfig ? audioConfig.codec : null,
       frames,
       seconds,
+      encoder: preference,
     };
   } finally {
     if (encoder.state !== 'closed') encoder.close();

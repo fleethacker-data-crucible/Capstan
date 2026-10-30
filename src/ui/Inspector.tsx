@@ -1,7 +1,8 @@
-import { useRef } from 'react';
-import { duplicateClip, updateClipProps, updateProject } from '../engine/ops';
-import { type ClipProps, type Project, defaultProps, findMedia } from '../engine/project';
-import { timecode } from './format';
+import { useRef, useState } from 'react';
+import { formatSrt, parseSubtitles } from '../engine/captions';
+import { addRedaction, duplicateClip, removeRedaction, resizeCanvas, setCaptions, updateClipProps, updateProject, updateRedaction } from '../engine/ops';
+import { type ClipProps, type Project, type Redaction, defaultProps, findMedia, projectDuration } from '../engine/project';
+import { download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
 import type { Editor } from './useEditor';
 
@@ -70,10 +71,159 @@ function Field({
   );
 }
 
-export function Inspector({ editor }: { editor: Editor }) {
+function RedactionPanel({ editor, region, onSeek }: { editor: Editor; region: Redaction; onSeek(t: number): void }) {
+  const { project } = editor;
+  const before = useRef<Project | null>(null);
+  const set = (patch: Partial<Omit<Redaction, 'id'>>) => {
+    if (!before.current) before.current = editor.project;
+    editor.preview(updateRedaction(editor.project, region.id, patch));
+  };
+  const commit = () => {
+    if (before.current) editor.commit(editor.project, before.current);
+    before.current = null;
+  };
+  const end = Math.max(projectDuration(project), region.start + region.duration);
+  return (
+    <section className="panel inspector" aria-label="Blur region">
+      <header className="panel-head">
+        <h2>Blur region</h2>
+      </header>
+      <p className="hint">Covers every track inside the box from {timecode(region.start, project.fps)} for {timecode(region.duration, project.fps)}. Drag it in the preview to move or resize it.</p>
+      <div className="fields">
+        <div className="field wide">
+          <label htmlFor="redact-mode">Effect</label>
+          <select id="redact-mode" value={region.mode} onChange={(e) => editor.commit(updateRedaction(project, region.id, { mode: e.target.value as Redaction['mode'] }))}>
+            <option value="blur">Blur</option>
+            <option value="pixelate">Pixelate</option>
+          </select>
+        </div>
+        <Field label="Strength" value={region.strength} min={1} max={100} step={1} unit="%" onPreview={(v) => set({ strength: v })} onCommit={commit} />
+        <Field label="Starts at" value={region.start} min={0} max={end} step={0.1} unit="s" onPreview={(v) => set({ start: v })} onCommit={commit} />
+        <Field label="Length" value={region.duration} min={0.1} max={Math.max(1, end)} step={0.1} unit="s" onPreview={(v) => set({ duration: v })} onCommit={commit} />
+        <Field label="Left" value={region.x} min={0} max={project.width} step={1} unit="px" onPreview={(v) => set({ x: v })} onCommit={commit} />
+        <Field label="Top" value={region.y} min={0} max={project.height} step={1} unit="px" onPreview={(v) => set({ y: v })} onCommit={commit} />
+        <Field label="Width" value={region.width} min={8} max={project.width} step={1} unit="px" onPreview={(v) => set({ width: v })} onCommit={commit} />
+        <Field label="Height" value={region.height} min={8} max={project.height} step={1} unit="px" onPreview={(v) => set({ height: v })} onCommit={commit} />
+      </div>
+      <div className="inspector-actions">
+        <button className="button" onClick={() => onSeek(region.start)}>
+          Go to start
+        </button>
+        <button
+          className="button"
+          onClick={() => {
+            editor.commit(removeRedaction(project, region.id));
+            editor.setSelection([]);
+          }}
+        >
+          <Icon name="trash" />
+          Delete region
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function AnnotationSections({ editor, time, onSeek }: { editor: Editor; time: number; onSeek(t: number): void }) {
+  const { project } = editor;
+  const [note, setNote] = useState('');
+  const importCaptions = async (file: File) => {
+    try {
+      const captions = parseSubtitles(await file.text());
+      if (!captions.length) {
+        setNote(`${file.name} has no captions Capstan can read (SRT or WebVTT).`);
+        return;
+      }
+      editor.commit(setCaptions(project, captions));
+      setNote(`Imported ${captions.length} captions from ${file.name}.`);
+    } catch (e) {
+      setNote(`Could not read ${file.name}: ${(e as Error).message}`);
+    }
+  };
+  return (
+    <>
+      <section className="inspector-section" aria-labelledby="blur-heading">
+        <h3 id="blur-heading">Blur regions</h3>
+        <p className="hint">Hide names, addresses and other personal details. A region covers every track beneath it.</p>
+        {project.redactions.length > 0 && (
+          <ul className="region-list">
+            {project.redactions.map((r, i) => (
+              <li key={r.id}>
+                <button
+                  className="region-item"
+                  onClick={() => {
+                    editor.setSelection([r.id]);
+                    onSeek(r.start);
+                  }}
+                >
+                  {`${r.mode === 'pixelate' ? 'Pixelate' : 'Blur'} ${i + 1}`}
+                  <span>{`${timecode(r.start, project.fps)} – ${timecode(r.start + r.duration, project.fps)}`}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button
+          className="button"
+          onClick={() => {
+            const r = addRedaction(project, time);
+            editor.commit(r.project);
+            editor.setSelection([r.id]);
+          }}
+        >
+          <Icon name="plus" />
+          Add blur region at playhead
+        </button>
+      </section>
+      <section className="inspector-section" aria-labelledby="captions-heading">
+        <h3 id="captions-heading">Captions</h3>
+        <p className="hint">
+          {project.captions.length
+            ? `${project.captions.length} captions, shown in the preview and burned into exports unless you turn them off when exporting.`
+            : 'Import an SRT or WebVTT file to show captions over the video.'}
+        </p>
+        <div className="inspector-actions">
+          <label className="button file-button">
+            Import captions
+            <input
+              type="file"
+              accept=".srt,.vtt,text/vtt,application/x-subrip"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) void importCaptions(f);
+              }}
+            />
+          </label>
+          <button className="button" disabled={!project.captions.length} onClick={() => download(new Blob([formatSrt(project.captions)], { type: 'text/plain' }), `${safeFileName(project.name)}.srt`)}>
+            Save as .srt
+          </button>
+          <button
+            className="button"
+            disabled={!project.captions.length}
+            onClick={() => {
+              editor.commit(setCaptions(project, []));
+              setNote('Captions removed.');
+            }}
+          >
+            Remove
+          </button>
+        </div>
+        {note && (
+          <p className="hint" role="status">
+            {note}
+          </p>
+        )}
+      </section>
+    </>
+  );
+}
+
+export function Inspector({ editor, time, onSeek }: { editor: Editor; time: number; onSeek(t: number): void }) {
   const { project, selection } = editor;
   const before = useRef<Project | null>(null);
   const clip = selection.length === 1 ? project.clips.find((c) => c.id === selection[0]) : undefined;
+  const region = selection.length === 1 ? project.redactions.find((r) => r.id === selection[0]) : undefined;
 
   const begin = () => {
     if (!before.current) before.current = editor.project;
@@ -82,6 +232,8 @@ export function Inspector({ editor }: { editor: Editor }) {
     if (before.current) editor.commit(editor.project, before.current);
     before.current = null;
   };
+
+  if (region) return <RedactionPanel editor={editor} region={region} onSeek={onSeek} />;
 
   if (!clip) {
     const size = SIZES.find((s) => s.width === project.width && s.height === project.height);
@@ -113,14 +265,7 @@ export function Inspector({ editor }: { editor: Editor }) {
               onChange={(e) => {
                 const s = SIZES.find((x) => x.label === e.target.value);
                 if (!s) return;
-                // Keep clips in the same relative place on the new canvas.
-                const kx = s.width / project.width;
-                const ky = s.height / project.height;
-                const resized = updateProject(project, { width: s.width, height: s.height });
-                editor.commit({
-                  ...resized,
-                  clips: resized.clips.map((c) => ({ ...c, props: { ...c.props, x: c.props.x * kx, y: c.props.y * ky } })),
-                });
+                editor.commit(resizeCanvas(project, s.width, s.height));
               }}
             >
               {!size && <option value="custom">{`${project.width}×${project.height}`}</option>}
@@ -159,6 +304,7 @@ export function Inspector({ editor }: { editor: Editor }) {
           </div>
         </div>
         <p className="hint">Select a clip on the timeline or in the preview to change its position, size and volume.</p>
+        <AnnotationSections editor={editor} time={time} onSeek={onSeek} />
       </section>
     );
   }
