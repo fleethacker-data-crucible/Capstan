@@ -255,7 +255,7 @@ h2 { font-size: var(--fl-text-section); font-weight: 600; }
 }
 .clip-name {
   position: relative; padding: 0 8px 2px; font-size: var(--fl-text-caption); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: var(--clip-ink); pointer-events: none;
+  color: var(--fl-foreground); background: var(--fl-background); pointer-events: none;
 }
 .clip-handle { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
 .clip-handle.start { left: 0; }
