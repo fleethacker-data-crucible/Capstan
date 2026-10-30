@@ -453,3 +453,5 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
 .overlay-label { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
 .overlay-lane .overlay-item { top: 4px; height: 24px; background: var(--fl-muted); color: var(--fl-foreground); border: 1px solid var(--fl-control-border); }
 .overlay-lane .overlay-item .clip-name { color: var(--fl-foreground); }
+
+/* Area stylesheets live in this folder: one file per feature area, bundled after src/styles.css in name order. */

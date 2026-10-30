@@ -38,7 +38,16 @@ if (!result.success) {
 // The shared Fleet tokens and components come first so Capstan's own rules build on them. One
 // stylesheet keeps the host's served-file list unchanged.
 const fleetCss = readFileSync(join(root, 'vendor/fleet/fleet.css'), 'utf8');
-writeFileSync(join(assets, 'app.css'), fleetCss + '\n' + readFileSync(join(root, 'src/styles.css'), 'utf8'));
+// Each feature area keeps its rules in src/styles/<area>.css, appended after src/styles.css in name order.
+const areaDir = join(root, 'src/styles');
+const areaCss = existsSync(areaDir)
+  ? readdirSync(areaDir)
+      .filter((f) => f.endsWith('.css'))
+      .sort()
+      .map((f) => '\n' + readFileSync(join(areaDir, f), 'utf8'))
+      .join('')
+  : '';
+writeFileSync(join(assets, 'app.css'), fleetCss + '\n' + readFileSync(join(root, 'src/styles.css'), 'utf8') + areaCss);
 copyFileSync(join(root, 'assets/brand/mark.svg'), join(assets, 'icon.svg'));
 // The detailed emblem for the sidebar and empty screens, and the favicon / taskbar icon cut from its
 // circle (assets/ui: copies of assets/brand/emblem-*.png with the backdrop made transparent).
