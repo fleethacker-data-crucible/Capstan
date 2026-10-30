@@ -34,6 +34,29 @@ Launch-Capstan.bat ──► Start-Capstan.ps1 (PowerShell 5.1)
 - **Clips never overlap on a track.** Moves and trims are clamped to free gaps (`fitOnTrack`). Layering is done with tracks: the last track is drawn on top.
 - **Blur regions and captions sit above every track.** `project.redactions` and `project.captions` are plain lists; `drawFrame()` applies active regions after all clips (blur with the canvas filter, or pixelate, which is also the fallback where canvas filters are missing, so a region is never left clear) and draws the active caption last. Export takes `captions: false` to leave them out.
 
+## Extension points
+
+Each feature area plugs into the same few places, so areas can be built side by side.
+
+| Area | Model (`src/engine`) | Drawn by | Edited in |
+| --- | --- | --- | --- |
+| Keyframes, behaviors | `anim.ts` (`Keys`, `resolveProps`), `behaviors.ts` | `compositor.ts` resolves every clip and annotation | `inspector/AnimationSection`, `decor/KeyframeMarks` |
+| Annotations | `annotations.ts` (`project.annotations`) | `drawAnnotations` after blur regions | `tools/annotationTool`, `inspector/AnnotationPanel`, `panels/AnnotationsPanel`, `lanes/annotationLane` |
+| Zoom-n-pan | `zoom.ts` (`project.zooms`, `cameraAt`) | `drawFrame` renders the content, then the camera's window of it | `tools/zoomTool`, `inspector/ZoomPanel`, `lanes/zoomLane` |
+| Transitions | `transitions.ts` (`clip.transitionIn/Out`, `transitionMod`) | `drawClip` applies the `LayerMod` | `inspector/AnimationSection` |
+| Clip effects | `fx.ts` (`clip.effects`, `drawWithEffects`) | `drawClip` draws through the effects | `inspector/EffectsSection`, `panels/EffectsPanel` |
+| Crop, speed, freeze | `project.ts` (`clip.crop`, `speed`, `freeze`, `sourceTimeAt`) | `drawClip`, `Player.sync`, export seek and audio mix | `inspector/EditSection`, `tools/cropTool` |
+| Cursor data and effects | `cursor.ts` (`media.cursor`, `project.cursorFx`) | `drawClip` calls `drawCursorFx` | `inspector/CursorSection`, `panels/CursorPanel` |
+| Audio | `audiofx.ts` (`clip.audio`, `keys.volume`) | `Player.sync` and `mixAudio` | `inspector/AudioSection`, `decor/Waveform` |
+| Markers, captions | `markers.ts`, `captions.ts` | ruler, `drawCaption` | `inspector/MarkerPanel`, `CaptionPanel`, `lanes/captionLane` |
+
+- **Draw order** (`compositor.ts`): background, then each active clip on visible tracks (bottom to top: keyframed properties, crop, transition, effects, cursor effects), blur regions, annotations; with a zoom active that whole picture is drawn off-screen and the camera shows a window of it; captions last.
+- **Keyframe times** are seconds from the start of the owning clip or annotation, so they move with it. Trimming the start and splitting shift them (`shiftKeys`).
+- **Preview tools** (`ui/previewTools.ts`, `ui/tools/`): a tool claims presses on the picture and draws its own selection box and handles. A drag session must finish with `editor.getProject()`, never the project captured when the drag began.
+- **Overlay lanes** (`ui/lanes/`): timed items that are not clips get a row under the tracks, with move and trim handled once in `Timeline`.
+- **Toolbox tabs** (`ui/toolboxTabs.ts`): a tab shows when its panel module sets `enabled`.
+- **Tests**: `tests/unit/*.test.ts` run with `bun test`; `tests/e2e/*.e2e.mjs` are picked up by `node tests/e2e/run-all.mjs [name fragments]`, which serves `dist/` on a free port.
+
 ## Recording
 
 `recorder.ts` asks for the surface the user picked (`displaySurface`), leaves screens out of the picker for a tab or window (`monitorTypeSurfaces: 'exclude'`) and caps the size at the canvas. Before recording, the shared track's `displaySurface` must match a tab or window choice, or the stream is stopped. MP4 is used only after a two-second test recording of the actual track produces data: Edge's H.264 recorder can accept screen capture and write nothing. Otherwise WebM. An empty recording is an error, never a file. The recording is imported with the duration and size the recorder already knows, because probing a recorder WebM means seeking, and browsers suspend decoding of muted video in a hidden window (the usual state when the user stops sharing from the browser bar).

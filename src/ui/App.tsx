@@ -8,11 +8,11 @@ import { Icon } from './icons';
 import { Emblem, Welcome } from './Welcome';
 import { Inspector } from './Inspector';
 import { endSession, isBusy, onEngineState, sessionToken, startHeartbeat, type EngineState } from './lifecycle';
-import { MediaBin } from './MediaBin';
 import { Preview } from './Preview';
 import { RecordDialog } from './RecordDialog';
 import { applyTheme, nextTheme, readSidebarCollapsed, readTheme, saveSidebarCollapsed, themeName, useModal, type ThemeChoice } from './shell';
 import { Timeline } from './Timeline';
+import { Toolbox } from './Toolbox';
 import { useEditor } from './useEditor';
 
 declare const __CAPSTAN_VERSION__: string;
@@ -383,7 +383,7 @@ export function App() {
       ) : (
       <>
       <main className="workspace">
-        <MediaBin editor={editor} time={time} onRecord={() => setDialog('record')} />
+        <Toolbox editor={editor} time={time} onRecord={() => setDialog('record')} onSeek={(t) => player?.seek(t)} />
         <Preview editor={editor} time={time} onPlayer={setPlayer} />
         <Inspector editor={editor} time={time} onSeek={(t) => player?.seek(t)} />
       </main>

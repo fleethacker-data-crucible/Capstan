@@ -1,5 +1,14 @@
 // Capstan project model. Plain, serialisable data: the timeline is the source of truth,
 // and every edit is a pure function from one Project to the next (see ops.ts).
+import { type Animated, parseKeys } from './anim';
+import { type Annotation, parseAnnotations } from './annotations';
+import { type ClipAudio, parseClipAudio } from './audiofx';
+import { parseBehavior } from './behaviors';
+import { type CursorData, type CursorFx, parseCursorData, parseCursorFx } from './cursor';
+import { type ClipEffects, parseEffects } from './fx';
+import { type Marker, parseMarkers } from './markers';
+import { type Transition, parseTransition } from './transitions';
+import { type ZoomRegion, parseZooms } from './zoom';
 
 export type MediaKind = 'video' | 'audio' | 'image';
 
@@ -17,6 +26,8 @@ export interface MediaItem {
   /** Small JPEG data URL for the media bin. */
   thumb?: string;
   createdAt: number;
+  /** Cursor, click and key activity recorded with a screen recording (times are seconds into this media). */
+  cursor?: CursorData;
 }
 
 export interface ClipProps {
@@ -33,7 +44,15 @@ export interface ClipProps {
   volume: number;
 }
 
-export interface Clip {
+/** The part of the source picture a clip shows, as fractions (0..1) of the source frame. */
+export interface Crop {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface Clip extends Animated {
   id: string;
   trackId: string;
   mediaId: string;
@@ -44,6 +63,19 @@ export interface Clip {
   /** Length on the timeline, in seconds. */
   duration: number;
   props: ClipProps;
+  /** Playback speed (1 = normal). The clip consumes `duration * speed` seconds of source. */
+  speed?: number;
+  /** Holds the frame at `in` for the whole clip (a freeze frame). Silent. */
+  freeze?: boolean;
+  crop?: Crop;
+  effects?: ClipEffects;
+  audio?: ClipAudio;
+  transitionIn?: Transition;
+  transitionOut?: Transition;
+  /** Clips sharing a link id move together (a video and the audio detached from it). */
+  linkId?: string;
+  /** Clips sharing a group id are selected and moved as one. */
+  groupId?: string;
 }
 
 export interface Track {
@@ -95,6 +127,13 @@ export interface Project {
   redactions: Redaction[];
   /** Sorted by start time. */
   captions: Caption[];
+  /** Text, shapes, arrows, highlights drawn above the tracks. Later items draw on top. */
+  annotations: Annotation[];
+  /** Zoom-n-pan: stretches of the timeline where the camera looks at part of the canvas. */
+  zooms: ZoomRegion[];
+  markers: Marker[];
+  /** How the recorded cursor is re-drawn on screen recordings that have cursor data. */
+  cursorFx?: CursorFx;
   updatedAt: number;
 }
 
@@ -132,6 +171,9 @@ export function createProject(name = 'Untitled project', width = 1920, height = 
     media: [],
     redactions: [],
     captions: [],
+    annotations: [],
+    zooms: [],
+    markers: [],
     updatedAt: Date.now(),
   };
 }
@@ -164,6 +206,41 @@ export function captionAt(project: Project, time: number): Caption | undefined {
 
 export function clipEnd(clip: Clip): number {
   return clip.start + clip.duration;
+}
+
+export const MIN_SPEED = 0.1;
+export const MAX_SPEED = 8;
+
+export function clipSpeed(clip: Pick<Clip, 'speed'>): number {
+  const s = clip.speed ?? 1;
+  return Number.isFinite(s) ? Math.min(MAX_SPEED, Math.max(MIN_SPEED, s)) : 1;
+}
+
+/** Position in the source media (seconds) shown at timeline `time`. */
+export function sourceTimeAt(clip: Pick<Clip, 'start' | 'in' | 'speed' | 'freeze'>, time: number): number {
+  return clip.freeze ? clip.in : clip.in + (time - clip.start) * clipSpeed(clip);
+}
+
+/** Seconds of source media the clip consumes. */
+export function sourceSpan(clip: Pick<Clip, 'duration' | 'speed' | 'freeze'>): number {
+  return clip.freeze ? 0 : clip.duration * clipSpeed(clip);
+}
+
+/** The size of what a clip shows of its media: the cropped part of the source frame. */
+export function croppedSize(media: { width: number; height: number }, crop: Crop | undefined): { width: number; height: number } {
+  return crop ? { width: media.width * crop.width, height: media.height * crop.height } : { width: media.width, height: media.height };
+}
+
+/** Keeps a crop rectangle inside the frame, at least 2% each way. */
+export function normaliseCrop(input: unknown): Crop | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const c = input as Record<string, unknown>;
+  const n = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+  const width = Math.min(1, Math.max(0.02, n(c.width, 1)));
+  const height = Math.min(1, Math.max(0.02, n(c.height, 1)));
+  const x = Math.min(1 - width, Math.max(0, n(c.x, 0)));
+  const y = Math.min(1 - height, Math.max(0, n(c.y, 0)));
+  return x === 0 && y === 0 && width === 1 && height === 1 ? undefined : { x, y, width, height };
 }
 
 export function projectDuration(project: Project): number {
@@ -204,7 +281,11 @@ export function parseProject(input: unknown): Project {
     locked: !!t.locked,
   }));
   const trackIds = new Set(tracks.map((t) => t.id));
-  const media = p.media.map((m) => ({ ...m, id: String(m.id), name: String(m.name).slice(0, 200) }));
+  const media = p.media.map((m) => {
+    const cursor = parseCursorData((m as { cursor?: unknown }).cursor);
+    const { cursor: _dropped, ...rest } = m;
+    return { ...rest, id: String(m.id), name: String(m.name).slice(0, 200), ...(cursor ? { cursor } : {}) };
+  });
   const mediaIds = new Set(media.map((m) => m.id));
   const base = defaultProps({ width, height });
   const clips = p.clips
@@ -217,6 +298,7 @@ export function parseProject(input: unknown): Project {
       in: Math.max(0, num(c.in, 0)),
       duration: Math.max(MIN_CLIP_SECONDS, num(c.duration, 1)),
       props: { ...base, ...(c.props ?? {}) },
+      ...parseClipExtras(c as unknown as Record<string, unknown>),
     }));
   // Projects saved before redactions and captions existed have neither array.
   const redactions = (Array.isArray(p.redactions) ? p.redactions : [])
@@ -239,6 +321,35 @@ export function parseProject(input: unknown): Project {
     media,
     redactions,
     captions,
+    annotations: parseAnnotations(p.annotations, { width, height }),
+    zooms: parseZooms(p.zooms, { width, height }),
+    markers: parseMarkers(p.markers),
+    ...(parseCursorFx(p.cursorFx) ? { cursorFx: parseCursorFx(p.cursorFx) } : {}),
     updatedAt: num(p.updatedAt, Date.now()),
   };
+}
+
+/** The optional per-clip fields, validated. Unknown or malformed values are dropped. */
+function parseClipExtras(c: Record<string, unknown>): Partial<Clip> {
+  const out: Partial<Clip> = {};
+  const speed = c.speed;
+  if (typeof speed === 'number' && Number.isFinite(speed) && speed !== 1) out.speed = Math.min(MAX_SPEED, Math.max(MIN_SPEED, speed));
+  if (c.freeze === true) out.freeze = true;
+  const crop = normaliseCrop(c.crop);
+  if (crop) out.crop = crop;
+  const keys = parseKeys(c.keys);
+  if (keys) out.keys = keys;
+  const behavior = parseBehavior(c.behavior);
+  if (behavior) out.behavior = behavior;
+  const effects = parseEffects(c.effects);
+  if (effects) out.effects = effects;
+  const audio = parseClipAudio(c.audio);
+  if (audio) out.audio = audio;
+  const transitionIn = parseTransition(c.transitionIn);
+  if (transitionIn) out.transitionIn = transitionIn;
+  const transitionOut = parseTransition(c.transitionOut);
+  if (transitionOut) out.transitionOut = transitionOut;
+  if (typeof c.linkId === 'string') out.linkId = c.linkId.slice(0, 80);
+  if (typeof c.groupId === 'string') out.groupId = c.groupId.slice(0, 80);
+  return out;
 }
