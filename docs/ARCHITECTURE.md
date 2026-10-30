@@ -32,13 +32,19 @@ Launch-Capstan.bat ──► Start-Capstan.ps1 (PowerShell 5.1)
 - **One compositor for preview and export.** `drawFrame()` renders the timeline at a time `t`. The preview calls it on every animation frame; export calls it once per output frame after seeking each video to that exact time. What you see is what you get.
 - **React drives panels, not pixels.** Dragging a clip calls `editor.preview()` (no undo entry); letting go calls `editor.commit()` once. Playback runs in `Player` on `requestAnimationFrame`.
 - **Clips never overlap on a track.** Moves and trims are clamped to free gaps (`fitOnTrack`). Layering is done with tracks: the last track is drawn on top.
+- **Blur regions and captions sit above every track.** `project.redactions` and `project.captions` are plain lists; `drawFrame()` applies active regions after all clips (blur with the canvas filter, or pixelate, which is also the fallback where canvas filters are missing, so a region is never left clear) and draws the active caption last. Export takes `captions: false` to leave them out.
+
+## Recording
+
+`recorder.ts` asks for the surface the user picked (`displaySurface`), leaves screens out of the picker for a tab or window (`monitorTypeSurfaces: 'exclude'`) and caps the size at the canvas. Before recording, the shared track's `displaySurface` must match a tab or window choice, or the stream is stopped. MP4 is used only after a two-second test recording of the actual track produces data: Edge's H.264 recorder can accept screen capture and write nothing. Otherwise WebM. An empty recording is an error, never a file. The recording is imported with the duration and size the recorder already knows, because probing a recorder WebM means seeking, and browsers suspend decoding of muted video in a hidden window (the usual state when the user stops sharing from the browser bar).
 
 ## Export pipeline
 
 1. Pick the best supported H.264 profile/level for the size and frame rate, preferring the hardware encoder.
 2. Mix audio: decode each audible media once, schedule every clip in an `OfflineAudioContext` at its timeline position with its volume, render to one stereo buffer, encode in 1024-sample `AudioData` chunks (AAC, or Opus where AAC is unavailable).
 3. For each output frame: seek every active video clip's element to the exact source time, draw the frame, encode it (keyframe every 2 s).
-4. Mux: `Mp4Muxer` writes `ftyp`, `moov` (sample tables, H.264 `avcC`, AAC `esds` or Opus `dOps`) and an interleaved `mdat`. Sample data is not copied again; the result is a `Blob` downloaded to the user.
+4. Watchdog: if an encoder takes frames but produces nothing for 10 s (seen with a hardware H.264 encoder), or the video encoder reports an error, the export runs again with `hardwareAcceleration: 'prefer-software'`.
+5. Mux: `Mp4Muxer` writes `ftyp`, `moov` (sample tables, H.264 `avcC`, AAC `esds` or Opus `dOps`) and an interleaved `mdat`. Sample data is not copied again; the result is a `Blob` downloaded to the user.
 
 `tests/e2e/export.e2e.mjs` exports a fixture timeline and checks it with ffprobe and a full ffmpeg decode: codec, size, duration, exact frame count, audio presence and level, and picture content at known times.
 
@@ -64,7 +70,7 @@ The host writes `logs\capstan-server-<pid>.json` and deletes it in a `finally` (
 | `tests/unit/*.test.ts` | `bun test tests/unit` | Edit operations, history, project parsing, timecodes, host/launcher/dist consistency, `dist/` freshness |
 | `tests/e2e/export.e2e.mjs` | Headless Chromium + ffprobe | MP4 validity and content, with and without audio |
 | `tests/e2e/editor.e2e.mjs` | Headless Chromium | Import, drag to timeline, move with snapping, split, undo/redo, trim, inspector, playback, reload persistence, export from the dialog |
-| `tests/e2e/record.e2e.mjs` | Headless Chromium, fake capture devices | Record, pause/resume, stop; recording lands in the bin and timeline with the pause excluded |
+| `tests/e2e/record.e2e.mjs` | Headless Chromium, synthetic capture stream | A tab request that gets a screen is refused with nothing recorded; picker options exclude screens and cap the size; record, pause/resume, stop; recording lands in the bin and timeline with the pause excluded. No fake capture UI: on a Windows runner it shares the real desktop |
 | `tests/e2e/lifecycle.e2e.mjs` | Headless Chromium | Heartbeat with the session header, leaving beacon with the token in the body, new page id after reload, one id per window, End session |
 | `tests/ps/Lifecycle.Tests.ps1` | Windows PowerShell 5.1 (CI `windows-host` job) | Presence rule with simulated time (timeouts, reload, two windows, jobs, busy/hidden, off switch); real host: runtime file without token, heartbeat auth, self-stop after the beacon, End session, `Stop-Capstan.ps1` |
 

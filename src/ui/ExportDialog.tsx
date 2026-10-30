@@ -23,6 +23,7 @@ export function ExportDialog({ editor, onClose }: { editor: Editor; onClose(): v
   const [size, setSize] = useState<'project' | 1080 | 720>('project');
   const [quality, setQuality] = useState<Quality>('standard');
   const [includeAudio, setIncludeAudio] = useState(true);
+  const [burnCaptions, setBurnCaptions] = useState(true);
   const [progress, setProgress] = useState<ExportProgress | null>(null);
   const [result, setResult] = useState<ExportResult | null>(null);
   const [error, setError] = useState('');
@@ -50,7 +51,7 @@ export function ExportDialog({ editor, onClose }: { editor: Editor; onClose(): v
       const r = await exportMp4(
         project,
         editor.sources.blob,
-        { ...base, videoBitrate: Math.round(base.videoBitrate * QUALITY[quality].factor), includeAudio },
+        { ...base, videoBitrate: Math.round(base.videoBitrate * QUALITY[quality].factor), includeAudio, captions: burnCaptions },
         setProgress,
         controller.signal,
       );
@@ -123,6 +124,12 @@ export function ExportDialog({ editor, onClose }: { editor: Editor; onClose(): v
                 <input type="checkbox" checked={includeAudio} onChange={(e) => setIncludeAudio(e.target.checked)} />
                 Include audio
               </label>
+              {project.captions.length > 0 && (
+                <label className="check">
+                  <input type="checkbox" checked={burnCaptions} onChange={(e) => setBurnCaptions(e.target.checked)} />
+                  Burn in captions ({project.captions.length})
+                </label>
+              )}
             </fieldset>
             {busy && (
               <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Export progress">
@@ -142,6 +149,7 @@ export function ExportDialog({ editor, onClose }: { editor: Editor; onClose(): v
               <p className="success" role="status">
                 Saved {safeFileName(project.name)}.mp4 ({bytes(result.blob.size)}, H.264 video
                 {result.audioCodec ? ` with ${result.audioCodec === 'aac' ? 'AAC' : 'Opus'} audio` : ', no audio'}).
+                {result.encoder === 'software' && ' The hardware video encoder stopped responding, so this was encoded in software.'}
               </p>
             )}
             {error && <p className="error" role="alert">{error}</p>}

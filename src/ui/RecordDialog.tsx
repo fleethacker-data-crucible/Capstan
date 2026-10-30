@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { addClip } from '../engine/ops';
 import { projectDuration } from '../engine/project';
-import { ScreenRecorder } from '../engine/recorder';
-import { timecode } from './format';
+import { type CaptureSurface, SURFACE_LABEL, ScreenRecorder } from '../engine/recorder';
+import { download, timecode } from './format';
 import { Icon } from './icons';
 import { markBusy } from './lifecycle';
 import { useModal } from './shell';
@@ -12,9 +12,12 @@ export function RecordDialog({ editor, onClose }: { editor: Editor; onClose(): v
   const [microphone, setMicrophone] = useState(true);
   const [systemAudio, setSystemAudio] = useState(true);
   const [addToTimeline, setAddToTimeline] = useState(true);
+  const [surface, setSurface] = useState<CaptureSurface>('window');
   const [state, setState] = useState<'setup' | 'recording' | 'paused' | 'saving'>('setup');
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState('');
+  const [unsaved, setUnsaved] = useState<File | null>(null);
+  const [starting, setStarting] = useState(false);
   const recorder = useRef<ScreenRecorder | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   // Esc closes only while the close button is shown: never mid-recording.
@@ -36,12 +39,13 @@ export function RecordDialog({ editor, onClose }: { editor: Editor; onClose(): v
     const r = recorder.current;
     if (!r) return;
     setState('saving');
+    let file: File | null = null;
     try {
       const rec = await r.stop();
       recorder.current = null;
-      const file = new File([rec.blob], rec.name, { type: rec.blob.type });
-      const [media] = await editor.importFiles([file]);
-      if (media && addToTimeline) {
+      file = new File([rec.blob], rec.name, { type: rec.blob.type });
+      const media = await editor.importRecording(file, { duration: rec.seconds, width: rec.width, height: rec.height });
+      if (addToTimeline) {
         const current = editor.getProject();
         const placed = addClip(current, media.id, projectDuration(current));
         if (placed.clipId) {
@@ -51,23 +55,30 @@ export function RecordDialog({ editor, onClose }: { editor: Editor; onClose(): v
       }
       onClose();
     } catch (e) {
-      setError((e as Error).message);
+      // Keep the footage: the file can still be saved even if it could not join the project.
+      if (file) setUnsaved(file);
+      setError(`${(e as Error).message}${file ? ' Save the recording file so it is not lost.' : ''}`);
       setState('setup');
     }
   };
 
   const start = async () => {
     setError('');
+    setUnsaved(null);
+    setStarting(true);
     const r = new ScreenRecorder();
     r.onEnded = () => void finish();
     try {
-      await r.start({ microphone, systemAudio, frameRate: editor.project.fps >= 50 ? 60 : 30 });
+      const { width, height, fps } = editor.project;
+      await r.start({ microphone, systemAudio, frameRate: fps >= 50 ? 60 : 30, surface, maxWidth: width, maxHeight: height });
       recorder.current = r;
       setElapsed(0);
       setState('recording');
     } catch (e) {
       const err = e as Error;
       setError(err.name === 'NotAllowedError' ? 'Screen sharing was cancelled or blocked.' : err.message);
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -84,8 +95,20 @@ export function RecordDialog({ editor, onClose }: { editor: Editor; onClose(): v
         </header>
         {state === 'setup' ? (
           <>
+            <fieldset className="options surface-choice">
+              <legend>What to record</legend>
+              {(['browser', 'window', 'monitor'] as CaptureSurface[]).map((s) => (
+                <label key={s} className="check">
+                  <input type="radio" name="surface" value={s} checked={surface === s} onChange={() => setSurface(s)} />
+                  {s === 'browser' ? 'A browser tab' : s === 'window' ? 'A window' : 'The entire screen'}
+                </label>
+              ))}
+            </fieldset>
             <p className="modal-text">
-              Your browser will ask which screen, window or tab to record. The recording stays on this computer.
+              {surface === 'monitor'
+                ? 'Your browser will ask which screen to record. Everything on it is captured.'
+                : `Your browser will ask which ${SURFACE_LABEL[surface]} to record. Screens are not offered, and anything else is refused.`}{' '}
+              Larger sources are scaled to the {editor.project.width}×{editor.project.height} canvas. The recording stays on this computer.
             </p>
             <label className="check">
               <input type="checkbox" checked={microphone} onChange={(e) => setMicrophone(e.target.checked)} />
@@ -101,12 +124,17 @@ export function RecordDialog({ editor, onClose }: { editor: Editor; onClose(): v
             </label>
             {error && <p className="error" role="alert">{error}</p>}
             <div className="modal-actions">
+              {unsaved && (
+                <button className="button" onClick={() => download(unsaved, unsaved.name)}>
+                  Save recording file
+                </button>
+              )}
               <button className="button" onClick={onClose}>
                 Cancel
               </button>
-              <button className="button primary" onClick={() => void start()}>
+              <button className="button primary" disabled={starting} onClick={() => void start()}>
                 <Icon name="record" size={16} />
-                Start recording
+                {starting ? 'Starting…' : 'Start recording'}
               </button>
             </div>
           </>

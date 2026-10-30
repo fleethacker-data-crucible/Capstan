@@ -1,7 +1,7 @@
 // Editor state: the current project, selection, undo history, and loaded media sources.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { History } from '../engine/history';
-import { probeMedia } from '../engine/media';
+import { type MediaHints, probeMedia } from '../engine/media';
 import { addMedia, removeMedia } from '../engine/ops';
 import { type MediaItem, type Project, createProject } from '../engine/project';
 import { deleteMediaBlob, getMediaBlob, loadLastProject, putMediaBlob, requestPersistence, saveProject } from '../engine/storage';
@@ -28,6 +28,8 @@ export interface Editor {
   canUndo: boolean;
   canRedo: boolean;
   importFiles(files: Iterable<File>): Promise<MediaItem[]>;
+  /** Adds a fresh recording to the bin; throws if it cannot be added. */
+  importRecording(file: File, hints: MediaHints): Promise<MediaItem>;
   deleteMedia(mediaId: string): Promise<void>;
   newProject(): void;
   replaceProject(project: Project): void;
@@ -133,6 +135,28 @@ export function useEditor(): Editor {
     }
   }, []);
 
+  const importOne = useCallback(
+    async (file: File, hints?: MediaHints) => {
+      setStatus(`Importing ${file.name}…`);
+      const media = await probeMedia(file, undefined, hints);
+      await putMediaBlob(media.id, file);
+      await loadSource(media, file);
+      return media;
+    },
+    [loadSource],
+  );
+
+  const importRecording = useCallback(
+    async (file: File, hints: MediaHints) => {
+      const media = await importOne(file, hints);
+      commit(addMedia(projectRef.current, media));
+      setSourcesVersion((v) => v + 1);
+      setStatus(`Recorded ${file.name}`);
+      return media;
+    },
+    [commit, importOne],
+  );
+
   const importFiles = useCallback(
     async (files: Iterable<File>) => {
       const added: MediaItem[] = [];
@@ -140,10 +164,7 @@ export function useEditor(): Editor {
       let next = projectRef.current;
       for (const file of files) {
         try {
-          setStatus(`Importing ${file.name}…`);
-          const media = await probeMedia(file);
-          await putMediaBlob(media.id, file);
-          await loadSource(media, file);
+          const media = await importOne(file);
           next = addMedia(next, media);
           added.push(media);
         } catch (e) {
@@ -163,7 +184,7 @@ export function useEditor(): Editor {
       );
       return added;
     },
-    [commit, loadSource],
+    [commit, importOne],
   );
 
   const deleteMedia = useCallback(
@@ -235,6 +256,7 @@ export function useEditor(): Editor {
     canUndo: history.current.canUndo,
     canRedo: history.current.canRedo,
     importFiles,
+    importRecording,
     deleteMedia,
     newProject,
     replaceProject,
