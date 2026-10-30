@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { deleteClips, removeRedaction, splitAt } from '../engine/ops';
 import type { Player } from '../engine/player';
+import { removeZoom } from '../engine/zoom';
 import { parseProject, projectDuration } from '../engine/project';
 import { ExportDialog } from './ExportDialog';
 import { download, safeFileName, timecode } from './format';
@@ -150,7 +151,7 @@ export function App() {
     (ripple: boolean) => {
       if (!selection.length) return;
       let next = deleteClips(editor.project, selection, ripple);
-      for (const id of selection) next = removeRedaction(next, id);
+      for (const id of selection) next = removeZoom(removeRedaction(next, id), id);
       editor.commit(next);
       editor.setSelection([]);
     },

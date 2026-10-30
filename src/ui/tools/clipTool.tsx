@@ -1,5 +1,5 @@
 import { clipRect } from '../../engine/compositor';
-import { updateClipProps } from '../../engine/ops';
+import { keyedProps, updateClipPropsAt } from '../../engine/animate';
 import { activeClipsAt, findMedia } from '../../engine/project';
 import type { PreviewTool } from '../previewTools';
 
@@ -24,13 +24,14 @@ export const clipTool: PreviewTool = {
     return {
       move(q) {
         const clip = before.clips.find((c) => c.id === hit.id)!;
-        let x = clip.props.x + (q.x - start.x);
-        let y = clip.props.y + (q.y - start.y);
+        const shown = keyedProps(clip, time);
+        let x = shown.x + (q.x - start.x);
+        let y = shown.y + (q.y - start.y);
         // Snap the centre to the canvas centre lines.
         const snap = 10 / k;
         if (Math.abs(x - project.width / 2) < snap) x = project.width / 2;
         if (Math.abs(y - project.height / 2) < snap) y = project.height / 2;
-        editor.preview(updateClipProps(before, hit.id, { x: Math.round(x), y: Math.round(y) }));
+        editor.preview(updateClipPropsAt(before, hit.id, { x: Math.round(x), y: Math.round(y) }, time));
       },
       end: () => editor.commit(editor.getProject(), before),
     };
@@ -42,7 +43,7 @@ export const clipTool: PreviewTool = {
     const selected = id ? project.clips.find((c) => c.id === id) : undefined;
     if (!selected || time < selected.start || time >= selected.start + selected.duration || findMedia(project, selected.mediaId)?.kind === 'audio') return null;
     const rect = clipRect(project, selected, time);
-    const props = selected.props;
+    const props = keyedProps(selected, time);
     return (
       <div
         key="clip-selection"
@@ -55,13 +56,13 @@ export const clipTool: PreviewTool = {
           onPointerDown={(e) => {
             const p = ctx.toCanvas(e);
             const before = editor.project;
-            const startScale = selected.props.scale;
-            const startDist = Math.hypot(p.x - selected.props.x, p.y - selected.props.y);
+            const startScale = props.scale;
+            const startDist = Math.hypot(p.x - props.x, p.y - props.y);
             ctx.beginDrag(e, {
               move(q) {
-                const dist = Math.hypot(q.x - selected.props.x, q.y - selected.props.y);
+                const dist = Math.hypot(q.x - props.x, q.y - props.y);
                 const scale = Math.max(0.02, (startScale * dist) / Math.max(1, startDist));
-                editor.preview(updateClipProps(before, selected.id, { scale: Math.round(scale * 1000) / 1000 }));
+                editor.preview(updateClipPropsAt(before, selected.id, { scale: Math.round(scale * 1000) / 1000 }, time));
               },
               end: () => editor.commit(editor.getProject(), before),
             });
