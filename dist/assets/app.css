@@ -1,4 +1,4 @@
-/* Fleet UI v0.1 - shared tokens and components for the Fleet apps (docs/UNIFIED-UI.md).
+/* Fleet UI v0.2 - shared tokens and components for the Fleet apps (docs/UNIFIED-UI.md).
    Identical in every Fleet repo; change it in one place and copy it everywhere. When the
    fleet-design repo exists it becomes the source of truth.
    Themes: Night watch (dark) and Chart room (light). Follows prefers-color-scheme unless
@@ -16,6 +16,7 @@
 [data-app='eight-bells'] { --fl-accent-night: #d6a258; --fl-accent-chart: #8f5e22; }
 [data-app='capstan']     { --fl-accent-night: #d9845a; --fl-accent-chart: #a14f28; }
 [data-app='bowerbird']   { --fl-accent-night: #9b98f3; --fl-accent-chart: #4b45b8; }
+[data-app='fairlead']    { --fl-accent-night: #a3d65c; --fl-accent-chart: #4d7a1a; }
 
 /* ---- Night watch (default, and explicit data-theme="dark") ---- */
 :root,
@@ -378,7 +379,7 @@ h2 { font-size: var(--fl-text-section); font-weight: 600; }
 }
 .clip .clip-name {
   position: relative; padding: 0 8px 2px; font-size: var(--fl-text-caption); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: var(--clip-ink); pointer-events: none;
+  color: var(--fl-foreground); background: var(--fl-background); pointer-events: none;
 }
 .clip-handle { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
 .clip-handle.start { left: 0; }
@@ -439,3 +440,19 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
   .workspace { grid-template-columns: 220px minmax(0, 1fr) 240px; }
   .icon-button.labelled span { display: none; }
 }
+
+/* ---------- toolbox tabs (left panel) ---------- */
+.toolbox { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--fl-border); background: var(--fl-surface); }
+.toolbox > .panel { flex: 1; border-right: 0; }
+.toolbox-tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 8px 8px 0; border-bottom: 1px solid var(--fl-border); }
+.toolbox-tab { height: 32px; padding: 0 10px; background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--fl-muted-foreground); cursor: pointer; font: 500 var(--fl-text-secondary) var(--fl-font-body); }
+.toolbox-tab:hover { color: var(--fl-foreground); }
+.toolbox-tab.on { color: var(--fl-foreground); border-bottom-color: var(--fl-accent); }
+
+/* ---------- overlay lanes under the tracks ---------- */
+.overlay-header { justify-content: center; }
+.overlay-label { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
+.overlay-lane .overlay-item { top: 4px; height: 24px; background: var(--fl-muted); color: var(--fl-foreground); border: 1px solid var(--fl-control-border); }
+.overlay-lane .overlay-item .clip-name { color: var(--fl-foreground); }
+
+/* Area stylesheets live in this folder: one file per feature area, bundled after src/styles.css in name order. */

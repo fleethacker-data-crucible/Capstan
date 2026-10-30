@@ -121,6 +121,17 @@ function Remove-CapstanRuntimeFile {
     if ($Path) { Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue }
 }
 
+function Test-CapstanProcessCommandLine {
+    param([string]$CommandLine, [string]$Root)
+    if (-not $CommandLine) { return $false }
+    if ($CommandLine -match '-EncodedCommand\s+(\S+)') {
+        try { $CommandLine += ' ' + [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($Matches[1])) } catch { }
+    }
+    $scriptPath = [IO.Path]::GetFullPath((Join-Path $Root 'Start-Capstan.ps1')).Replace('/', '\')
+    $normalized = $CommandLine.Replace('/', '\')
+    return [regex]::IsMatch($normalized, '(?:^|[\s''"])' + [regex]::Escape($scriptPath) + '(?:$|[\s''"])', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+}
+
 function Get-CapstanProcesses {
     <#
     .SYNOPSIS
@@ -142,7 +153,10 @@ function Get-CapstanProcesses {
                 if ($id -eq $PID) { $keep = $true }
                 elseif ($proc -and $proc.ProcessName -match '^(powershell|pwsh)$') {
                     $keep = $true
-                    $found[$id] = [pscustomobject]@{ Pid = $id; Port = $info.port; Url = $info.url; Started = $info.startedAt; RuntimeFile = $f.FullName }
+                    $identity = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
+                    if ($identity -and (Test-CapstanProcessCommandLine -CommandLine $identity.CommandLine -Root $Root)) {
+                        $found[$id] = [pscustomobject]@{ Pid = $id; Port = $info.port; Url = $info.url; Started = $info.startedAt; RuntimeFile = $f.FullName }
+                    }
                 }
             } catch { $keep = $false }
             if (-not $keep) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
@@ -151,7 +165,7 @@ function Get-CapstanProcesses {
     # A host whose runtime file is missing (deleted logs\, or a build from before runtime files).
     try {
         Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'" -ErrorAction Stop |
-            Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine -match 'Start-Capstan\.ps1' } |
+            Where-Object { $_.ProcessId -ne $PID -and (Test-CapstanProcessCommandLine -CommandLine $_.CommandLine -Root $Root) } |
             ForEach-Object {
                 $id = [int]$_.ProcessId
                 if (-not $found.ContainsKey($id)) {
