@@ -2,6 +2,8 @@
 // (each video seeked to the exact frame time), encoded with WebCodecs H.264, and the audio is
 // mixed with an OfflineAudioContext and encoded as AAC (or Opus where AAC is unavailable).
 import { drawFrame } from './compositor';
+import { loadCursorImage } from './cursor';
+import { clickSoundTimes, scheduleClickSounds } from './cursorsound';
 import { seekTo } from './media';
 import { type AudioTrackConfig, Mp4Muxer } from './mp4/muxer';
 import { resizeCanvas } from './ops';
@@ -112,7 +114,8 @@ function audible(project: Project, clip: Clip): boolean {
 /** Mixes every audible clip into one stereo buffer covering the whole timeline. */
 export async function mixAudio(project: Project, blobs: BlobLookup, seconds: number): Promise<AudioBuffer | null> {
   const clips = project.clips.filter((c) => audible(project, c));
-  if (!clips.length) return null;
+  const clicks = clickSoundTimes(project);
+  if (!clips.length && !clicks.length) return null;
   const length = Math.max(1, Math.ceil(seconds * SAMPLE_RATE));
   const ctx = new OfflineAudioContext(2, length, SAMPLE_RATE);
   const decoded = new Map<string, AudioBuffer | null>();
@@ -141,6 +144,8 @@ export async function mixAudio(project: Project, blobs: BlobLookup, seconds: num
     source.start(clip.start, clip.in, sourceSpan(clip));
     any = true;
   }
+  // Cursor click sounds are mixed in at each recorded click (cursor.ts).
+  if (scheduleClickSounds(ctx, clicks)) any = true;
   if (!any) return null;
   return ctx.startRendering();
 }
@@ -301,6 +306,8 @@ async function renderMp4(
   if (!ctx) throw new Error('OffscreenCanvas 2D is not available');
   // Clip positions and blur regions follow the output size.
   const scaled: Project = resizeCanvas(project, options.width, options.height);
+  // A replacement cursor image must be decoded before the first frame is drawn.
+  if (project.cursorFx?.image) await loadCursorImage(project.cursorFx.image);
 
   const urlFor = new Map<string, string>();
   const videos = new Map<string, HTMLVideoElement>();

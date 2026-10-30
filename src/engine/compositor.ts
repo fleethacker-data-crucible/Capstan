@@ -208,6 +208,8 @@ function drawClip(ctx: Ctx2D, project: Project, clip: Clip, media: MediaItem, so
       sourceTime: sourceTimeAt(clip, time),
       rect: { x: r.x + (r.width - w) / 2 + (mod?.dx ?? 0), y: r.y + (r.height - h) / 2 + (mod?.dy ?? 0), width: w, height: h },
       canvas: project,
+      crop,
+      rotation: props.rotation,
     });
   }
 }
