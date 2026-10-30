@@ -361,6 +361,7 @@ h2 { font-size: var(--fl-text-section); font-weight: 600; }
   display: flex; align-items: flex-end; overflow: hidden;
   border-radius: var(--fl-radius-control); cursor: grab; touch-action: none;
   border: 1px solid color-mix(in srgb, var(--fl-background) 40%, transparent);
+  background: var(--clip-video);
 }
 .clip:active { cursor: grabbing; }
 .clip.kind-video { background: var(--clip-video); }
@@ -375,7 +376,7 @@ h2 { font-size: var(--fl-text-section); font-weight: 600; }
   -webkit-mask: linear-gradient(transparent 20%, black 50%, transparent 80%);
   mask: linear-gradient(transparent 20%, black 50%, transparent 80%);
 }
-.clip-name {
+.clip .clip-name {
   position: relative; padding: 0 8px 2px; font-size: var(--fl-text-caption); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: var(--clip-ink); pointer-events: none;
 }
