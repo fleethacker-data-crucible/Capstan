@@ -50,7 +50,9 @@ Use a current **Edge or Chrome**: Capstan needs WebCodecs (video encoding) and s
 
 | Area | What you can do |
 | --- | --- |
-| Record | Record a screen, window or tab, with microphone and computer sound mixed together. Pause, resume, stop. The recording lands in the media bin and, optionally, at the end of the timeline. |
+| Record | Choose a browser tab, a window or the entire screen. For a tab or window, screens are left out of the browser's picker, and anything else the browser shares is refused before a frame is recorded. Microphone and computer sound mixed together. Pause, resume, stop. Larger sources are scaled to the canvas. The recording lands in the media bin and, optionally, at the end of the timeline, even if Capstan's window was in the background when it stopped. |
+| Blur regions | Hide names, addresses and other personal details: a blur or pixelate box over every track for a stretch of time. Add one at the playhead, drag it in the preview, set its strength. Exports include it. |
+| Captions | Import an SRT or WebVTT file. Captions show in the preview, are burned into the export (or not, your choice), and can be saved back out as SRT. |
 | Import | Video (MP4, WebM, MOV and anything else the browser decodes), audio (MP3, WAV, M4A, Ogg, …) and images. Use the button or drop files anywhere in the window. |
 | Timeline | Any number of tracks; drag clips between them; trim either edge; split at the playhead (S); delete or ripple-delete (Shift+Delete); duplicate; snapping to clip edges and the playhead; zoom with Ctrl+wheel; hide, mute and lock tracks. |
 | Canvas | 1080p, 720p, 1440p, 4K, vertical or square; 24–60 fps; background colour. Click a clip in the preview to select it, drag to move it (snaps to the centre), drag the corner to resize. |
@@ -58,14 +60,15 @@ Use a current **Edge or Chrome**: Capstan needs WebCodecs (video encoding) and s
 | Playback | Play, pause, frame step, jump to start or end. Press ? for every shortcut. |
 | Undo | Unlimited undo and redo within a session (Ctrl+Z, Ctrl+Y). |
 | Saving | Projects and media autosave inside the browser on this computer and come back when you reopen Capstan. **Save project file** writes an `.capstan` file of the edit (media stays in Capstan). |
-| Export | MP4 with H.264 video and AAC audio (Opus where the browser cannot encode AAC). Same size as the project, 1080p or 720p, at three quality levels. Frame-accurate: every frame is rendered with the same compositor as the preview. |
+| Export | MP4 with H.264 video and AAC audio (Opus where the browser cannot encode AAC). Same size as the project, 1080p or 720p, at three quality levels. Frame-accurate: every frame is rendered with the same compositor as the preview. If the hardware video encoder stops responding, the export carries on with the software encoder. |
 
 ## Known limitations in v0.1
 
 - **Media lives in the browser's storage for this address.** If port 8790 is taken and Capstan falls back to another port, your earlier projects will not show until it runs on 8790 again (the console says so). Moving the library to files on disk is the first item on the roadmap.
 - Export renders and seeks frame by frame, so it is slower than it will be once the roadmap's WASM demuxer lands, and it holds the finished file in memory, so very long exports need plenty of RAM. Streaming export to disk is on the roadmap.
-- No annotations, transitions, animations, cursor effects, captions or audio effects yet. See [the roadmap](docs/ROADMAP.md).
+- Blur regions and imported captions are the only annotations so far: no text, callouts, transitions, animations, cursor effects, caption editor or audio effects yet. See [the roadmap](docs/ROADMAP.md).
 - The record button uses the browser's screen-capture picker. Global hotkeys, region capture and cursor data come with the native recorder.
+- Where the browser's H.264 recorder writes nothing for screen capture (seen in Edge with some hardware encoders), Capstan records WebM instead, after a two-second check when you press Start. Export from WebM works but seeks more slowly.
 
 ## Privacy and security
 

@@ -54,6 +54,31 @@ export interface Track {
   locked: boolean;
 }
 
+export type RedactMode = 'blur' | 'pixelate';
+
+/** A rectangle obscured on every layer beneath it for a stretch of the timeline. */
+export interface Redaction {
+  id: string;
+  start: number;
+  duration: number;
+  /** Top-left corner and size, in canvas pixels. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  mode: RedactMode;
+  /** 1..100; scales the blur radius or the pixel block size with the canvas. */
+  strength: number;
+}
+
+/** One timed caption, drawn over everything when captions are shown. */
+export interface Caption {
+  id: string;
+  start: number;
+  end: number;
+  text: string;
+}
+
 export interface Project {
   version: 1;
   id: string;
@@ -66,10 +91,16 @@ export interface Project {
   tracks: Track[];
   clips: Clip[];
   media: MediaItem[];
+  /** Applied after all tracks, so they obscure every layer. */
+  redactions: Redaction[];
+  /** Sorted by start time. */
+  captions: Caption[];
   updatedAt: number;
 }
 
 export const DEFAULT_IMAGE_SECONDS = 5;
+export const MIN_REDACTION_PX = 8;
+export const MAX_CAPTION_CHARS = 500;
 export const MIN_CLIP_SECONDS = 1 / 30;
 
 let counter = 0;
@@ -99,8 +130,36 @@ export function createProject(name = 'Untitled project', width = 1920, height = 
     tracks: [createTrack(0), createTrack(1), createTrack(2)],
     clips: [],
     media: [],
+    redactions: [],
+    captions: [],
     updatedAt: Date.now(),
   };
+}
+
+/** Keeps a redaction inside the canvas, at least MIN_REDACTION_PX each way, with sane timing. */
+export function normaliseRedaction(r: Redaction, canvas: Pick<Project, 'width' | 'height'>): Redaction {
+  const finite = (v: number, d: number) => (Number.isFinite(v) ? v : d);
+  const width = Math.round(Math.min(canvas.width, Math.max(MIN_REDACTION_PX, finite(r.width, canvas.width / 4))));
+  const height = Math.round(Math.min(canvas.height, Math.max(MIN_REDACTION_PX, finite(r.height, canvas.height / 8))));
+  return {
+    id: String(r.id),
+    start: Math.max(0, finite(r.start, 0)),
+    duration: Math.max(MIN_CLIP_SECONDS, finite(r.duration, 3)),
+    x: Math.round(Math.min(canvas.width - width, Math.max(0, finite(r.x, 0)))),
+    y: Math.round(Math.min(canvas.height - height, Math.max(0, finite(r.y, 0)))),
+    width,
+    height,
+    mode: r.mode === 'pixelate' ? 'pixelate' : 'blur',
+    strength: Math.round(Math.min(100, Math.max(1, finite(r.strength, 60)))),
+  };
+}
+
+export function activeRedactionsAt(project: Project, time: number): Redaction[] {
+  return project.redactions.filter((r) => time >= r.start && time < r.start + r.duration);
+}
+
+export function captionAt(project: Project, time: number): Caption | undefined {
+  return project.captions.find((c) => time >= c.start && time < c.end);
 }
 
 export function clipEnd(clip: Clip): number {
@@ -159,6 +218,14 @@ export function parseProject(input: unknown): Project {
       duration: Math.max(MIN_CLIP_SECONDS, num(c.duration, 1)),
       props: { ...base, ...(c.props ?? {}) },
     }));
+  // Projects saved before redactions and captions existed have neither array.
+  const redactions = (Array.isArray(p.redactions) ? p.redactions : [])
+    .filter((r) => r && typeof r === 'object')
+    .map((r) => normaliseRedaction({ ...r, id: String(r.id ?? newId('red')) }, { width, height }));
+  const captions = (Array.isArray(p.captions) ? p.captions : [])
+    .filter((c) => c && typeof c.text === 'string' && num(c.end, 0) > num(c.start, 0))
+    .map((c) => ({ id: String(c.id ?? newId('cap')), start: Math.max(0, num(c.start, 0)), end: num(c.end, 0), text: c.text.slice(0, MAX_CAPTION_CHARS) }))
+    .sort((a, b) => a.start - b.start);
   return {
     version: 1,
     id: String(p.id ?? newId('prj')),
@@ -170,6 +237,8 @@ export function parseProject(input: unknown): Project {
     tracks,
     clips,
     media,
+    redactions,
+    captions,
     updatedAt: num(p.updatedAt, Date.now()),
   };
 }
