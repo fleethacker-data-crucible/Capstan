@@ -1,5 +1,9 @@
 // Pure timeline edits. Every function takes a Project and returns a new one (or the same
 // object when nothing changed), so undo/redo is just a stack of snapshots.
+import { shiftKeys } from './anim';
+import { rescaleAnnotations } from './annotations';
+import { rescaleEffects } from './fx';
+import { rescaleZooms } from './zoom';
 import {
   type Caption,
   type Clip,
@@ -12,6 +16,7 @@ import {
   MIN_CLIP_SECONDS,
   normaliseRedaction,
   clipEnd,
+  clipSpeed,
   createTrack,
   defaultProps,
   findMedia,
@@ -21,17 +26,17 @@ import {
 
 const EPS = 1e-6;
 
-function touch(project: Project, patch: Partial<Project>): Project {
+export function touch(project: Project, patch: Partial<Project>): Project {
   return { ...project, ...patch, updatedAt: Date.now() };
 }
 
-function trackClips(project: Project, trackId: string, ignore?: Set<string>): Clip[] {
+export function trackClips(project: Project, trackId: string, ignore?: Set<string>): Clip[] {
   return project.clips
     .filter((c) => c.trackId === trackId && !(ignore && ignore.has(c.id)))
     .sort((a, b) => a.start - b.start);
 }
 
-function isLocked(project: Project, trackId: string): boolean {
+export function isLocked(project: Project, trackId: string): boolean {
   return !!project.tracks.find((t) => t.id === trackId)?.locked;
 }
 
@@ -146,13 +151,16 @@ export function trimStart(project: Project, clipId: string, newStart: number): P
   if (!clip || isLocked(project, clip.trackId)) return project;
   const end = clipEnd(clip);
   const prev = trackClips(project, clip.trackId, new Set([clipId])).filter((c) => clipEnd(c) <= clip.start + EPS);
-  const floor = Math.max(0, prev.length ? clipEnd(prev[prev.length - 1]) : 0, clip.start - clip.in);
+  const speed = clip.freeze ? Number.POSITIVE_INFINITY : clipSpeed(clip);
+  const floor = Math.max(0, prev.length ? clipEnd(prev[prev.length - 1]) : 0, clip.start - clip.in / speed);
   const start = Math.min(Math.max(newStart, floor), end - MIN_CLIP_SECONDS);
   if (Math.abs(start - clip.start) < EPS) return project;
   const delta = start - clip.start;
   return touch(project, {
     clips: project.clips.map((c) =>
-      c.id === clipId ? { ...c, start, in: c.in + delta, duration: c.duration - delta } : c,
+      c.id === clipId
+        ? { ...c, start, in: c.freeze ? c.in : c.in + delta * clipSpeed(c), duration: c.duration - delta, keys: shiftKeys(c.keys, -delta), transitionIn: delta > 0 ? undefined : c.transitionIn }
+        : c,
     ),
   });
 }
@@ -165,7 +173,7 @@ export function trimEnd(project: Project, clipId: string, newEnd: number): Proje
   const next = trackClips(project, clip.trackId, new Set([clipId])).find((c) => c.start >= clipEnd(clip) - EPS);
   const ceiling = Math.min(
     next ? next.start : Number.POSITIVE_INFINITY,
-    clip.start + (maxSourceDuration(media) - clip.in),
+    clip.freeze ? Number.POSITIVE_INFINITY : clip.start + (maxSourceDuration(media) - clip.in) / clipSpeed(clip),
   );
   const end = Math.max(Math.min(newEnd, ceiling), clip.start + MIN_CLIP_SECONDS);
   if (Math.abs(end - clipEnd(clip)) < EPS) return project;
@@ -182,14 +190,16 @@ export function splitClip(project: Project, clipId: string, time: number): { pro
     return { project, ids: [] };
   }
   const leftDuration = time - clip.start;
-  const left: Clip = { ...clip, duration: leftDuration };
+  const left: Clip = { ...clip, duration: leftDuration, transitionOut: undefined };
   const right: Clip = {
     ...clip,
     id: newId('clp'),
     start: time,
-    in: clip.in + leftDuration,
+    in: clip.freeze ? clip.in : clip.in + leftDuration * clipSpeed(clip),
     duration: clip.duration - leftDuration,
     props: { ...clip.props },
+    keys: shiftKeys(clip.keys, -leftDuration),
+    transitionIn: undefined,
   };
   const clips = project.clips.flatMap((c) => (c.id === clipId ? [left, right] : [c]));
   return { project: touch(project, { clips }), ids: [left.id, right.id] };
@@ -279,7 +289,14 @@ export function resizeCanvas(project: Project, width: number, height: number): P
   return touch(project, {
     width,
     height,
-    clips: project.clips.map((c) => ({ ...c, props: { ...c.props, x: c.props.x * kx, y: c.props.y * ky } })),
+    clips: project.clips.map((c) => ({
+      ...c,
+      props: { ...c.props, x: c.props.x * kx, y: c.props.y * ky },
+      keys: c.keys && { ...c.keys, x: c.keys.x?.map((k) => ({ ...k, v: k.v * kx })), y: c.keys.y?.map((k) => ({ ...k, v: k.v * ky })) },
+      effects: rescaleEffects(c.effects, ky),
+    })),
+    annotations: rescaleAnnotations(project.annotations, kx, ky),
+    zooms: rescaleZooms(project.zooms, kx, ky),
     redactions: project.redactions.map((r) =>
       normaliseRedaction({ ...r, x: r.x * kx, y: r.y * ky, width: r.width * kx, height: r.height * ky }, canvas),
     ),

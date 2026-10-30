@@ -27,6 +27,12 @@ foreach ($f in @('Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1
 }
 
 # ---- Presence rule, with simulated time (no 20 s sleeps) ----
+Check 'process matching accepts this checkout' (Test-CapstanProcessCommandLine -Root $root -CommandLine ('powershell -File "' + (Join-Path $root 'Start-Capstan.ps1') + '"'))
+Check 'process matching rejects another checkout' (-not (Test-CapstanProcessCommandLine -Root $root -CommandLine 'powershell -File "C:\AnotherCheckout\Start-Capstan.ps1"'))
+Check 'process matching rejects a path suffix' (-not (Test-CapstanProcessCommandLine -Root $root -CommandLine ('powershell -File "' + (Join-Path $root 'Start-Capstan.ps1.backup') + '"')))
+$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(('& ''' + (Join-Path $root 'Start-Capstan.ps1') + '''')))
+Check 'process matching accepts the encoded launcher' (Test-CapstanProcessCommandLine -Root $root -CommandLine ('powershell -EncodedCommand ' + $encoded))
+
 $t0 = [DateTime]::UtcNow
 function At([double]$Seconds) { return $t0.AddSeconds($Seconds) }
 
