@@ -296,6 +296,19 @@ h2 { font-size: var(--fl-text-section); font-weight: 600; }
 .clip-timing dt { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
 .clip-timing dd { margin: 0; font-family: var(--fl-font-mono); font-size: var(--fl-text-caption); }
 .inspector-actions { display: flex; gap: 8px; padding: 8px 16px 16px; flex-wrap: wrap; }
+.inspector-section { border-top: 1px solid var(--fl-border); padding-top: 4px; }
+.inspector-section h3 { margin: 12px 16px 0; font-size: var(--fl-text-body); }
+.inspector-section > .hint { padding: 6px 16px 8px; }
+.inspector-section > .button { margin: 0 16px 16px; }
+.region-list { list-style: none; margin: 0 16px 10px; padding: 0; display: grid; gap: 4px; }
+.region-item { width: 100%; display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; background: var(--fl-surface); color: var(--fl-foreground); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control); cursor: pointer; font: inherit; }
+.region-item span { font-family: var(--fl-font-mono); font-size: var(--fl-text-caption); color: var(--fl-muted-foreground); }
+.region-item:hover { border-color: var(--fl-accent); }
+.file-button { position: relative; overflow: hidden; }
+.file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.region-box { border-style: dashed; }
+.surface-choice legend { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); margin-bottom: 2px; }
+.surface-choice .check { margin: 2px 0; }
 
 /* ---------- transport ---------- */
 .transport {

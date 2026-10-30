@@ -1,12 +1,16 @@
 // Pure timeline edits. Every function takes a Project and returns a new one (or the same
 // object when nothing changed), so undo/redo is just a stack of snapshots.
 import {
+  type Caption,
   type Clip,
   type ClipProps,
   type MediaItem,
   type Project,
+  type Redaction,
   DEFAULT_IMAGE_SECONDS,
+  MAX_CAPTION_CHARS,
   MIN_CLIP_SECONDS,
+  normaliseRedaction,
   clipEnd,
   createTrack,
   defaultProps,
@@ -265,6 +269,53 @@ export function updateProject(
   patch: Partial<Pick<Project, 'name' | 'width' | 'height' | 'fps' | 'background'>>,
 ): Project {
   return touch(project, patch);
+}
+
+/** Changes the canvas size, keeping clips and redactions in the same relative place. */
+export function resizeCanvas(project: Project, width: number, height: number): Project {
+  const kx = width / project.width;
+  const ky = height / project.height;
+  const canvas = { width, height };
+  return touch(project, {
+    width,
+    height,
+    clips: project.clips.map((c) => ({ ...c, props: { ...c.props, x: c.props.x * kx, y: c.props.y * ky } })),
+    redactions: project.redactions.map((r) =>
+      normaliseRedaction({ ...r, x: r.x * kx, y: r.y * ky, width: r.width * kx, height: r.height * ky }, canvas),
+    ),
+  });
+}
+
+/** Adds a blur region at `start` (3 s long, centred, a quarter of the canvas wide). */
+export function addRedaction(project: Project, start: number, patch: Partial<Omit<Redaction, 'id'>> = {}): { project: Project; id: string } {
+  const width = project.width / 4;
+  const height = project.height / 8;
+  const r = normaliseRedaction(
+    { id: newId('red'), start, duration: 3, x: (project.width - width) / 2, y: (project.height - height) / 2, width, height, mode: 'blur', strength: 60, ...patch },
+    project,
+  );
+  return { project: touch(project, { redactions: [...project.redactions, r] }), id: r.id };
+}
+
+export function updateRedaction(project: Project, id: string, patch: Partial<Omit<Redaction, 'id'>>): Project {
+  const current = project.redactions.find((r) => r.id === id);
+  if (!current) return project;
+  const next = normaliseRedaction({ ...current, ...patch }, project);
+  return touch(project, { redactions: project.redactions.map((r) => (r.id === id ? next : r)) });
+}
+
+export function removeRedaction(project: Project, id: string): Project {
+  if (!project.redactions.some((r) => r.id === id)) return project;
+  return touch(project, { redactions: project.redactions.filter((r) => r.id !== id) });
+}
+
+/** Replaces every caption (an imported subtitle file, or none). */
+export function setCaptions(project: Project, captions: Caption[]): Project {
+  const sorted = captions
+    .filter((c) => c.end > c.start && c.text.trim())
+    .map((c) => ({ ...c, start: Math.max(0, c.start), text: c.text.slice(0, MAX_CAPTION_CHARS) }))
+    .sort((a, b) => a.start - b.start);
+  return touch(project, { captions: sorted });
 }
 
 /**
