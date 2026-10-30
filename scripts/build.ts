@@ -1,6 +1,6 @@
 // Off-workstation build: bundles the React/TypeScript editor into dist/ (plain JS + CSS).
 // Run with Bun: `bun scripts/build.ts`. The Windows host only ever serves dist/.
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { sourceHash } from './source-hash';
 import { stopCapstan } from './stop-capstan.mjs';
