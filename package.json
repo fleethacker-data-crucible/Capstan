@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "bun test tests/unit",
     "serve": "node tests/serve.mjs 8790",
-    "test:e2e": "bun build tests/e2e/harness.ts --outdir tests/e2e/.build --target browser && node tests/e2e/export.e2e.mjs && node tests/e2e/editor.e2e.mjs && node tests/e2e/record.e2e.mjs && node tests/e2e/lifecycle.e2e.mjs"
+    "test:e2e": "bun build tests/e2e/harness.ts --outdir tests/e2e/.build --target browser && node tests/e2e/run-all.mjs"
   },
   "dependencies": {
     "react": "19.2.8",

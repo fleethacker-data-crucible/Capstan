@@ -5,7 +5,7 @@ import { drawFrame } from './compositor';
 import { seekTo } from './media';
 import { type AudioTrackConfig, Mp4Muxer } from './mp4/muxer';
 import { resizeCanvas } from './ops';
-import { type Clip, type Project, activeClipsAt, findMedia, projectDuration } from './project';
+import { type Clip, type Project, activeClipsAt, clipSpeed, findMedia, projectDuration, sourceSpan, sourceTimeAt } from './project';
 
 export interface ExportOptions {
   width: number;
@@ -106,7 +106,7 @@ export async function pickAudioConfig(): Promise<{ config: AudioEncoderConfig; c
 function audible(project: Project, clip: Clip): boolean {
   const media = findMedia(project, clip.mediaId);
   const track = project.tracks.find((t) => t.id === clip.trackId);
-  return !!media && media.kind !== 'image' && media.hasAudio && !track?.muted && clip.props.volume > 0;
+  return !!media && media.kind !== 'image' && media.hasAudio && !track?.muted && !clip.freeze && clip.props.volume > 0;
 }
 
 /** Mixes every audible clip into one stereo buffer covering the whole timeline. */
@@ -137,7 +137,8 @@ export async function mixAudio(project: Project, blobs: BlobLookup, seconds: num
     const gain = ctx.createGain();
     gain.gain.value = clip.props.volume;
     source.connect(gain).connect(ctx.destination);
-    source.start(clip.start, clip.in, clip.duration);
+    source.playbackRate.value = clipSpeed(clip);
+    source.start(clip.start, clip.in, sourceSpan(clip));
     any = true;
   }
   if (!any) return null;
@@ -359,7 +360,7 @@ async function renderMp4(
         if (media?.kind !== 'video') continue;
         const el = await elementFor(clip);
         // A hair past the frame time so float error never lands on the previous frame.
-        if (el) await seekTo(el, Math.min(media.duration, clip.in + (t - clip.start) + 1e-3));
+        if (el) await seekTo(el, Math.min(media.duration, sourceTimeAt(clip, t) + 1e-3));
       }
       drawFrame(ctx, scaled, t, (clip) => {
         const media = findMedia(scaled, clip.mediaId);

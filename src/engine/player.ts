@@ -1,7 +1,7 @@
 // Preview playback. A wall-clock timeline drives one media element per active clip; elements
 // are kept within a small drift of the timeline and composited onto the preview canvas.
 import { drawFrame } from './compositor';
-import { type Clip, type Project, clipEnd, findMedia, projectDuration } from './project';
+import { type Clip, type Project, clipEnd, clipSpeed, findMedia, projectDuration, sourceTimeAt } from './project';
 
 export interface PlayerSources {
   /** Object URL for a media item's bytes, or null if not loaded yet. */
@@ -151,7 +151,7 @@ export class Player {
   }
 
   private sourceTime(clip: Clip): number {
-    return clip.in + (this._time - clip.start);
+    return sourceTimeAt(clip, this._time);
   }
 
   private element(clip: Clip): HTMLMediaElement | null {
@@ -191,10 +191,15 @@ export class Player {
         if (upcoming && hard && Math.abs(el.currentTime - clip.in) > 0.05) el.currentTime = clip.in;
         continue;
       }
-      el.muted = muted.has(clip.trackId);
+      el.muted = muted.has(clip.trackId) || !!clip.freeze;
       el.volume = Math.min(1, Math.max(0, clip.props.volume));
+      el.playbackRate = clipSpeed(clip);
       const want = this.sourceTime(clip);
-      if (this._playing) {
+      if (clip.freeze) {
+        // A freeze frame never plays: it sits on one source frame.
+        if (!el.paused) el.pause();
+        if (hard && Math.abs(el.currentTime - want) > 0.5 / this.project.fps) el.currentTime = want;
+      } else if (this._playing) {
         if (el.paused) {
           el.currentTime = want;
           void el.play().catch(() => undefined);
