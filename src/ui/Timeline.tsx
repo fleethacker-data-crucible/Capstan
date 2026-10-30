@@ -1,4 +1,5 @@
 import { type DragEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { moveMarker } from '../engine/markers';
 import { addClip, addTrack, moveClip, removeTrack, snapTime, trimEnd, trimStart, updateTrack } from '../engine/ops';
 import type { Player } from '../engine/player';
 import { type Clip, type Project, clipEnd, findMedia, projectDuration } from '../engine/project';
@@ -20,6 +21,7 @@ type Drag =
   | { kind: 'move'; clipId: string; before: Project; grab: number; startX: number; moved: boolean }
   | { kind: 'trim-start' | 'trim-end'; clipId: string; before: Project }
   | { kind: 'lane'; mode: 'move' | 'start' | 'end'; lane: OverlayLane; itemId: string; before: Project; grab: number; start: number; duration: number }
+  | { kind: 'marker'; id: string; before: Project; grab: number }
   | { kind: 'scrub' };
 
 interface Props {
@@ -107,6 +109,10 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
     if (!d) return;
     if (d.kind === 'scrub') {
       player?.seek(toTime(e.clientX));
+      return;
+    }
+    if (d.kind === 'marker') {
+      editor.preview(moveMarker(d.before, d.id, snap(toTime(e.clientX) - d.grab, new Set())));
       return;
     }
     if (d.kind === 'lane') {
@@ -221,6 +227,31 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
                 <span>{timecode(t)}</span>
               </div>
             ))}
+            {project.markers.map((m, i) => {
+              const selected = selection.includes(m.id);
+              const gap = ((project.markers[i + 1]?.time ?? Infinity) - m.time) * zoom;
+              return (
+                <div
+                  key={m.id}
+                  className={`marker-flag${m.chapter ? ' chapter' : ''}${selected ? ' selected' : ''}`}
+                  style={{ left: m.time * zoom }}
+                  role="button"
+                  aria-pressed={selected}
+                  aria-label={`${m.chapter ? 'Chapter' : 'Marker'} ${m.name || 'Marker'} at ${timecode(m.time)}`}
+                  title={`${m.name || 'Marker'} · ${timecode(m.time)}${m.chapter ? ' · chapter' : ''}`}
+                  onPointerDown={(e) => {
+                    if (e.button !== 0) return;
+                    e.stopPropagation();
+                    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                    setSelection([m.id]);
+                    player?.seek(m.time);
+                    drag.current = { kind: 'marker', id: m.id, before: editor.project, grab: toTime(e.clientX) - m.time };
+                  }}
+                >
+                  <span className="marker-label" style={{ maxWidth: Math.max(0, Math.min(140, gap - 14)) }}>{m.name}</span>
+                </div>
+              );
+            })}
           </div>
 
           {lanes.map((track) => (

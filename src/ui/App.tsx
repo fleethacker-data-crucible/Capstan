@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { removeCaption } from '../engine/captionops';
+import { addMarker, removeMarker } from '../engine/markers';
 import { deleteClips, removeRedaction, splitAt } from '../engine/ops';
 import type { Player } from '../engine/player';
 import { parseProject, projectDuration } from '../engine/project';
@@ -69,7 +71,8 @@ function ShortcutsDialog({ onClose }: { onClose(): void }) {
 const SHORTCUTS: Array<[string, string]> = [
   ['Space', 'Play or pause'],
   ['S', 'Split at the playhead'],
-  ['Delete', 'Delete selected clips or blur region'],
+  ['M', 'Add a marker at the playhead'],
+  ['Delete', 'Delete selected clips, blur region, caption or marker'],
   ['Shift+Delete', 'Delete and close the gap'],
   ['← / →', 'Step one frame (Shift: one second)'],
   ['Home / End', 'Go to start or end'],
@@ -150,7 +153,7 @@ export function App() {
     (ripple: boolean) => {
       if (!selection.length) return;
       let next = deleteClips(editor.project, selection, ripple);
-      for (const id of selection) next = removeRedaction(next, id);
+      for (const id of selection) next = removeMarker(removeCaption(removeRedaction(next, id), id), id);
       editor.commit(next);
       editor.setSelection([]);
     },
@@ -176,6 +179,13 @@ export function App() {
       } else if (ctrl && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         editor.setSelection(editor.project.clips.map((c) => c.id));
+      } else if (!ctrl && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        const r = addMarker(editor.project, time);
+        if (r.id) {
+          editor.commit(r.project);
+          editor.setSelection([r.id]);
+        }
       } else if (!ctrl && e.key.toLowerCase() === 's') {
         e.preventDefault();
         split();

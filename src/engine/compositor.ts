@@ -259,7 +259,7 @@ export function drawFrame(ctx: Ctx2D, project: Project, time: number, lookup: So
   }
   if (options.captions !== false) {
     const caption = captionAt(project, time);
-    if (caption) drawCaption(ctx, project, caption.text);
+    if (caption?.text.trim()) drawCaption(ctx, project, caption.text);
   }
   ctx.restore();
 }
