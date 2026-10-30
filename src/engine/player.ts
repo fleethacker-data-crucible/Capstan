@@ -1,6 +1,7 @@
 // Preview playback. A wall-clock timeline drives one media element per active clip; elements
 // are kept within a small drift of the timeline and composited onto the preview canvas.
 import { drawFrame } from './compositor';
+import { previewVolume } from './gain';
 import { type Clip, type Project, clipEnd, clipSpeed, findMedia, projectDuration, sourceTimeAt } from './project';
 
 export interface PlayerSources {
@@ -192,7 +193,8 @@ export class Player {
         continue;
       }
       el.muted = muted.has(clip.trackId) || !!clip.freeze;
-      el.volume = Math.min(1, Math.max(0, clip.props.volume));
+      // Fades, volume points and ducking; an element cannot play louder than 1, so gain above 1 shows as 1 here.
+      el.volume = Math.max(0, previewVolume(this.project, clip, this._time - clip.start));
       el.playbackRate = clipSpeed(clip);
       const want = this.sourceTime(clip);
       if (clip.freeze) {

@@ -1,0 +1,27 @@
+/* Audio area: timeline waveform and volume line, Inspector Audio section, Audio panel. */
+
+/* A real waveform replaces the striped placeholder of audio clips. */
+.clip:has(.clip-waveform) .clip-wave { display: none; }
+.clip-waveform {
+  position: absolute; left: 0; top: 2px; width: 100%; height: calc(100% - 16px);
+  color: var(--clip-ink); opacity: 0.75; pointer-events: none;
+}
+.clip-waveform.over-video { top: auto; bottom: 14px; height: 40%; opacity: 0.8; }
+
+.clip-volume { position: absolute; left: 0; top: 0; height: 100%; overflow: visible; pointer-events: none; }
+.clip-volume .line { fill: none; stroke: var(--clip-ink); stroke-width: 1.5; opacity: 0.9; }
+.clip-volume .unity { stroke: var(--clip-ink); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.45; }
+.clip-volume .hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; }
+.clip-volume .point { fill: var(--fl-accent); stroke: var(--fl-background); stroke-width: 2; pointer-events: all; cursor: ns-resize; }
+.clip-volume .point:hover { fill: var(--fl-foreground); }
+
+.audio-sub { margin: 16px 16px 0; font-size: var(--fl-text-secondary); color: var(--fl-muted-foreground); font-weight: 600; }
+.audio-points { list-style: none; margin: 0 16px 4px; padding: 0; display: grid; gap: 4px; }
+.audio-points li { display: flex; align-items: center; gap: 8px; }
+.audio-points span { flex: 1; font-family: var(--fl-font-mono); font-size: var(--fl-text-caption); color: var(--fl-muted-foreground); }
+.audio-check { padding: 8px 16px 0; }
+.audio-check label { display: flex; align-items: center; gap: 8px; color: var(--fl-foreground); font-size: var(--fl-text-secondary); }
+
+.audio-panel { overflow-y: auto; }
+.audio-shortcuts { display: grid; gap: 8px; padding: 4px 16px 12px; }
+.audio-shortcuts .button[aria-pressed='true'] { border-color: var(--fl-accent); color: var(--fl-accent); }

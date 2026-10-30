@@ -2,6 +2,8 @@
 // (each video seeked to the exact frame time), encoded with WebCodecs H.264, and the audio is
 // mixed with an OfflineAudioContext and encoded as AAC (or Opus where AAC is unavailable).
 import { drawFrame } from './compositor';
+import { levelEnvelopeDb } from './dsp/duck';
+import { planClipGain, setLevelEnvelope } from './gain';
 import { seekTo } from './media';
 import { type AudioTrackConfig, Mp4Muxer } from './mp4/muxer';
 import { resizeCanvas } from './ops';
@@ -106,8 +108,10 @@ export async function pickAudioConfig(): Promise<{ config: AudioEncoderConfig; c
 function audible(project: Project, clip: Clip): boolean {
   const media = findMedia(project, clip.mediaId);
   const track = project.tracks.find((t) => t.id === clip.trackId);
-  return !!media && media.kind !== 'image' && media.hasAudio && !track?.muted && !clip.freeze && clip.props.volume > 0;
+  return !!media && media.kind !== 'image' && media.hasAudio && !track?.muted && !clip.freeze && !clip.audio?.silent && (clip.props.volume > 0 || !!clip.keys?.volume);
 }
+
+const channelsOf = (b: AudioBuffer) => Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c));
 
 /** Mixes every audible clip into one stereo buffer covering the whole timeline. */
 export async function mixAudio(project: Project, blobs: BlobLookup, seconds: number): Promise<AudioBuffer | null> {
@@ -117,6 +121,7 @@ export async function mixAudio(project: Project, blobs: BlobLookup, seconds: num
   const ctx = new OfflineAudioContext(2, length, SAMPLE_RATE);
   const decoded = new Map<string, AudioBuffer | null>();
   let any = false;
+  const pending: Array<{ clip: Clip; buffer: AudioBuffer }> = [];
   for (const clip of clips) {
     if (!decoded.has(clip.mediaId)) {
       const blob = await blobs(clip.mediaId);
@@ -132,10 +137,17 @@ export async function mixAudio(project: Project, blobs: BlobLookup, seconds: num
     }
     const buffer = decoded.get(clip.mediaId);
     if (!buffer) continue;
+    // Ducking reads the narration's level, measured from the decoded audio, before any gain is planned.
+    if (clip.audio?.duck) setLevelEnvelope(clip.mediaId, { rate: 100, db: levelEnvelopeDb(channelsOf(buffer), buffer.sampleRate, 100) });
+    pending.push({ clip, buffer });
+  }
+  for (const { clip, buffer } of pending) {
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     const gain = ctx.createGain();
-    gain.gain.value = clip.props.volume;
+    const plan = planClipGain(project, clip);
+    if (plan.curve) gain.gain.setValueCurveAtTime(plan.curve, clip.start, Math.max(clip.duration, 1 / 1000));
+    else gain.gain.value = plan.value;
     source.connect(gain).connect(ctx.destination);
     source.playbackRate.value = clipSpeed(clip);
     source.start(clip.start, clip.in, sourceSpan(clip));
