@@ -4,6 +4,17 @@ import { addRedaction, duplicateClip, removeRedaction, resizeCanvas, setCaptions
 import { type ClipProps, type Project, type Redaction, defaultProps, findMedia, projectDuration } from '../engine/project';
 import { download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
+import { AnimationSection } from './inspector/AnimationSection';
+import { AnnotationPanel } from './inspector/AnnotationPanel';
+import { AudioSection } from './inspector/AudioSection';
+import { CaptionPanel } from './inspector/CaptionPanel';
+import { CursorSection } from './inspector/CursorSection';
+import { EditSection } from './inspector/EditSection';
+import { EffectsSection } from './inspector/EffectsSection';
+import { Field } from './inspector/Field';
+import { MarkerPanel } from './inspector/MarkerPanel';
+import { ProjectSections } from './inspector/ProjectSections';
+import { ZoomPanel } from './inspector/ZoomPanel';
 import type { Editor } from './useEditor';
 
 const SIZES: Array<{ label: string; width: number; height: number }> = [
@@ -14,62 +25,6 @@ const SIZES: Array<{ label: string; width: number; height: number }> = [
   { label: 'Vertical (1080×1920)', width: 1080, height: 1920 },
   { label: 'Square (1080×1080)', width: 1080, height: 1080 },
 ];
-
-/**
- * A slider + number pair. Dragging previews the change; letting go records one undo step.
- */
-function Field({
-  label,
-  value,
-  min,
-  max,
-  step,
-  unit,
-  onPreview,
-  onCommit,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  unit?: string;
-  onPreview(v: number): void;
-  onCommit(): void;
-}) {
-  const id = `f-${label.replace(/\W+/g, '-').toLowerCase()}`;
-  return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={Math.min(max, Math.max(min, value))}
-        aria-label={label}
-        onChange={(e) => onPreview(Number(e.target.value))}
-        onPointerUp={onCommit}
-        onKeyUp={onCommit}
-      />
-      <div className="number">
-        <input
-          id={id}
-          type="number"
-          step={step}
-          value={Number.isInteger(step) ? Math.round(value) : Math.round(value * 100) / 100}
-          onChange={(e) => {
-            const v = Number(e.target.value);
-            if (Number.isFinite(v)) onPreview(v);
-          }}
-          onBlur={onCommit}
-          onKeyDown={(e) => e.key === 'Enter' && onCommit()}
-        />
-        {unit && <span>{unit}</span>}
-      </div>
-    </div>
-  );
-}
 
 function RedactionPanel({ editor, region, onSeek }: { editor: Editor; region: Redaction; onSeek(t: number): void }) {
   const { project } = editor;
@@ -235,6 +190,22 @@ export function Inspector({ editor, time, onSeek }: { editor: Editor; time: numb
 
   if (region) return <RedactionPanel editor={editor} region={region} onSeek={onSeek} />;
 
+  // Panels for the other things that can be selected. Each returns null unless its item is the selection.
+  const panelProps = { editor, time, onSeek };
+  if (selection.length === 1 && !clip) {
+    const id = selection[0];
+    if (project.annotations.some((a) => a.id === id) || project.zooms.some((z) => z.id === id) || project.captions.some((c) => c.id === id) || project.markers.some((m) => m.id === id)) {
+      return (
+        <>
+          <AnnotationPanel {...panelProps} />
+          <ZoomPanel {...panelProps} />
+          <CaptionPanel {...panelProps} />
+          <MarkerPanel {...panelProps} />
+        </>
+      );
+    }
+  }
+
   if (!clip) {
     const size = SIZES.find((s) => s.width === project.width && s.height === project.height);
     return (
@@ -305,6 +276,8 @@ export function Inspector({ editor, time, onSeek }: { editor: Editor; time: numb
         </div>
         <p className="hint">Select a clip on the timeline or in the preview to change its position, size and volume.</p>
         <AnnotationSections editor={editor} time={time} onSeek={onSeek} />
+        <ProjectSections {...panelProps} />
+        <CursorSection {...panelProps} />
       </section>
     );
   }
@@ -352,6 +325,10 @@ export function Inspector({ editor, time, onSeek }: { editor: Editor; time: numb
           <Field label="Volume" value={clip.props.volume * 100} min={0} max={200} step={1} unit="%" onPreview={(v) => set({ volume: v / 100 })} onCommit={commit} />
         )}
       </fieldset>
+      <EditSection {...panelProps} clip={clip} locked={locked} />
+      <EffectsSection {...panelProps} clip={clip} locked={locked} />
+      <AnimationSection {...panelProps} clip={clip} locked={locked} />
+      <AudioSection {...panelProps} clip={clip} locked={locked} />
       <div className="inspector-actions">
         <button
           className="button"

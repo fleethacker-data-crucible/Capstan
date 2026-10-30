@@ -1,7 +1,13 @@
 // Draws one frame of the timeline onto a 2D canvas. Used by both preview and export, so
 // what you see is exactly what gets encoded.
+import { resolveProps } from './anim';
+import { drawAnnotations } from './annotations';
 import { wrapCaption } from './captions';
-import { type Clip, type Project, type Redaction, activeClipsAt, activeRedactionsAt, captionAt, findMedia } from './project';
+import { drawCursorFx } from './cursor';
+import { drawWithEffects } from './fx';
+import { type Clip, type ClipProps, type MediaItem, type Project, type Redaction, activeClipsAt, activeRedactionsAt, captionAt, croppedSize, findMedia, sourceTimeAt } from './project';
+import { transitionMod } from './transitions';
+import { cameraAt } from './zoom';
 
 export type FrameSource = CanvasImageSource & { readonly width?: number; readonly height?: number };
 
@@ -17,13 +23,28 @@ export function fittedSize(media: SourceSize, canvas: SourceSize): SourceSize {
   return { width: media.width * k, height: media.height * k };
 }
 
-/** The clip's on-canvas rectangle before rotation, centred on props.x / props.y. */
-export function clipRect(project: Project, clip: Clip): { x: number; y: number; width: number; height: number } {
+/** The clip's properties at timeline `time`: its own values overlaid with keyframes and its behavior preset. */
+export function resolveClipProps(project: Project, clip: Clip, time: number): ClipProps {
+  return resolveProps(clip.props, clip, time - clip.start, clip.duration, project);
+}
+
+/**
+ * The clip's on-canvas rectangle before rotation, centred on its position. Pass `time` to follow
+ * keyframes; `frame` overrides the media size with what the video is showing right now.
+ */
+export function clipRect(
+  project: Project,
+  clip: Clip,
+  time?: number,
+  frame?: SourceSize,
+): { x: number; y: number; width: number; height: number } {
   const media = findMedia(project, clip.mediaId);
-  const base = fittedSize(media ?? project, project);
-  const width = base.width * clip.props.scale;
-  const height = base.height * clip.props.scale;
-  return { x: clip.props.x - width / 2, y: clip.props.y - height / 2, width, height };
+  const props = time === undefined ? clip.props : resolveClipProps(project, clip, time);
+  const shown = croppedSize(frame ?? media ?? project, clip.crop);
+  const base = fittedSize(shown, project);
+  const width = base.width * props.scale;
+  const height = base.height * props.scale;
+  return { x: props.x - width / 2, y: props.y - height / 2, width, height };
 }
 
 export type SourceLookup = (clip: Clip) => CanvasImageSource | null;
@@ -145,10 +166,54 @@ export function drawCaption(ctx: Ctx2D, project: Pick<Project, 'width' | 'height
   ctx.restore();
 }
 
-export function drawFrame(ctx: Ctx2D, project: Project, time: number, lookup: SourceLookup, options: DrawOptions = {}): void {
+function pixelSize(source: CanvasImageSource, fallback: SourceSize): SourceSize {
+  const v = source as { videoWidth?: number; videoHeight?: number; naturalWidth?: number; naturalHeight?: number; width?: number; height?: number };
+  const width = v.videoWidth || v.naturalWidth || v.width || 0;
+  const height = v.videoHeight || v.naturalHeight || v.height || 0;
+  return width > 0 && height > 0 ? { width, height } : fallback;
+}
+
+/** Draws one clip: keyframed properties, crop, transition, effects, then its cursor effects. */
+function drawClip(ctx: Ctx2D, project: Project, clip: Clip, media: MediaItem, source: CanvasImageSource, time: number): void {
+  // A recording can change size part-way (the shared window was resized, or the browser added its
+  // "sharing this tab" bar): fit each frame by its own size so it is never stretched.
+  const live = typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement && source.videoWidth > 0 ? { width: source.videoWidth, height: source.videoHeight } : undefined;
+  const props = resolveClipProps(project, clip, time);
+  const mod = transitionMod(clip, time, project);
+  const r = clipRect(project, clip, time, live);
+  const k = mod?.scale ?? 1;
+  const w = r.width * k;
+  const h = r.height * k;
+  if (w <= 0 || h <= 0 || (mod && mod.alpha <= 0)) return;
+  const natural = pixelSize(source, { width: media.width, height: media.height });
   ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = props.opacity * (mod?.alpha ?? 1);
+  ctx.translate(props.x + (mod?.dx ?? 0), props.y + (mod?.dy ?? 0));
+  if (props.rotation) ctx.rotate((props.rotation * Math.PI) / 180);
+  if (mod?.wipe) {
+    ctx.beginPath();
+    ctx.rect(-w / 2 + w * mod.wipe.x0, -h / 2 + h * mod.wipe.y0, w * (mod.wipe.x1 - mod.wipe.x0), h * (mod.wipe.y1 - mod.wipe.y0));
+    ctx.clip();
+  }
+  ctx.imageSmoothingQuality = 'high';
+  const crop = clip.crop;
+  drawWithEffects(ctx, clip.effects, w, h, (target) => {
+    if (crop) target.drawImage(source, crop.x * natural.width, crop.y * natural.height, crop.width * natural.width, crop.height * natural.height, -w / 2, -h / 2, w, h);
+    else target.drawImage(source, -w / 2, -h / 2, w, h);
+  });
+  ctx.restore();
+  if (media.cursor && project.cursorFx) {
+    drawCursorFx(ctx, project.cursorFx, {
+      data: media.cursor,
+      sourceTime: sourceTimeAt(clip, time),
+      rect: { x: r.x + (r.width - w) / 2 + (mod?.dx ?? 0), y: r.y + (r.height - h) / 2 + (mod?.dy ?? 0), width: w, height: h },
+      canvas: project,
+    });
+  }
+}
+
+/** Everything the camera looks at: background, tracks, cursor effects, blur regions, annotations. */
+function drawContent(ctx: Ctx2D, project: Project, time: number, lookup: SourceLookup): void {
   ctx.fillStyle = project.background;
   ctx.fillRect(0, 0, project.width, project.height);
   const hidden = new Set(project.tracks.filter((t) => t.hidden).map((t) => t.id));
@@ -157,20 +222,41 @@ export function drawFrame(ctx: Ctx2D, project: Project, time: number, lookup: So
     const media = findMedia(project, clip.mediaId);
     if (!media || media.kind === 'audio') continue;
     const source = lookup(clip);
-    if (!source) continue;
-    // A recording can change size part-way (the shared window was resized, or the browser added its
-    // "sharing this tab" bar): fit each frame by its own size so it is never stretched.
-    const frame = typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement && source.videoWidth > 0 ? source : null;
-    const r = frame ? clipRect({ ...project, media: project.media.map((m) => (m.id === media.id ? { ...m, width: frame.videoWidth, height: frame.videoHeight } : m)) }, clip) : clipRect(project, clip);
-    ctx.save();
-    ctx.globalAlpha = clip.props.opacity;
-    ctx.translate(clip.props.x, clip.props.y);
-    if (clip.props.rotation) ctx.rotate((clip.props.rotation * Math.PI) / 180);
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(source, -r.width / 2, -r.height / 2, r.width, r.height);
-    ctx.restore();
+    if (source) drawClip(ctx, project, clip, media, source, time);
   }
   for (const r of activeRedactionsAt(project, time)) applyRedaction(ctx, r, project.height);
+  drawAnnotations(ctx, project, time);
+}
+
+let cameraScratch: OffscreenCanvas | HTMLCanvasElement | null = null;
+function cameraCanvas(w: number, h: number): OffscreenCanvas | HTMLCanvasElement {
+  if (!cameraScratch) cameraScratch = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : document.createElement('canvas');
+  if (cameraScratch.width !== w) cameraScratch.width = w;
+  if (cameraScratch.height !== h) cameraScratch.height = h;
+  return cameraScratch;
+}
+
+export function drawFrame(ctx: Ctx2D, project: Project, time: number, lookup: SourceLookup, options: DrawOptions = {}): void {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  const camera = cameraAt(project, time);
+  if (camera && camera.scale > 1.0001) {
+    // Zoom-n-pan: draw the content on its own, then show the part the camera looks at.
+    const scratchCanvas = cameraCanvas(project.width, project.height);
+    const sctx = scratchCanvas.getContext('2d') as Ctx2D;
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    sctx.globalAlpha = 1;
+    drawContent(sctx, project, time, lookup);
+    const w = project.width / camera.scale;
+    const h = project.height / camera.scale;
+    const sx = Math.min(project.width - w, Math.max(0, camera.x - w / 2));
+    const sy = Math.min(project.height - h, Math.max(0, camera.y - h / 2));
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(scratchCanvas, sx, sy, w, h, 0, 0, project.width, project.height);
+  } else {
+    drawContent(ctx, project, time, lookup);
+  }
   if (options.captions !== false) {
     const caption = captionAt(project, time);
     if (caption) drawCaption(ctx, project, caption.text);
