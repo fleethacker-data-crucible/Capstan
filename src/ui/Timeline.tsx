@@ -3,7 +3,9 @@ import { addClip, addTrack, moveClip, removeTrack, snapTime, trimEnd, trimStart,
 import type { Player } from '../engine/player';
 import { type Clip, type Project, clipEnd, findMedia, projectDuration } from '../engine/project';
 import { timecode } from './format';
+import { ClipDecor } from './ClipDecor';
 import { Icon } from './icons';
+import { type OverlayLane, OVERLAY_LANES } from './lanes';
 import type { Editor } from './useEditor';
 
 export const MEDIA_DRAG_TYPE = 'application/x-capstan-media';
@@ -12,10 +14,12 @@ const RULER_HEIGHT = 28;
 const LANE_HEIGHT = 58;
 const EDGE = 7;
 const SNAP_PX = 8;
+const OVERLAY_HEIGHT = 32;
 
 type Drag =
   | { kind: 'move'; clipId: string; before: Project; grab: number; startX: number; moved: boolean }
   | { kind: 'trim-start' | 'trim-end'; clipId: string; before: Project }
+  | { kind: 'lane'; mode: 'move' | 'start' | 'end'; lane: OverlayLane; itemId: string; before: Project; grab: number; start: number; duration: number }
   | { kind: 'scrub' };
 
 interface Props {
@@ -103,6 +107,18 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
     if (!d) return;
     if (d.kind === 'scrub') {
       player?.seek(toTime(e.clientX));
+      return;
+    }
+    if (d.kind === 'lane') {
+      const at = toTime(e.clientX);
+      const end = d.start + d.duration;
+      let patch: { start?: number; duration?: number };
+      if (d.mode === 'move') patch = { start: Math.max(0, snap(at - d.grab, new Set())) };
+      else if (d.mode === 'start') {
+        const s = Math.min(snap(at, new Set()), end - 0.05);
+        patch = { start: s, duration: end - s };
+      } else patch = { duration: Math.max(0.05, snap(at, new Set()) - d.start) };
+      editor.preview(d.lane.update(d.before, d.itemId, patch));
       return;
     }
     const ignore = new Set([d.clipId]);
@@ -234,6 +250,7 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
                           <img className="clip-thumb" src={media.thumb} alt="" draggable={false} />
                         )}
                         {media?.kind === 'audio' && <div className="clip-wave" aria-hidden />}
+                        <ClipDecor editor={editor} clip={clip} media={media} zoom={zoom} />
                         <span className="clip-name">{media?.name ?? 'Missing media'}</span>
                         <span className="clip-handle start" aria-hidden />
                         <span className="clip-handle end" aria-hidden />
@@ -245,6 +262,45 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
             </TrackRow>
           ))}
 
+          {OVERLAY_LANES.map((lane) => {
+            const items = lane.items(project);
+            if (!items.length) return null;
+            return (
+              <LaneRow key={lane.id} label={lane.label}>
+                <div className="lane overlay-lane" style={{ width: contentWidth, height: OVERLAY_HEIGHT }} onPointerDown={onBackgroundPointerDown}>
+                  {items.map((item) => {
+                    const selected = selection.includes(item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        className={`clip overlay-item kind-${lane.id}${selected ? ' selected' : ''}`}
+                        style={{ left: item.start * zoom, width: Math.max(6, item.duration * zoom) }}
+                        role="button"
+                        aria-pressed={selected}
+                        aria-label={`${lane.label}: ${item.label}, at ${timecode(item.start)}`}
+                        title={`${item.label} · ${timecode(item.duration)}`}
+                        onPointerDown={(e) => {
+                          if (e.button !== 0) return;
+                          e.stopPropagation();
+                          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          const local = e.clientX - rect.left;
+                          setSelection([item.id]);
+                          const mode = local <= EDGE ? 'start' : rect.width - local <= EDGE ? 'end' : 'move';
+                          drag.current = { kind: 'lane', mode, lane, itemId: item.id, before: editor.project, grab: toTime(e.clientX) - item.start, start: item.start, duration: item.duration };
+                        }}
+                      >
+                        <span className="clip-name">{item.label}</span>
+                        <span className="clip-handle start" aria-hidden />
+                        <span className="clip-handle end" aria-hidden />
+                      </div>
+                    );
+                  })}
+                </div>
+              </LaneRow>
+            );
+          })}
+
           <div className="playhead" style={{ left: HEADER_WIDTH + time * zoom }} aria-hidden>
             <div className="playhead-cap" />
           </div>
@@ -252,6 +308,17 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
         </div>
       </div>
     </div>
+  );
+}
+
+function LaneRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <>
+      <div className="track-header overlay-header" style={{ height: OVERLAY_HEIGHT }}>
+        <span className="overlay-label">{label}</span>
+      </div>
+      {children}
+    </>
   );
 }
 

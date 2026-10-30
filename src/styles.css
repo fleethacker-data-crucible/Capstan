@@ -330,3 +330,17 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
   .workspace { grid-template-columns: 220px minmax(0, 1fr) 240px; }
   .icon-button.labelled span { display: none; }
 }
+
+/* ---------- toolbox tabs (left panel) ---------- */
+.toolbox { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--fl-border); background: var(--fl-surface); }
+.toolbox > .panel { flex: 1; border-right: 0; }
+.toolbox-tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 8px 8px 0; border-bottom: 1px solid var(--fl-border); }
+.toolbox-tab { height: 32px; padding: 0 10px; background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--fl-muted-foreground); cursor: pointer; font: 500 var(--fl-text-secondary) var(--fl-font-body); }
+.toolbox-tab:hover { color: var(--fl-foreground); }
+.toolbox-tab.on { color: var(--fl-foreground); border-bottom-color: var(--fl-accent); }
+
+/* ---------- overlay lanes under the tracks ---------- */
+.overlay-header { justify-content: center; }
+.overlay-label { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
+.overlay-lane .overlay-item { top: 4px; height: 24px; background: var(--fl-muted); color: var(--fl-foreground); border: 1px solid var(--fl-control-border); }
+.overlay-lane .overlay-item .clip-name { color: var(--fl-foreground); }
