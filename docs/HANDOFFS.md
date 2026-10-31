@@ -28,10 +28,9 @@ Media is named from the project name with characters Windows does not allow remo
 
 ## Rules for the other apps
 
-- **Scrimshaw**: take the MP4 (or the WebM recording), the `.vtt`, and the chapter list; Capstan does not need anything back. Scrimshaw's own roadmap lists the missing MP4 handling.
+- **Scrimshaw**: take the MP4 (or the WebM recording), the `.vtt`, and the chapter list; Capstan does not need anything back. Whether Scrimshaw can embed MP4 video is for that repository to confirm.
 - **Gangplank**: publish whatever a person drops into a repository; Capstan only produces files and does not push to Git.
 - **Bowerbird**: rename screenshots from the OCR text in SnapShackle's `.meta.json`; Capstan does not rename.
-- **Semaphore**: Capstan does not export dashboards data; none is planned.
 - **TalkForge**: write one WAV per sentence, 16-bit PCM; Capstan imports it like any audio file.
 
 Changing a format here is a breaking change for those apps: add a field, do not rename one, and list the change in the pull request.
