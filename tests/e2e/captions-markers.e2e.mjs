@@ -27,7 +27,7 @@ page.on('download', (d) => downloads.push(d));
 
 const timecode = async () => (await page.locator('.timecode .now').textContent()).trim();
 const seek = async (t) => {
-  await page.locator('.ruler').click({ position: { x: t * 60, y: 22 } });
+  await page.locator('.ruler').click({ position: { x: t * 60, y: 8 } });
   await page.waitForTimeout(150);
 };
 const blurFocus = () => page.locator('.transport .timecode').click();
