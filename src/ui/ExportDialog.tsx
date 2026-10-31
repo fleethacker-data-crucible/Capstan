@@ -17,7 +17,7 @@ import {
   withoutPreset,
 } from '../engine/presets';
 import { projectDuration } from '../engine/project';
-import { exportSpan } from '../engine/range';
+import { MIN_RANGE_SECONDS, exportSpan, setRange } from '../engine/range';
 import { type FileHandleLike, canPickFile, pickFolder, pickSaveFile, uniqueName } from '../engine/sinks';
 import { chapterFiles, saveChapterFiles } from './chapterFiles';
 import { bytes, download, safeFileName, timecode } from './format';
@@ -40,6 +40,39 @@ const SIZES = [2160, 1440, 1080, 720, 480, 360, 240, 180];
 /** The listed frame rates plus the current one, so a preset's own value always has an option. */
 function fpsChoices(list: number[], current: ExportSettings['fps']): number[] {
   return typeof current === 'number' && !list.includes(current) ? [...list, current].sort((a, b) => a - b) : list;
+}
+
+/** A number field that applies on Enter or when it loses focus, clamped to its limits. */
+function TimeInput({ id, label, value, min, max, step, onCommit }: { id: string; label: string; value: number; min: number; max: number; step: number; onCommit(v: number): void }) {
+  const [draft, setDraft] = useState<string | undefined>();
+  const apply = () => {
+    const v = Number(draft);
+    setDraft(undefined);
+    if (draft === undefined || !Number.isFinite(v)) return;
+    const clamped = Math.min(max, Math.max(min, v));
+    if (Math.abs(clamped - value) > 1e-6) onCommit(clamped);
+  };
+  return (
+    <div className="field wide">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={draft ?? String(Math.round(value * 1000) / 1000)}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={apply}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            apply();
+          } else if (e.key === 'Escape') setDraft(undefined);
+        }}
+      />
+    </div>
+  );
 }
 
 export function ExportDialog({ editor, onClose, time = 0 }: { editor: Editor; onClose(): void; time?: number }) {
@@ -312,13 +345,28 @@ export function ExportDialog({ editor, onClose, time = 0 }: { editor: Editor; on
                 {f !== 'png' && (
                   <div className="field wide">
                     <label htmlFor="export-range">Range</label>
-                    <select id="export-range" value={settings.range} onChange={(e) => patch({ range: e.target.value === 'marks' ? 'marks' : 'whole' })}>
+                    <select
+                      id="export-range"
+                      value={settings.range}
+                      onChange={(e) => {
+                        const marks = e.target.value === 'marks';
+                        // Choosing a part with no marks yet starts from the whole timeline; the fields below trim it.
+                        if (marks && !editor.getProject().range) editor.commit(setRange(editor.getProject(), { start: 0, end: duration }));
+                        patch({ range: marks ? 'marks' : 'whole' });
+                      }}
+                    >
                       <option value="whole">Whole project</option>
-                      <option value="marks" disabled={!hasRange}>
-                        {project.range ? `In to out (${timecode(project.range.start)} to ${timecode(project.range.end)})` : 'In to out (press I and O to set marks)'}
+                      <option value="marks">
+                        {project.range ? `In to out (${timecode(project.range.start)} to ${timecode(project.range.end)})` : 'In to out (set the points below, or press I and O)'}
                       </option>
                     </select>
                   </div>
+                )}
+                {f !== 'png' && settings.range === 'marks' && project.range && (
+                  <>
+                    <TimeInput id="export-in" label="In point (seconds)" value={project.range.start} min={0} max={project.range.end - MIN_RANGE_SECONDS} step={1 / project.fps} onCommit={(v) => editor.commit(setRange(editor.getProject(), { start: v, end: project.range!.end }))} />
+                    <TimeInput id="export-out" label="Out point (seconds)" value={project.range.end} min={project.range.start + MIN_RANGE_SECONDS} max={Math.max(duration, project.range.end)} step={1 / project.fps} onCommit={(v) => editor.commit(setRange(editor.getProject(), { start: project.range!.start, end: v }))} />
+                  </>
                 )}
                 {!isAudio(f) && (
                   <div className="field wide">
