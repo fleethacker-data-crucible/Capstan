@@ -1,9 +1,9 @@
-import { type DragEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { bundleIds, closeGaps, expandSelection, magnetize, moveClips, removeGapAt, setTrackMagnetic, trackGaps, trimBundle } from '../engine/editops';
 import { moveMarker } from '../engine/markers';
 import { addClip, addTrack, moveClip, removeTrack, snapTime, updateTrack } from '../engine/ops';
 import type { Player } from '../engine/player';
-import { makeRange, setRange } from '../engine/range';
+import { MIN_RANGE_SECONDS, makeRange, setRange } from '../engine/range';
 import { type Clip, type Project, clipEnd, findMedia, projectDuration } from '../engine/project';
 import { timecode } from './format';
 import { ClipDecor } from './ClipDecor';
@@ -91,6 +91,82 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
 
   const snap = (t: number, ignore: Set<string>) =>
     snapping ? snapTime(editor.project, t, SNAP_PX / zoom, ignore, [time]) : t;
+
+  // One clip is the tab stop (the first selected one, else the first in time), so Tab enters and leaves the
+  // timeline in one step and the arrow keys move around inside it.
+  const clipsByTime = [...project.clips].sort((a, b) => a.start - b.start);
+  const tabStop = project.clips.find((c) => selection.includes(c.id))?.id ?? clipsByTime[0]?.id;
+  const focusClip = (id: string) => scrollRef.current?.querySelector<HTMLElement>(`[data-clip-id="${id}"]`)?.focus();
+  const goTo = (target: Clip | undefined) => {
+    if (!target) return;
+    setSelection(expandSelection(editor.project, [target.id]));
+    focusClip(target.id);
+  };
+
+  /**
+   * Keyboard for a clip. Enter or Space selects it (Shift or Ctrl adds to the selection); the arrow keys move to
+   * the neighbouring clip, Up and Down to the lane above or below; Alt with an arrow moves the clip itself by one
+   * frame (Shift: one second) or to the next lane. Everything else (S, Delete, Ctrl+C and so on) reaches the
+   * editor shortcuts.
+   */
+  const onClipKeyDown = (e: ReactKeyboardEvent, clip: Clip) => {
+    if (e.target !== e.currentTarget) return;
+    const used = () => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const mine = clipsByTime.filter((c) => c.trackId === clip.trackId);
+    const at = mine.findIndex((c) => c.id === clip.id);
+    const laneIndex = lanes.findIndex((l) => l.id === clip.trackId);
+    if (e.key === 'Enter' || e.key === ' ') {
+      used();
+      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+        const group = expandSelection(editor.project, [clip.id]);
+        setSelection(selection.includes(clip.id) ? selection.filter((s) => !group.includes(s)) : [...new Set([...selection, ...group])]);
+      } else setSelection(expandSelection(editor.project, [clip.id]));
+      return;
+    }
+    if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      used();
+      const delta = (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 1 : 1 / project.fps);
+      const next = moveClip(editor.project, clip.id, Math.max(0, clip.start + delta));
+      if (next === editor.project) editor.setStatus('The clip cannot move that way: another clip is in the way.');
+      else {
+        editor.commit(magnetize(next));
+        editor.setStatus(`${findMedia(project, clip.mediaId)?.name ?? 'Clip'} now starts at ${timecode(Math.max(0, clip.start + delta), project.fps)}.`);
+      }
+      return;
+    }
+    if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      used();
+      const lane = lanes[laneIndex + (e.key === 'ArrowUp' ? -1 : 1)];
+      if (!lane) return;
+      const next = moveClip(editor.project, clip.id, clip.start, lane.id);
+      if (next === editor.project) editor.setStatus(`The clip cannot move to ${lane.name}: there is no room there.`);
+      else {
+        editor.commit(next);
+        editor.setStatus(`Moved to ${lane.name}.`);
+      }
+      return;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      used();
+      goTo(mine[at + (e.key === 'ArrowLeft' ? -1 : 1)]);
+    } else if (e.key === 'Home' || e.key === 'End') {
+      used();
+      goTo(e.key === 'Home' ? mine[0] : mine[mine.length - 1]);
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      used();
+      const dir = e.key === 'ArrowUp' ? -1 : 1;
+      const centre = clip.start + clip.duration / 2;
+      for (let i = laneIndex + dir; i >= 0 && i < lanes.length; i += dir) {
+        const there = clipsByTime.filter((c) => c.trackId === lanes[i].id);
+        if (!there.length) continue;
+        goTo(there.reduce((best, c) => (Math.abs(c.start + c.duration / 2 - centre) < Math.abs(best.start + best.duration / 2 - centre) ? c : best)));
+        return;
+      }
+    }
+  };
 
   const onClipPointerDown = (e: ReactPointerEvent, clip: Clip) => {
     if (e.button !== 0) return;
@@ -287,6 +363,51 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
             {project.range && (
               <div className="range-bar" aria-hidden style={{ left: project.range.start * zoom, width: Math.max(2, (project.range.end - project.range.start) * zoom) }} />
             )}
+            {project.range &&
+              (['start', 'end'] as const).map((edge) => {
+                const range = project.range!;
+                const value = range[edge];
+                const min = edge === 'start' ? 0 : range.start + MIN_RANGE_SECONDS;
+                const max = edge === 'start' ? range.end - MIN_RANGE_SECONDS : Math.max(duration, range.end);
+                const name = edge === 'start' ? 'Export in point' : 'Export out point';
+                return (
+                  <div
+                    key={edge}
+                    className={`range-handle ${edge}`}
+                    role="slider"
+                    tabIndex={0}
+                    aria-label={name}
+                    aria-orientation="horizontal"
+                    aria-valuemin={Math.round(min * 1000) / 1000}
+                    aria-valuemax={Math.round(max * 1000) / 1000}
+                    aria-valuenow={Math.round(value * 1000) / 1000}
+                    aria-valuetext={timecode(value, project.fps)}
+                    title={`${name}: arrow keys move it by a frame (Shift: a second), Home and End jump to its limits`}
+                    style={{ left: value * zoom }}
+                    onPointerDown={(e) => {
+                      if (e.button !== 0) return;
+                      e.stopPropagation();
+                      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                      drag.current = { kind: 'range', anchor: edge === 'start' ? range.end : range.start, before: editor.project };
+                    }}
+                    onKeyDown={(e) => {
+                      const step = e.key === 'PageUp' || e.key === 'PageDown' ? 5 : e.shiftKey ? 1 : 1 / project.fps;
+                      let next = value;
+                      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'PageDown') next = value - step;
+                      else if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'PageUp') next = value + step;
+                      else if (e.key === 'Home') next = min;
+                      else if (e.key === 'End') next = max;
+                      else return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      next = Math.min(max, Math.max(min, next));
+                      if (next === value) return;
+                      editor.commit(setRange(editor.project, edge === 'start' ? { start: next, end: range.end } : { start: range.start, end: next }));
+                      editor.setStatus(`${name} ${timecode(next, project.fps)}.`);
+                    }}
+                  />
+                );
+              })}
             <div
               className="range-strip"
               onPointerDown={onRangePointerDown}
@@ -316,6 +437,9 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
                         className={`clip kind-${kind}${clip.audioOnly ? ' audio-only' : ''}${clip.freeze ? ' freeze' : ''}${selected ? ' selected' : ''}${track.hidden ? ' dim' : ''}`}
                         style={{ left: clip.start * zoom, width: Math.max(2, clip.duration * zoom) }}
                         onPointerDown={(e) => onClipPointerDown(e, clip)}
+                        onKeyDown={(e) => onClipKeyDown(e, clip)}
+                        tabIndex={clip.id === tabStop ? 0 : -1}
+                        data-clip-id={clip.id}
                         title={`${media?.name ?? 'Missing media'} · ${timecode(clip.duration)}`}
                         role="button"
                         aria-pressed={selected}
