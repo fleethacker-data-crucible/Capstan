@@ -3,6 +3,7 @@ import { addClip } from '../engine/ops';
 import type { MediaItem } from '../engine/project';
 import { bytes, shortDuration } from './format';
 import { Icon, type IconName } from './icons';
+import { attachCursorFile } from './cursorUi';
 import { MEDIA_DRAG_TYPE } from './Timeline';
 import type { Editor } from './useEditor';
 
@@ -10,6 +11,8 @@ const KIND_ICON: Record<MediaItem['kind'], IconName> = { video: 'film', audio: '
 
 export function MediaBin({ editor, time, onRecord }: { editor: Editor; time: number; onRecord(): void }) {
   const input = useRef<HTMLInputElement>(null);
+  const cursorInput = useRef<HTMLInputElement>(null);
+  const cursorTarget = useRef('');
   const { project } = editor;
 
   const addToTimeline = (m: MediaItem) => {
@@ -48,6 +51,18 @@ export function MediaBin({ editor, time, onRecord }: { editor: Editor; time: num
           }}
         />
       </div>
+      <input
+        ref={cursorInput}
+        type="file"
+        hidden
+        accept=".json,application/json"
+        aria-label="Cursor data file"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f && cursorTarget.current) void attachCursorFile(editor, cursorTarget.current, f);
+        }}
+      />
       {project.media.length === 0 ? (
         <p className="bin-empty">
           Recordings and imported files appear here. You can also drop video, audio or image files anywhere in the window.
@@ -77,9 +92,23 @@ export function MediaBin({ editor, time, onRecord }: { editor: Editor; time: num
                   <span className="bin-sub">
                     {m.kind === 'audio' ? 'Audio' : `${m.width}×${m.height}`} · {bytes(m.bytes)}
                     {used ? ` · used ${used}×` : ''}
+                    {m.cursor ? ' · cursor data' : ''}
                   </span>
                 </div>
                 <div className="bin-item-actions">
+                  {m.kind === 'video' && (
+                    <button
+                      className="icon-button small"
+                      title="Attach cursor data (.cursor.json)"
+                      aria-label={`Attach cursor data to ${m.name}`}
+                      onClick={() => {
+                        cursorTarget.current = m.id;
+                        cursorInput.current?.click();
+                      }}
+                    >
+                      <Icon name="keyboard" />
+                    </button>
+                  )}
                   <button className="icon-button small" title="Add at playhead" onClick={() => addToTimeline(m)}>
                     <Icon name="plus" />
                   </button>

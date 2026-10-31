@@ -3,6 +3,7 @@
 import { drawFrame } from './compositor';
 import type { VideoTrackInfo } from './demux/types';
 import { FastVideoSource, demuxVideo } from './fastdecode';
+import { loadCursorImage } from './cursor';
 import { seekTo } from './media';
 import { resizeCanvas } from './ops';
 import { type Clip, type Project, activeClipsAt, findMedia, sourceTimeAt } from './project';
@@ -46,6 +47,8 @@ export async function createFrameRenderer(project: Project, blobs: BlobLookup, o
   if (!ctx) throw new Error('OffscreenCanvas 2D is not available');
   // Clip positions and blur regions follow the output size.
   const scaled: Project = resizeCanvas(project, options.width, options.height);
+  // A replacement cursor image must be decoded before the first frame is drawn.
+  if (project.cursorFx?.image) await loadCursorImage(project.cursorFx.image);
 
   const urlFor = new Map<string, string>();
   const videos = new Map<string, HTMLVideoElement>();
