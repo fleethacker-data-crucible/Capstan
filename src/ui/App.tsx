@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { removeAnnotation } from '../engine/annotationOps';
 import { deleteClips, removeRedaction, splitAt } from '../engine/ops';
 import type { Player } from '../engine/player';
+import { removeZoom } from '../engine/zoom';
 import { parseProject, projectDuration } from '../engine/project';
 import { ExportDialog } from './ExportDialog';
 import { download, safeFileName, timecode } from './format';
@@ -151,7 +152,7 @@ export function App() {
     (ripple: boolean) => {
       if (!selection.length) return;
       let next = deleteClips(editor.project, selection, ripple);
-      for (const id of selection) next = removeAnnotation(removeRedaction(next, id), id);
+      for (const id of selection) next = removeZoom(removeAnnotation(removeRedaction(next, id), id), id);
       editor.commit(next);
       editor.setSelection([]);
     },

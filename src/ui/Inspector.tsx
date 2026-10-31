@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { formatSrt, parseSubtitles } from '../engine/captions';
+import { keyedProps, updateClipPropsAt } from '../engine/animate';
 import { addRedaction, duplicateClip, removeRedaction, resizeCanvas, setCaptions, updateClipProps, updateProject, updateRedaction } from '../engine/ops';
 import { type ClipProps, type Project, type Redaction, defaultProps, findMedia, projectDuration } from '../engine/project';
 import { download, safeFileName, timecode } from './format';
@@ -285,8 +286,10 @@ export function Inspector({ editor, time, onSeek }: { editor: Editor; time: numb
   const media = findMedia(project, clip.mediaId);
   const set = (patch: Partial<ClipProps>) => {
     begin();
-    editor.preview(updateClipProps(editor.project, clip.id, patch));
+    editor.preview(updateClipPropsAt(editor.project, clip.id, patch, time));
   };
+  // Keyframed values as they are at the playhead, so the controls show what the picture shows.
+  const shown = keyedProps(clip, time);
   const visual = media?.kind !== 'audio';
   const audible = media?.kind !== 'image';
   const locked = !!project.tracks.find((t) => t.id === clip.trackId)?.locked;
@@ -314,11 +317,11 @@ export function Inspector({ editor, time, onSeek }: { editor: Editor; time: numb
       <fieldset className="fields" disabled={locked}>
         {visual && (
           <>
-            <Field label="Scale" value={clip.props.scale * 100} min={5} max={400} step={1} unit="%" onPreview={(v) => set({ scale: v / 100 })} onCommit={commit} />
-            <Field label="Position X" value={clip.props.x} min={-project.width} max={project.width * 2} step={1} unit="px" onPreview={(v) => set({ x: v })} onCommit={commit} />
-            <Field label="Position Y" value={clip.props.y} min={-project.height} max={project.height * 2} step={1} unit="px" onPreview={(v) => set({ y: v })} onCommit={commit} />
-            <Field label="Rotation" value={clip.props.rotation} min={-180} max={180} step={1} unit="°" onPreview={(v) => set({ rotation: v })} onCommit={commit} />
-            <Field label="Opacity" value={clip.props.opacity * 100} min={0} max={100} step={1} unit="%" onPreview={(v) => set({ opacity: v / 100 })} onCommit={commit} />
+            <Field label="Scale" value={shown.scale * 100} min={5} max={400} step={1} unit="%" onPreview={(v) => set({ scale: v / 100 })} onCommit={commit} />
+            <Field label="Position X" value={shown.x} min={-project.width} max={project.width * 2} step={1} unit="px" onPreview={(v) => set({ x: v })} onCommit={commit} />
+            <Field label="Position Y" value={shown.y} min={-project.height} max={project.height * 2} step={1} unit="px" onPreview={(v) => set({ y: v })} onCommit={commit} />
+            <Field label="Rotation" value={shown.rotation} min={-180} max={180} step={1} unit="°" onPreview={(v) => set({ rotation: v })} onCommit={commit} />
+            <Field label="Opacity" value={shown.opacity * 100} min={0} max={100} step={1} unit="%" onPreview={(v) => set({ opacity: v / 100 })} onCommit={commit} />
           </>
         )}
         {audible && (
