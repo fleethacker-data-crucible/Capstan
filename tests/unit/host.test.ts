@@ -124,7 +124,7 @@ test('built UI sends the heartbeat and the leaving beacon', () => {
 });
 
 test('PowerShell files are ASCII (Windows PowerShell 5.1 reads BOM-less files as ANSI)', () => {
-  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'tests/ps/Lifecycle.Tests.ps1']) {
+  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'modules/Library.ps1', 'tests/ps/Lifecycle.Tests.ps1', 'tests/ps/Library.Tests.ps1']) {
     expect(/[^\x00-\x7f]/.test(read(f))).toBe(false);
   }
 });
@@ -169,3 +169,58 @@ test('speech: requests are limited to 30 MB WAV bodies and errors carry no excep
   expect(speech).not.toMatch(/-Message \$_|\$_\.Exception/);
 });
 
+// ---- Media library on disk (modules/Library.ps1; behaviour is exercised by tests/ps/Library.Tests.ps1) ----
+const library = read('modules/Library.ps1');
+
+test('the library routes sit behind the Host, Origin and token checks, and the library is announced in /api/health', () => {
+  const handler = host.slice(host.indexOf('function Invoke-CapstanRequest'));
+  const at = (needle: string) => handler.indexOf(needle);
+  expect(at('Invoke-CapstanLibraryRoute')).toBeGreaterThan(at('Origin is not authorized'));
+  expect(at('Invoke-CapstanLibraryRoute')).toBeGreaterThan(at('Everything below needs the per-launch session token'));
+  expect(host).toContain('modules/Library.ps1');
+  expect(host).toContain('Get-CapstanLibraryInfo');
+  expect(library).toContain('library = $true');
+  expect(library).toContain('library = $false');
+});
+
+test('library rules: strict id pattern, token compared without short-circuit, no CORS, no client libraries, no exception text in answers', () => {
+  expect(library).toContain("'^[a-z0-9_-]{1,80}\\z'");
+  expect(library).toContain("Test-CapstanTokenEqual ([string]$request.Headers['X-Capstan-Token'])");
+  expect(library).toContain('ReparsePoint');
+  expect(library).toContain("'.uploads'");
+  expect(library).not.toMatch(/Access-Control-/i);
+  expect(library).not.toMatch(/Invoke-WebRequest|WebClient|HttpClient|Invoke-RestMethod/);
+  expect(library).not.toMatch(/Send-CapstanLibraryError[^\n]*\$_\.Exception/);
+  expect(library).not.toMatch(/Send-Json[^\n]*\$_\.Exception/);
+  for (const piece of ["'GET' { Send-CapstanLibraryFile", "'PUT' { Receive-CapstanLibraryPart", "'DELETE' { Remove-CapstanLibraryEntry", 'Complete-CapstanLibraryUpload', 'Start-CapstanLibraryUpload', 'Send-CapstanLibraryIndex']) {
+    expect(library).toContain(piece);
+  }
+});
+
+test('library limits: 8 MB chunk, 16 GiB default, parallel uploads, stale timeout, free-space check, 1 MB buffers, nothing read whole', () => {
+  expect(library).toContain('ChunkMax     = 8388608');
+  expect(library).toContain('(16GB)');
+  expect(library).toContain("'CAPSTAN_LIBRARY_MAX_UPLOADS' 4");
+  expect(library).toContain("'CAPSTAN_LIBRARY_STALE_SECONDS' 1800");
+  expect(library).toContain('AvailableFreeSpace');
+  expect(library).toContain('New-Object byte[] 1048576');
+  expect(library).not.toMatch(/ReadAllBytes|WriteAllBytes|ReadAllText|ReadToEnd/);
+  const transport = read('modules/LocalHttp.ps1');
+  expect(transport).toContain('const int StreamChunk=1048576;');
+  expect(transport).toContain('byte[] chunk=new byte[StreamChunk]');
+  expect(transport).toContain('class BodyStream');
+  expect(transport).toContain('MaxStreamBody=67108864');
+});
+
+test('the test server mirrors the library routes and the health flag', () => {
+  expect(read('tests/serve.mjs')).toContain("'/api/files'");
+  expect(read('tests/serve.mjs')).toContain('library: true');
+  const mirror = read('tests/library-mirror.mjs');
+  for (const piece of ["'x-capstan-token'", '/^[a-z0-9_-]{1,80}$/', "'incomplete'", "'checksum_mismatch'", "'chunk_too_large'", "'bad_range'"]) expect(mirror).toContain(piece);
+});
+
+test('built UI talks to the library routes and shows the Library on disk line', () => {
+  const js = read('dist/assets/app.js');
+  expect(js).toContain('/api/files');
+  expect(js).toContain('Library on disk');
+});

@@ -1,5 +1,5 @@
 // A tiny event hop so the Welcome view can open the Project dialogs without App.tsx wiring each one.
-export type ProjectDialogKind = 'projects' | 'templates-new' | 'templates-save' | 'library';
+export type ProjectDialogKind = 'projects' | 'templates-new' | 'templates-save' | 'library' | 'snapshackle';
 
 const listeners = new Set<(kind: ProjectDialogKind) => void>();
 

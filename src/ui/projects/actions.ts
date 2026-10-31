@@ -4,9 +4,11 @@ import { PACKAGE_EXT, PackageError, looksLikeZip, readPackage, writePackage } fr
 import { type Project, parseProject } from '../../engine/project';
 import { cloneProject, copyName } from '../../engine/projects';
 import { collectCaptureFiles, snapshackleSupported, type DirHandleLike } from '../../engine/snapshackle';
+import { hostHasSnapshackle } from '../../engine/snapshackleHost';
 import { BlobSink, type ZipSink } from '../../engine/zip';
 import { deleteMediaBlob, listProjects, loadProject, putMediaBlob, saveProject } from '../../engine/storage';
 import { bytes as formatBytes, download, safeFileName } from '../format';
+import { sessionToken } from '../lifecycle';
 import type { Editor } from '../useEditor';
 
 declare const __CAPSTAN_VERSION__: string;
@@ -138,6 +140,11 @@ export async function openAnyProjectFile(editor: Editor, file: File): Promise<vo
 
 export function snapshackleAvailable(): boolean {
   return snapshackleSupported();
+}
+
+/** Whether the local host found a SnapShackle Captures folder it can list. False without a host. */
+export function snapshackleHostAvailable(): Promise<boolean> {
+  return hostHasSnapshackle(sessionToken());
 }
 
 /** Lets the user pick a SnapShackle captures folder and imports the images and videos in it. */

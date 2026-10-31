@@ -36,6 +36,8 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dist = Join-Path $root 'dist'
 . (Join-Path $root 'modules/LocalHttp.ps1')
 . (Join-Path $root 'modules/Lifecycle.ps1')
+. (Join-Path $root 'modules/Captures.ps1')
+. (Join-Path $root 'modules/Library.ps1')
 . (Join-Path $root 'modules/Speech.ps1')
 $CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
@@ -116,8 +118,10 @@ if ($requestedPort -ne $Port) {
 
 $ContentSecurityPolicy = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
-function Send-Response($Context, [byte[]]$Bytes, [string]$ContentType='application/json', [int]$Status=200) {
-    $response = $Context.Response
+# The on-disk media library (modules/Library.ps1): created before the first request, off if its folder is unusable.
+[void](Initialize-CapstanLibrary)
+
+function Set-CapstanResponseHeaders($response, [string]$ContentType, [int]$Status) {
     $response.StatusCode = $Status
     $response.ContentType = $ContentType
     $response.Headers.Add('Cache-Control','no-store')
@@ -127,9 +131,23 @@ function Send-Response($Context, [byte[]]$Bytes, [string]$ContentType='applicati
     $response.Headers.Add('Cross-Origin-Opener-Policy','same-origin')
     $response.Headers.Add('Permissions-Policy','camera=(self), microphone=(self), display-capture=(self), geolocation=()')
     $response.Headers.Add('Content-Security-Policy',$ContentSecurityPolicy)
+}
+function Send-Response($Context, [byte[]]$Bytes, [string]$ContentType='application/json', [int]$Status=200) {
+    $response = $Context.Response
+    Set-CapstanResponseHeaders $response $ContentType $Status
     $response.ContentLength64 = $Bytes.Length
     try { $response.SetBody($Bytes) }
     finally { $response.Close() }
+}
+# Streams a file in 1 MB buffers (see Response.SetStream); the stream is closed whatever happens.
+function Send-CapstanFile($Context, [IO.Stream]$Stream, [long]$Length, [string]$ContentType) {
+    $response = $Context.Response
+    try {
+        Set-CapstanResponseHeaders $response $ContentType 200
+        $response.ContentLength64 = $Length
+        $response.SetStream($Stream, $Length)
+    } catch { $Stream.Dispose(); throw }
+    $response.Close()
 }
 function Send-Json($Context, $Payload, [int]$Status=200) {
     $text = ConvertTo-Json -InputObject $Payload -Depth 8 -Compress
@@ -195,8 +213,19 @@ function Invoke-CapstanRequest($Context) {
         return
     }
     if ($path -eq '/api/health' -and $method -eq 'GET') {
-        Send-Json $Context @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()};return
+        $health = @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString();snapshackle=[bool](Get-CapstanCapturesRoot)}
+        foreach ($entry in (Get-CapstanLibraryInfo).GetEnumerator()) { $health[$entry.Key] = $entry.Value }
+        Send-Json $Context $health;return
     }
+    # SnapShackle captures: read-only list and file (modules/Captures.ps1). The name is taken from the raw path.
+    if ($path -eq '/api/snapshackle/captures' -or $path.StartsWith('/api/snapshackle/captures/',[StringComparison]::Ordinal)) {
+        $raw = $request.Url.OriginalString
+        $slash = $raw.IndexOf('/',8)
+        Invoke-CapstanCaptureRoute $Context $method $(if ($slash -ge 0) { $raw.Substring($slash) } else { '/' })
+        return
+    }
+    # Media library on disk: /api/files... (token, size, id and path rules live in modules/Library.ps1).
+    if (Invoke-CapstanLibraryRoute -Context $Context -SessionToken $sessionToken) { return }
     if ($path.StartsWith('/api/speech/', [StringComparison]::Ordinal)) {
         # Speech-to-text (modules/Speech.ps1): status, transcribe a WAV, poll or cancel a job.
         $speech = Invoke-CapstanSpeechRoute -Method $method -Path $path -Query $request.Url.Query -ContentType $request.Headers['Content-Type'] -ContentLength $request.ContentLength64 -Body $request.InputStream
@@ -211,6 +240,7 @@ try {
     $runtimeFile = Write-CapstanRuntimeFile -Root $root -Port $Port -Url $base
     Write-Host "Capstan $CapstanVersion local server: $base" -ForegroundColor Yellow
     Write-Host 'Your media and projects stay in this browser profile on this computer.'
+    if (Test-CapstanLibraryEnabled) { Write-Host 'A copy of each media file is kept in %LOCALAPPDATA%\Capstan\library, so projects survive a port change or a cleared browser.' }
     if ($autoStop) {
         Write-Host 'Capstan stops by itself when its window closes. To quit now: "End session" in the window, Ctrl+C here, or Stop-Capstan.ps1.'
     } else {
@@ -231,6 +261,7 @@ try {
             $script:CapstanStopReason = 'The Capstan window was closed (set CAPSTAN_AUTO_STOP=0 or use -Stay to keep it running).'
             break
         }
+        Invoke-CapstanLibrarySweep
         $context=$null
         try {
             # Wake at least once a second for the lifecycle tick; this also lets Ctrl+C through.
@@ -252,6 +283,7 @@ try {
 } finally {
     $server.Dispose()
     Stop-CapstanSpeech
-    # Also runs on Ctrl+C.
+    # Also runs on Ctrl+C. An upload that was still open is not kept.
+    Clear-CapstanLibraryUploads
     Remove-CapstanRuntimeFile -Path $runtimeFile
 }
