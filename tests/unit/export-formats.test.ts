@@ -399,3 +399,23 @@ test('frame lookup picks the last frame at or before the time and the key frame 
   expect(keyBefore(samples, 3)).toBe(0);
   expect(keyBefore(samples, 4)).toBe(4);
 });
+
+// ---- export requests as plain data (for CLI / API wrappers) -----------------------------
+
+test('a request names a preset, overrides settings and picks the range as plain data', async () => {
+  const { resolveRequest } = await import('../../src/engine/export-run');
+  const s = resolveRequest({ preset: 'gif 480', settings: { size: 180, fps: 5 }, range: 'marks' });
+  expect(s.format).toBe('gif');
+  expect(s.size).toBe(180);
+  expect(s.fps).toBe(5);
+  expect(s.range).toBe('marks');
+  expect(resolveRequest({}).format).toBe('mp4');
+  expect(resolveRequest({ settings: { format: 'wav' }, range: 'whole' }).range).toBe('whole');
+  // Saved presets are found by name too.
+  const user = withPreset([], 'Mine', { ...DEFAULT_SETTINGS, format: 'png' });
+  expect(resolveRequest({ preset: 'MINE', userPresets: user }).format).toBe('png');
+  expect(() => resolveRequest({ preset: 'Nope' })).toThrow('No export preset called "Nope"');
+  // The request survives JSON (apart from the sink opener).
+  const json = JSON.parse(JSON.stringify({ preset: 'Audio only', range: { start: 1, end: 2 } }));
+  expect(resolveRequest(json).format).toBe('m4a');
+});

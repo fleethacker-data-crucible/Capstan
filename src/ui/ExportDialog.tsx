@@ -34,7 +34,7 @@ const FORMATS: ExportFormat[] = ['mp4', 'gif', 'm4a', 'wav', 'png'];
 const isAudio = (f: ExportFormat) => f === 'wav' || f === 'm4a';
 const MP4_FPS = [15, 24, 25, 30, 50, 60];
 const GIF_FPS = [8, 10, 12, 15, 20, 25];
-const SIZES = [2160, 1440, 1080, 720, 480, 360];
+const SIZES = [2160, 1440, 1080, 720, 480, 360, 240, 180];
 
 /** The listed frame rates plus the current one, so a preset's own value always has an option. */
 function fpsChoices(list: number[], current: ExportSettings['fps']): number[] {

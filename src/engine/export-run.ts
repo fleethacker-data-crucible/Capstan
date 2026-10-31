@@ -5,7 +5,8 @@ import { defaultExportOptions, exportMp4 } from './export';
 import { exportFramePng, exportGif } from './export-image';
 import type { ByteSink } from './mp4/muxer';
 import { type Project, projectDuration } from './project';
-import { type ExportSettings, QUALITY_FACTOR, outputFps, outputSize } from './presets';
+import { type ExportSettings, QUALITY_FACTOR, allPresets, outputFps, outputSize, parseSettings } from './presets';
+import type { TimeRange } from './range';
 import { type FileHandleLike, openSink } from './sinks';
 
 export interface RunProgress {
@@ -19,6 +20,10 @@ export interface RunExportOptions {
   time: number;
   /** A file chosen by the user: the export streams into it instead of building a Blob. */
   handle?: FileHandleLike | null;
+  /** Any other destination (a CLI file, a test sink): the export streams into it. Wins over `handle`. */
+  openSink?: () => Promise<ByteSink>;
+  /** An explicit stretch of the timeline; overrides the settings' range choice and the project marks. */
+  range?: TimeRange;
   onProgress?: (p: RunProgress) => void;
   signal?: AbortSignal;
 }
@@ -49,10 +54,10 @@ export async function runExport(project: Project, settings: ExportSettings, opti
   if (!(projectDuration(project) > 0)) throw new Error('The timeline is empty');
   const { blobs, signal } = options;
   const report = (fraction: number, detail: string) => options.onProgress?.({ fraction, detail });
-  const range = rangeFor(project, settings);
+  const range = options.range ?? rangeFor(project, settings);
   const { width, height } = outputSize(project, settings.size);
   const fps = outputFps(project, settings.fps);
-  const sink: (() => Promise<ByteSink>) | undefined = options.handle ? () => openSink(options.handle!) : undefined;
+  const sink: (() => Promise<ByteSink>) | undefined = options.openSink ?? (options.handle ? () => openSink(options.handle!) : undefined);
   const format = settings.format;
 
   if (format === 'png') {
@@ -125,4 +130,54 @@ export async function runExport(project: Project, settings: ExportSettings, opti
     softwareFallback: r.encoder === 'software',
     decode: r.decode,
   };
+}
+
+/**
+ * A whole export as plain data, for callers that have no dialog (a CLI or API command, scripts):
+ * name a preset or give settings, choose the range, say where the bytes go. Everything in it can be
+ * written as JSON apart from the sink opener.
+ */
+export interface ExportRequest {
+  /** Name of a built-in or saved preset (case-insensitive). */
+  preset?: string;
+  /** Settings applied on top of the preset (or the defaults). */
+  settings?: Partial<ExportSettings>;
+  /** 'whole' (default), 'marks' (the project's in/out), or explicit seconds. */
+  range?: 'whole' | 'marks' | TimeRange;
+  /** Timeline time for a PNG frame (default 0). */
+  time?: number;
+  /** Where to send the bytes; omit to get a Blob in the result. */
+  output?: { openSink: () => Promise<ByteSink> };
+  /** Saved presets to search besides the built-in ones. */
+  userPresets?: Parameters<typeof allPresets>[0];
+}
+
+/** Resolves a request to the settings it runs with (throws for an unknown preset name). */
+export function resolveRequest(request: ExportRequest): ExportSettings {
+  let base: unknown = {};
+  if (request.preset) {
+    const found = allPresets(request.userPresets ?? []).find((p) => p.name.toLowerCase() === request.preset!.toLowerCase());
+    if (!found) throw new Error(`No export preset called "${request.preset}"`);
+    base = found.settings;
+  }
+  const merged = { ...(base as object), ...(request.settings ?? {}) } as Record<string, unknown>;
+  if (request.range === 'marks') merged.range = 'marks';
+  else if (request.range === 'whole') merged.range = 'whole';
+  return parseSettings(merged);
+}
+
+export function exportWith(
+  project: Project,
+  request: ExportRequest,
+  deps: { blobs: (mediaId: string) => Promise<Blob | null>; onProgress?: (p: RunProgress) => void; signal?: AbortSignal },
+): Promise<RunResult> {
+  const settings = resolveRequest(request);
+  return runExport(project, settings, {
+    blobs: deps.blobs,
+    time: request.time ?? 0,
+    range: request.range && typeof request.range === 'object' ? request.range : undefined,
+    openSink: request.output?.openSink,
+    onProgress: deps.onProgress,
+    signal: deps.signal,
+  });
 }

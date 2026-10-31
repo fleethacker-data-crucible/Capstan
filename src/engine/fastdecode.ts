@@ -100,6 +100,9 @@ export class FastVideoSource {
       codedHeight: info.height,
       description: info.description,
       optimizeForLatency: true,
+      // Media elements read an untagged stream as BT.601; WebCodecs would assume BT.709 and the
+      // picture would come out darker and less saturated than the preview. Match the element.
+      colorSpace: { primaries: 'smpte170m', transfer: 'smpte170m', matrix: 'smpte170m', fullRange: false },
     };
   }
 
