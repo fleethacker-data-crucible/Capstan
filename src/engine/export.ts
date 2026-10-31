@@ -106,7 +106,7 @@ export async function pickAudioConfig(): Promise<{ config: AudioEncoderConfig; c
 function audible(project: Project, clip: Clip): boolean {
   const media = findMedia(project, clip.mediaId);
   const track = project.tracks.find((t) => t.id === clip.trackId);
-  return !!media && media.kind !== 'image' && media.hasAudio && !track?.muted && !clip.freeze && clip.props.volume > 0;
+  return !!media && media.kind !== 'image' && media.hasAudio && !track?.muted && !clip.freeze && !clip.muteAudio && clip.props.volume > 0;
 }
 
 /** Mixes every audible clip into one stereo buffer covering the whole timeline. */
@@ -357,7 +357,7 @@ async function renderMp4(
       const active = activeClipsAt(scaled, t);
       for (const clip of active) {
         const media = findMedia(scaled, clip.mediaId);
-        if (media?.kind !== 'video') continue;
+        if (media?.kind !== 'video' || clip.audioOnly) continue;
         const el = await elementFor(clip);
         // A hair past the frame time so float error never lands on the previous frame.
         if (el) await seekTo(el, Math.min(media.duration, sourceTimeAt(clip, t) + 1e-3));

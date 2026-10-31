@@ -9,7 +9,7 @@ import { AnnotationPanel } from './inspector/AnnotationPanel';
 import { AudioSection } from './inspector/AudioSection';
 import { CaptionPanel } from './inspector/CaptionPanel';
 import { CursorSection } from './inspector/CursorSection';
-import { EditSection } from './inspector/EditSection';
+import { EditSection, MultiClipPanel } from './inspector/EditSection';
 import { EffectsSection } from './inspector/EffectsSection';
 import { Field } from './inspector/Field';
 import { MarkerPanel } from './inspector/MarkerPanel';
@@ -189,6 +189,8 @@ export function Inspector({ editor, time, onSeek }: { editor: Editor; time: numb
   };
 
   if (region) return <RedactionPanel editor={editor} region={region} onSeek={onSeek} />;
+  // Several clips selected (a group, or a rubber-banded set): clipboard, group and delete.
+  if (selection.length > 1 && selection.every((id) => project.clips.some((c) => c.id === id))) return <MultiClipPanel editor={editor} />;
 
   // Panels for the other things that can be selected. Each returns null unless its item is the selection.
   const panelProps = { editor, time, onSeek };
@@ -287,7 +289,7 @@ export function Inspector({ editor, time, onSeek }: { editor: Editor; time: numb
     begin();
     editor.preview(updateClipProps(editor.project, clip.id, patch));
   };
-  const visual = media?.kind !== 'audio';
+  const visual = media?.kind !== 'audio' && !clip.audioOnly;
   const audible = media?.kind !== 'image';
   const locked = !!project.tracks.find((t) => t.id === clip.trackId)?.locked;
 
