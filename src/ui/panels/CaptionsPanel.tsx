@@ -6,6 +6,7 @@ import type { Project } from '../../engine/project';
 import { download, safeFileName, timecode } from '../format';
 import { Icon } from '../icons';
 import type { ToolboxProps } from '../toolboxTabs';
+import { TranscribeSection } from './TranscribeSection';
 
 // Caption list and editor: import and export subtitle files, edit every caption in place.
 export const enabled = true;
@@ -134,8 +135,9 @@ export function CaptionsPanel({ editor, time, onSeek }: ToolboxProps): ReactElem
           </p>
         )}
       </div>
+      <TranscribeSection editor={editor} />
       {captions.length === 0 ? (
-        <p className="bin-empty">No captions yet. Add one at the playhead, or import an SRT or WebVTT file. Speech-to-text is not built in: Capstan makes no network calls.</p>
+        <p className="bin-empty">No captions yet. Add one at the playhead, import an SRT or WebVTT file, or transcribe speech from the sound on the timeline.</p>
       ) : (
         <ul className="caption-list">
           {captions.map((c, i) => {

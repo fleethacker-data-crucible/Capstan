@@ -88,6 +88,19 @@ The host writes `logs\capstan-server-<pid>.json` and deletes it in a `finally` (
 - Host: loopback only; rejects wrong `Host`, foreign `Origin`, and cross-site `Sec-Fetch-Site`; fixed file allowlist; per-launch session token for API routes; strict CSP with no inline script and no remote origins; `media-src blob:` for local playback.
 - The editor makes no network requests. `tests/unit/host.test.ts` checks that the bundle references no CDN and that the PowerShell host and the test server send the same CSP.
 
+## Security notes: speech-to-text (issue #24)
+
+Needs the Researcher's verdict before merge. What the host exposes, who can call it, the limits, and what is deliberately not done.
+
+- **What is exposed.** Four routes under `/api/speech/` in `modules/Speech.ps1`: `GET status`, `POST transcribe?culture=en-US`, `GET <job>`, `DELETE <job>`. They sit after the session-token check in `Invoke-CapstanRequest`, so they get the same loopback, Host, Origin, `Sec-Fetch-Site` and `X-Capstan-Token` checks as every API route. No CORS headers, no new listener, no change to the CSP. The token is never read from the query string.
+- **Who can call it.** Only the Capstan page that was served the token, from the same origin. Another site, another local process without the token, and a DNS-rebinding page are all refused before the route runs.
+- **What it takes.** A `POST` with `Content-Type: audio/wav` and a mono 16 kHz 16-bit PCM WAV body, at most 30 MB (the host's body cap; about 15 minutes, the page sends pieces of 10 minutes). The header is parsed and checked before anything is written. The culture is a short pattern (`en-US`), never a path.
+- **What it writes.** One file per job, `%LOCALAPPDATA%\Capstan\tmp\speech-<32 hex>.wav`. The name is made from a random id the host generated, never from the request; the folder and its parent are created on demand and refused if they are reparse points; the full path is resolved and checked to be inside the folder; the file is created with `CreateNew` and no sharing, written in 1 MB buffers, and deleted when the job ends (done, failed or cancelled) and when the host stops. A file left by a killed host is swept on the next job (only `speech-<hex>.wav` older than 2 minutes). Nothing else on disk is read or written.
+- **What it runs.** The Windows desktop recogniser (`System.Speech`, `SpeechRecognitionEngine` with a dictation grammar) on a worker thread of the host process, one job at a time, so the loop is never blocked for long and `DELETE` cancels. No new process, no download, no network: the recogniser is offline. The C# is source through `Add-Type` (C# 5, scanned by `tests/unit/host.test.ts`).
+- **Errors.** `{ error, code }` with a fixed message per code (`unsupported-type`, `unsupported-format`, `too-big`, `bad-culture`, `no-recogniser`, `no-engine`, `busy`, `not-found`, `cancelled`, `recogniser-failed`, `failed`). Exception text, paths and the audio are never echoed or logged.
+- **Test seam.** `CAPSTAN_SPEECH_ENGINE=fake` swaps the recogniser for one that returns three fixed captions and reads no audio. It is decided in one line of `Speech.ps1`, nothing else mentions it, `GET /api/speech/status` then says `fake`, and the page labels it. Without the variable the real engine is the only code path.
+- **Deliberately not done.** No microphone or live dictation (file in, text out). No cloud fallback. No bundled model. No way to point the host at a path or a URL. No second job at once. No result kept past 15 minutes. Quality is whatever the installed Windows speech pack gives: it will not match a cloud service on noisy audio or on languages that have no Windows pack, and the page says so.
+
 ## Testing
 
 | Suite | Runs | Covers |
@@ -98,5 +111,7 @@ The host writes `logs\capstan-server-<pid>.json` and deletes it in a `finally` (
 | `tests/e2e/record.e2e.mjs` | Headless Chromium, synthetic capture stream | A tab request that gets a screen is refused with nothing recorded; picker options exclude screens and cap the size; record, pause/resume, stop; recording lands in the bin and timeline with the pause excluded. No fake capture UI: on a Windows runner it shares the real desktop |
 | `tests/e2e/lifecycle.e2e.mjs` | Headless Chromium | Heartbeat with the session header, leaving beacon with the token in the body, new page id after reload, one id per window, End session |
 | `tests/ps/Lifecycle.Tests.ps1` | Windows PowerShell 5.1 (CI `windows-host` job) | Presence rule with simulated time (timeouts, reload, two windows, jobs, busy/hidden, off switch); real host: runtime file without token, heartbeat auth, self-stop after the beacon, End session, `Stop-Capstan.ps1` |
+| `tests/ps/Speech.Tests.ps1` | Windows PowerShell 5.1 (CI `windows-host` job) | Speech endpoint with the fake engine: status, transcribe, refusals (type, format, size, language), cancel, temp file removed, token/Origin checks on the real host; the real engine's status call does not throw |
+| `tests/e2e/speech.e2e.mjs` | Headless Chromium against the mirror in `tests/helpers/speech-mirror.mjs` | Transcribe from the Captions tab: three captions in the list and on the lane, one undo, add or replace, cancel, the no-recogniser message |
 
-PowerShell runs in CI only for the lifecycle job above. `tests/serve.mjs` mirrors the host's routing and headers; the real host still needs a Windows run (`Launch-Capstan.bat -Diagnostics`, then a normal launch).
+PowerShell runs in CI only in the `windows-host` job (the two `tests/ps` scripts above). `tests/serve.mjs` mirrors the host's routing and headers; the real host still needs a Windows run (`Launch-Capstan.bat -Diagnostics`, then a normal launch).

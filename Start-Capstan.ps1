@@ -36,6 +36,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dist = Join-Path $root 'dist'
 . (Join-Path $root 'modules/LocalHttp.ps1')
 . (Join-Path $root 'modules/Lifecycle.ps1')
+. (Join-Path $root 'modules/Speech.ps1')
 $CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
 # Only these compiled files are ever served. Anything else is a 404.
@@ -196,6 +197,11 @@ function Invoke-CapstanRequest($Context) {
     if ($path -eq '/api/health' -and $method -eq 'GET') {
         Send-Json $Context @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()};return
     }
+    if ($path.StartsWith('/api/speech/', [StringComparison]::Ordinal)) {
+        # Speech-to-text (modules/Speech.ps1): status, transcribe a WAV, poll or cancel a job.
+        $speech = Invoke-CapstanSpeechRoute -Method $method -Path $path -Query $request.Url.Query -ContentType $request.Headers['Content-Type'] -ContentLength $request.ContentLength64 -Body $request.InputStream
+        Send-Json $Context $speech.Body $speech.Status;return
+    }
     Send-Json $Context @{error='Route not found'} 404
 }
 
@@ -245,6 +251,7 @@ try {
     if ($script:CapstanStopReason) { Write-Host ('Capstan stopped: ' + $script:CapstanStopReason) -ForegroundColor Yellow }
 } finally {
     $server.Dispose()
+    Stop-CapstanSpeech
     # Also runs on Ctrl+C.
     Remove-CapstanRuntimeFile -Path $runtimeFile
 }

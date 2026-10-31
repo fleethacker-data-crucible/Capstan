@@ -127,3 +127,6 @@ jobs:
       - name: Host lifecycle (Windows PowerShell 5.1)
         shell: powershell
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1
+      - name: Speech-to-text endpoint (Windows PowerShell 5.1, fake engine)
+        shell: powershell
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Speech.Tests.ps1

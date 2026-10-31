@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stopCapstan } from '../scripts/stop-capstan.mjs';
+import { handleSpeech } from './helpers/speech-mirror.mjs';
 
 // On Windows a running Capstan host holds port 8790; stop it first and say so.
 stopCapstan('serve');
@@ -28,6 +29,7 @@ const heartbeats = [];
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
+  if (await handleSpeech(req, res, url)) return; // speech-to-text mirror (fake engine)
   let file;
   if (url.pathname === '/') file = join(root, 'dist/index.html');
   else if (url.pathname.startsWith('/assets/')) file = join(root, 'dist', normalize(url.pathname));

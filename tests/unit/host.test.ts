@@ -65,7 +65,7 @@ const lifecycle = read('modules/Lifecycle.ps1');
 const csharpBlocks = (text: string) => [...text.matchAll(/Add-Type -TypeDefinition @'([\s\S]*?)'@/g)].map((m) => m[1]);
 
 test('Add-Type C# stays within C# 5 (.NET Framework 4.8.1 compiler)', () => {
-  for (const cs of [...csharpBlocks(lifecycle), ...csharpBlocks(read('modules/LocalHttp.ps1'))]) {
+  for (const cs of [...csharpBlocks(lifecycle), ...csharpBlocks(read('modules/LocalHttp.ps1')), ...csharpBlocks(read('modules/Speech.ps1'))]) {
     expect(cs).not.toMatch(/\?\.|\$"|\bnameof\b|\bout var\b|\)\s*=>/);
   }
 });
@@ -128,3 +128,44 @@ test('PowerShell files are ASCII (Windows PowerShell 5.1 reads BOM-less files as
     expect(/[^\x00-\x7f]/.test(read(f))).toBe(false);
   }
 });
+
+// ---- Speech-to-text (modules/Speech.ps1, issue #24). The behaviour is exercised on Windows by tests/ps/Speech.Tests.ps1.
+const speech = read('modules/Speech.ps1');
+
+test('speech routes sit behind the session token, and the token never comes from the query string', () => {
+  const tokenCheck = host.indexOf("$request.Headers['X-Capstan-Token'] -ne $sessionToken");
+  const route = host.indexOf("'/api/speech/'");
+  expect(tokenCheck).toBeGreaterThan(0);
+  expect(route).toBeGreaterThan(tokenCheck);
+  expect(host).toContain('Invoke-CapstanSpeechRoute');
+  expect(host).toContain('Stop-CapstanSpeech');
+  expect(speech).not.toMatch(/QueryString|X-Capstan-Token/);
+});
+
+test('speech: the fake engine is only reachable through CAPSTAN_SPEECH_ENGINE=fake', () => {
+  expect(speech.match(/'fake'/g)!.length).toBeGreaterThan(0);
+  expect(speech).toContain("$env:CAPSTAN_SPEECH_ENGINE -eq 'fake'");
+  const code = speech.replace(/<#[\s\S]*?#>/, '');
+  expect(code.match(/\$env:CAPSTAN_SPEECH_ENGINE/g)!.length).toBe(1); // one place decides
+  expect(host).not.toContain('CAPSTAN_SPEECH');
+  expect(read('modules/LocalHttp.ps1')).not.toContain('CAPSTAN_SPEECH');
+});
+
+test('speech: files are named from a host-made job id under %LOCALAPPDATA%\Capstan\tmp, never from the request', () => {
+  expect(speech).toContain("'^[0-9a-f]{32}$'");
+  expect(speech).toContain("'Capstan'");
+  expect(speech).toContain('ReparsePoint');
+  expect(speech).toContain('FileMode]::CreateNew');
+  expect(speech).toContain('1048576'); // written in 1 MB buffers
+  const route = speech.slice(speech.indexOf('function Start-CapstanSpeechJob'), speech.indexOf('function Invoke-CapstanSpeechRoute'));
+  expect(route).not.toMatch(/Get-CapstanSpeechQueryValue \$Query '(path|file|name)'/);
+});
+
+test('speech: requests are limited to 30 MB WAV bodies and errors carry no exception text', () => {
+  expect(speech).toContain('$script:SpeechMaxBytes = 30000000');
+  expect(speech).toContain("New-CapstanSpeechError 413 'too-big'");
+  const catchAll = speech.slice(speech.indexOf('} catch {', speech.indexOf('function Invoke-CapstanSpeechRoute')));
+  expect(catchAll).not.toContain('$_.Exception.Message');
+  expect(speech).not.toMatch(/-Message \$_|\$_\.Exception/);
+});
+
