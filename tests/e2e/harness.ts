@@ -247,6 +247,10 @@ window.compareDecode = async (name: string, times: number[]) => {
       s = performance.now();
       await slow.render(t);
       slowMs += performance.now() - s;
+      // The seeked event can fire before the browser has presented the new frame (seen after a backward
+      // jump on the CI runner), which leaves the reference showing a stale picture. Let it settle, draw again.
+      await new Promise((r) => setTimeout(r, 80));
+      await slow.render(t);
       const b = slow.pixels();
       await slow.render(t + 1 / 30);
       const at = (d: Uint8ClampedArray, x: number, y: number) => Array.from(d.slice((y * 320 + x) * 4, (y * 320 + x) * 4 + 3));
