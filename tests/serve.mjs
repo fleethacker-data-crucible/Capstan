@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stopCapstan } from '../scripts/stop-capstan.mjs';
-import { CHUNK_MAX, failNextChunks, handleLibrary } from './library-mirror.mjs';
+import { CHUNK_MAX, failNextChunks, handleLibrary, resetLibrary } from './library-mirror.mjs';
 
 // On Windows a running Capstan host holds port 8790; stop it first and say so.
 stopCapstan('serve');
@@ -69,6 +69,10 @@ const server = createServer(async (req, res) => {
   } else if (url.pathname === '/api/files' || url.pathname.startsWith('/api/files/')) {
     // The on-disk media library (mirror of modules/Library.ps1, files in a temp folder).
     await handleLibrary(req, res, url, { port, token: 'test-token' });
+    return;
+  } else if (url.pathname === '/api/test/library-reset') {
+    await resetLibrary();
+    res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}');
     return;
   } else if (url.pathname === '/api/test/library-fail') {
     // Test-only: the next N chunk uploads answer 500.

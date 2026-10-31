@@ -26,6 +26,14 @@ export function failNextChunks(n) {
   failNext = n;
 }
 
+/** Test hook: empties the library, so a test is not affected by what earlier tests on the same server stored. */
+export async function resetLibrary() {
+  failNext = 0;
+  active.clear();
+  for (const name of await readdir(dir)) if (name !== '.uploads') await rm(join(dir, name), { recursive: true, force: true });
+  for (const name of await readdir(uploads)) await rm(join(uploads, name), { recursive: true, force: true });
+}
+
 const validId = (id) => ID.test(id) && !RESERVED.has(id);
 const json = (res, status, body, headers = {}) => {
   const text = JSON.stringify(body);

@@ -23,6 +23,7 @@ const fixture = (name) => readFileSync(`tests/fixtures/${name}`);
 const hostFetch = (path, init = {}) => fetch(base + path, { ...init, headers: { 'X-Capstan-Token': TOKEN, ...(init.headers ?? {}) } });
 const hostIndex = async () => (await (await hostFetch('/api/files')).json()).files;
 
+await hostFetch('/api/test/library-reset'); // earlier e2e files on the same server also store media
 const browser = await chromium.launch();
 const errors = [];
 const apiRequests = [];
