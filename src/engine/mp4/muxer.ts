@@ -129,6 +129,33 @@ function fullBox(type: string, version: number, flags: number, ...children: Uint
   return box(type, new Bytes().u8(version).u24(flags).done(), ...children);
 }
 
+/** A chapter for the Nero `chpl` box: start in seconds on the movie timeline. */
+export interface MuxChapter {
+  time: number;
+  name: string;
+}
+
+/**
+ * Nero chapter list (`moov/udta/chpl`, version 1): ffmpeg and ffprobe (`-show_chapters`), VLC and mp4v2 read it.
+ * Start times are in 100 ns units, titles are UTF-8 of at most 255 bytes, and a file holds at most 255 chapters.
+ */
+export function chapterBox(chapters: MuxChapter[]): Uint8Array<ArrayBuffer> | null {
+  const list = chapters.filter((c) => Number.isFinite(c.time) && c.time >= 0).sort((a, b) => a.time - b.time).slice(0, 255);
+  if (!list.length) return null;
+  const enc = new TextEncoder();
+  const body = new Bytes().u32(0).u8(list.length);
+  for (const c of list) {
+    let name = c.name;
+    let bytes = enc.encode(name);
+    while (bytes.length > 255) {
+      name = name.slice(0, -1);
+      bytes = enc.encode(name);
+    }
+    body.u64(Math.round(c.time * 1e7)).u8(bytes.length).bytes(bytes);
+  }
+  return box('udta', fullBox('chpl', 1, 0, body.done()));
+}
+
 const MATRIX = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000];
 function matrix(b: Bytes): Bytes {
   for (const m of MATRIX) b.u32(m);
@@ -160,6 +187,7 @@ export class Mp4Muxer {
   private video: TrackState | null = null;
   private audio: TrackState | null = null;
   private finished = false;
+  private chapters: MuxChapter[] = [];
 
   constructor(
     private videoConfig: VideoTrackConfig | null,
@@ -174,6 +202,11 @@ export class Mp4Muxer {
   /** Video description often only arrives with the first encoded chunk's metadata. */
   setVideoDescription(description: Uint8Array): void {
     if (this.videoConfig) this.videoConfig.description = description;
+  }
+
+  /** Chapters written to the file (`chpl`), on the movie timeline. */
+  setChapters(chapters: MuxChapter[]): void {
+    this.chapters = chapters;
   }
 
   setAudioDescription(description: Uint8Array): void {
@@ -260,7 +293,8 @@ export class Mp4Muxer {
         co64,
       ),
     );
-    return box('moov', mvhd, ...traks);
+    const udta = chapterBox(this.chapters);
+    return box('moov', mvhd, ...traks, ...(udta ? [udta] : []));
   }
 
   private trak(t: TrackState, chunks: Chunk[], offsets: Map<Chunk, number>, co64: boolean): Uint8Array {

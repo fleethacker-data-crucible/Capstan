@@ -1,5 +1,6 @@
 import { clipRect } from '../../engine/compositor';
 import { keyedProps, updateClipPropsAt } from '../../engine/animate';
+import { expandSelection } from '../../engine/editops';
 import { activeClipsAt, findMedia } from '../../engine/project';
 import type { PreviewTool } from '../previewTools';
 
@@ -10,14 +11,14 @@ export const clipTool: PreviewTool = {
     const project = editor.project;
     const hidden = new Set(project.tracks.filter((t) => t.hidden).map((t) => t.id));
     const hit = activeClipsAt(project, time)
-      .filter((c) => !hidden.has(c.trackId) && findMedia(project, c.mediaId)?.kind !== 'audio')
+      .filter((c) => !hidden.has(c.trackId) && !c.audioOnly && findMedia(project, c.mediaId)?.kind !== 'audio')
       .reverse()
       .find((c) => {
         const r = clipRect(project, c, time);
         return p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height;
       });
     if (!hit) return null;
-    editor.setSelection([hit.id]);
+    editor.setSelection(expandSelection(project, [hit.id]));
     if (project.tracks.find((t) => t.id === hit.trackId)?.locked) return 'handled';
     const before = project;
     const start = { x: p.x, y: p.y };
@@ -41,7 +42,7 @@ export const clipTool: PreviewTool = {
     const project = editor.project;
     const id = editor.selection.length === 1 ? editor.selection[0] : null;
     const selected = id ? project.clips.find((c) => c.id === id) : undefined;
-    if (!selected || time < selected.start || time >= selected.start + selected.duration || findMedia(project, selected.mediaId)?.kind === 'audio') return null;
+    if (!selected || time < selected.start || time >= selected.start + selected.duration || selected.audioOnly || findMedia(project, selected.mediaId)?.kind === 'audio') return null;
     const rect = clipRect(project, selected, time);
     const props = keyedProps(selected, time);
     return (

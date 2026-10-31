@@ -10,11 +10,15 @@ function seconds(stamp: string): number | null {
   return Number(h ?? 0) * 3600 + Number(min) * 60 + Number(s) + Number(ms.padEnd(3, '0')) / 1000;
 }
 
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', nbsp: ' ', lrm: '', rlm: '' };
+const decodeEntities = (s: string): string => s.replace(/&(amp|lt|gt|nbsp|lrm|rlm);/g, (_, e: string) => ENTITIES[e]);
+
 /** Parses SRT or WebVTT text. Cues without a valid time line are skipped; styling tags are dropped. */
 export function parseSubtitles(text: string): Caption[] {
   const out: Caption[] = [];
   const blocks = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n').split(/\n{2,}/);
   for (const block of blocks) {
+    if (/^(NOTE|STYLE|REGION)(\s|$)/.test(block.trimStart())) continue;
     const lines = block.split('\n').filter((l) => l.trim() !== '');
     const at = lines.findIndex((l) => l.includes('-->'));
     if (at < 0) continue;
@@ -24,7 +28,7 @@ export function parseSubtitles(text: string): Caption[] {
     if (start === null || end === null || end <= start) continue;
     const body = lines
       .slice(at + 1)
-      .map((l) => l.replace(/<[^>]*>/g, '').replace(/\{\\[^}]*\}/g, '').trim())
+      .map((l) => decodeEntities(l.replace(/<[^>]*>/g, '').replace(/\{\\[^}]*\}/g, '')).trim())
       .filter(Boolean)
       .join('\n')
       .slice(0, MAX_CAPTION_CHARS);
@@ -39,8 +43,18 @@ function stamp(t: number): string {
   return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`;
 }
 
+/** A blank line would end the cue in either format. */
+const cueText = (text: string): string => text.replace(/\r\n?/g, '\n').split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
+
 export function formatSrt(captions: Caption[]): string {
-  return captions.map((c, i) => `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${c.text}\n`).join('\n');
+  return captions.map((c, i) => `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${cueText(c.text)}\n`).join('\n');
+}
+
+/** WebVTT: a header, then cues with a dot before the milliseconds. `&`, `<` and `>` are escaped so the text survives a re-import. */
+export function formatVtt(captions: Caption[]): string {
+  const escape = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const cues = captions.map((c, i) => `${i + 1}\n${stamp(c.start).replace(',', '.')} --> ${stamp(c.end).replace(',', '.')}\n${escape(cueText(c.text))}\n`);
+  return `WEBVTT\n\n${cues.join('\n')}`;
 }
 
 /**
