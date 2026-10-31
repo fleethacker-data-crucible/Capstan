@@ -36,6 +36,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dist = Join-Path $root 'dist'
 . (Join-Path $root 'modules/LocalHttp.ps1')
 . (Join-Path $root 'modules/Lifecycle.ps1')
+. (Join-Path $root 'modules/Captures.ps1')
 $CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
 # Only these compiled files are ever served. Anything else is a 404.
@@ -115,8 +116,7 @@ if ($requestedPort -ne $Port) {
 
 $ContentSecurityPolicy = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
-function Send-Response($Context, [byte[]]$Bytes, [string]$ContentType='application/json', [int]$Status=200) {
-    $response = $Context.Response
+function Set-CapstanResponseHeaders($response, [string]$ContentType, [int]$Status) {
     $response.StatusCode = $Status
     $response.ContentType = $ContentType
     $response.Headers.Add('Cache-Control','no-store')
@@ -126,9 +126,23 @@ function Send-Response($Context, [byte[]]$Bytes, [string]$ContentType='applicati
     $response.Headers.Add('Cross-Origin-Opener-Policy','same-origin')
     $response.Headers.Add('Permissions-Policy','camera=(self), microphone=(self), display-capture=(self), geolocation=()')
     $response.Headers.Add('Content-Security-Policy',$ContentSecurityPolicy)
+}
+function Send-Response($Context, [byte[]]$Bytes, [string]$ContentType='application/json', [int]$Status=200) {
+    $response = $Context.Response
+    Set-CapstanResponseHeaders $response $ContentType $Status
     $response.ContentLength64 = $Bytes.Length
     try { $response.SetBody($Bytes) }
     finally { $response.Close() }
+}
+# Streams a file in 1 MB buffers (see Response.SetStream); the stream is closed whatever happens.
+function Send-CapstanFile($Context, [IO.Stream]$Stream, [long]$Length, [string]$ContentType) {
+    $response = $Context.Response
+    try {
+        Set-CapstanResponseHeaders $response $ContentType 200
+        $response.ContentLength64 = $Length
+        $response.SetStream($Stream, $Length)
+    } catch { $Stream.Dispose(); throw }
+    $response.Close()
 }
 function Send-Json($Context, $Payload, [int]$Status=200) {
     $text = ConvertTo-Json -InputObject $Payload -Depth 8 -Compress
@@ -194,7 +208,14 @@ function Invoke-CapstanRequest($Context) {
         return
     }
     if ($path -eq '/api/health' -and $method -eq 'GET') {
-        Send-Json $Context @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()};return
+        Send-Json $Context @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString();snapshackle=[bool](Get-CapstanCapturesRoot)};return
+    }
+    # SnapShackle captures: read-only list and file (modules/Captures.ps1). The name is taken from the raw path.
+    if ($path -eq '/api/snapshackle/captures' -or $path.StartsWith('/api/snapshackle/captures/',[StringComparison]::Ordinal)) {
+        $raw = $request.Url.OriginalString
+        $slash = $raw.IndexOf('/',8)
+        Invoke-CapstanCaptureRoute $Context $method $(if ($slash -ge 0) { $raw.Substring($slash) } else { '/' })
+        return
     }
     Send-Json $Context @{error='Route not found'} 404
 }

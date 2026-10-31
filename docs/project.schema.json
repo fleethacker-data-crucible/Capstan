@@ -112,6 +112,7 @@
         "height": { "type": "number", "minimum": 0 },
         "hasAudio": { "type": "boolean" },
         "thumb": { "description": "Small JPEG data URL for the media bin.", "type": "string" },
+        "description": { "description": "Text that describes the media, such as the OCR text of a SnapShackle capture. Capped at 20480 characters on load.", "type": "string", "maxLength": 20480 },
         "createdAt": { "type": "number" },
         "cursor": { "$ref": "#/$defs/cursorData" }
       }

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../icons';
+import { sessionToken } from '../lifecycle';
 import type { Editor } from '../useEditor';
-import { importSnapshackleCaptures, openPackageFile, savePackage, snapshackleAvailable } from './actions';
+import { importSnapshackleCaptures, openPackageFile, savePackage, snapshackleAvailable, snapshackleHostAvailable } from './actions';
 import { type ProjectDialogKind, onProjectDialog } from './bus';
 import { LibraryDialog } from './LibraryDialog';
 import { ProjectsDialog } from './ProjectsDialog';
+import { SnapshackleDialog } from './SnapshackleDialog';
 import { TemplatesDialog } from './TemplatesDialog';
 
 type Item = { id: string; label: string; hint?: string; disabled?: boolean; run(): void } | 'separator';
@@ -19,6 +21,9 @@ export function ProjectMenu({ editor }: { editor: Editor }) {
   const root = useRef<HTMLDivElement>(null);
   const packageInput = useRef<HTMLInputElement>(null);
   const supported = snapshackleAvailable();
+  // null until the host has answered; true when it found a SnapShackle Captures folder to list.
+  const [hostSnap, setHostSnap] = useState<boolean | null>(null);
+  const hasHost = sessionToken() !== '';
 
   useEffect(() => onProjectDialog(setDialog), []);
 
@@ -46,6 +51,24 @@ export function ProjectMenu({ editor }: { editor: Editor }) {
     if (menuOpen) root.current?.querySelector<HTMLElement>('[role=menuitem]:not(:disabled)')?.focus();
   }, [menuOpen]);
 
+  // Ask the host each time the menu opens: SnapShackle may have made its folder since.
+  useEffect(() => {
+    if (!menuOpen) return;
+    let live = true;
+    void snapshackleHostAvailable().then((found) => live && setHostSnap(found));
+    return () => {
+      live = false;
+    };
+  }, [menuOpen]);
+
+  const importCaptures = async () => {
+    // Asked again at click time so a quick click never lands on the folder picker by mistake.
+    const found = await snapshackleHostAvailable();
+    setHostSnap(found);
+    if (found) setDialog('snapshackle');
+    else await importSnapshackleCaptures(editor);
+  };
+
   const guarded = (work: () => Promise<void>) => () => {
     // The actions report their own failures in the status bar; this only stops an unhandled rejection.
     void work().catch(() => undefined);
@@ -63,9 +86,17 @@ export function ProjectMenu({ editor }: { editor: Editor }) {
     {
       id: 'snapshackle',
       label: 'Import from SnapShackle captures…',
-      hint: supported ? 'Pick the Captures folder' : 'Needs Edge or Chrome',
-      disabled: !supported,
-      run: guarded(() => importSnapshackleCaptures(editor)),
+      hint: hostSnap
+        ? 'Choose from your newest captures, with their text'
+        : hasHost && hostSnap === false && supported
+          ? 'No SnapShackle folder found; pick one by hand'
+          : supported
+            ? 'Pick the Captures folder'
+            : hasHost
+              ? 'No SnapShackle folder found'
+              : 'Needs Edge or Chrome',
+      disabled: !supported && !hostSnap,
+      run: guarded(importCaptures),
     },
   ];
 
@@ -135,6 +166,17 @@ export function ProjectMenu({ editor }: { editor: Editor }) {
       {dialog === 'projects' && <ProjectsDialog editor={editor} onClose={close} />}
       {(dialog === 'templates-new' || dialog === 'templates-save') && <TemplatesDialog editor={editor} mode={dialog === 'templates-save' ? 'save' : 'new'} onClose={close} />}
       {dialog === 'library' && <LibraryDialog editor={editor} onClose={close} />}
+      {dialog === 'snapshackle' && (
+        <SnapshackleDialog
+          editor={editor}
+          onClose={close}
+          onPickFolder={() => {
+            close();
+            if (supported) void importSnapshackleCaptures(editor).catch(() => undefined);
+            else editor.setStatus('This browser cannot open a folder. Use Edge or Chrome, or select the capture files with Import media.');
+          }}
+        />
+      )}
     </div>
   );
 }

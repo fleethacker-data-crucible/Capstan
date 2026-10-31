@@ -9,6 +9,13 @@ import type { Editor } from './useEditor';
 
 const KIND_ICON: Record<MediaItem['kind'], IconName> = { video: 'film', audio: 'wave', image: 'image' };
 
+/** Tooltip of a bin item: the name, the hint, and the media's description (a capture's OCR text) when it has one. */
+export function binTitle(m: Pick<MediaItem, 'name' | 'description'>): string {
+  const text = m.description?.trim();
+  const shown = text ? (text.length > 1000 ? `${text.slice(0, 1000)}…` : text) : '';
+  return `${m.name}\nDouble-click or drag to add to the timeline${shown ? `\n\nText in the picture:\n${shown}` : ''}`;
+}
+
 export function MediaBin({ editor, time, onRecord }: { editor: Editor; time: number; onRecord(): void }) {
   const input = useRef<HTMLInputElement>(null);
   const cursorInput = useRef<HTMLInputElement>(null);
@@ -81,7 +88,7 @@ export function MediaBin({ editor, time, onRecord }: { editor: Editor; time: num
                   e.dataTransfer.effectAllowed = 'copy';
                 }}
                 onDoubleClick={() => addToTimeline(m)}
-                title={`${m.name}\nDouble-click or drag to add to the timeline`}
+                title={binTitle(m)}
               >
                 <div className={`bin-thumb kind-${m.kind}`}>
                   {m.thumb ? <img src={m.thumb} alt="" draggable={false} /> : <Icon name={KIND_ICON[m.kind]} size={22} />}
