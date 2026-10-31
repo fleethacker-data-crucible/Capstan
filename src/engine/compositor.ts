@@ -220,7 +220,7 @@ function drawContent(ctx: Ctx2D, project: Project, time: number, lookup: SourceL
   for (const clip of activeClipsAt(project, time)) {
     if (hidden.has(clip.trackId)) continue;
     const media = findMedia(project, clip.mediaId);
-    if (!media || media.kind === 'audio') continue;
+    if (!media || media.kind === 'audio' || clip.audioOnly) continue;
     const source = lookup(clip);
     if (source) drawClip(ctx, project, clip, media, source, time);
   }
@@ -259,7 +259,7 @@ export function drawFrame(ctx: Ctx2D, project: Project, time: number, lookup: So
   }
   if (options.captions !== false) {
     const caption = captionAt(project, time);
-    if (caption) drawCaption(ctx, project, caption.text);
+    if (caption?.text.trim()) drawCaption(ctx, project, caption.text);
   }
   ctx.restore();
 }

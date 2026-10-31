@@ -49,13 +49,12 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Undo / redo | Immutable snapshots | 0.1 | ✅ |
 | Position, scale, rotation, opacity, volume | Clip props + compositor | 0.1 | ✅ |
 | Canvas presets and frame rate | Project settings | 0.1 | ✅ |
-| Copy/paste, multi-clip drag, grouping | Engine ops on selections; groups as nested timelines | 0.4 | ⬜ |
-| Magnetic tracks, gap removal | Ripple logic per track | 0.4 | ⬜ |
-| Clip speed, freeze frame, extend frame | Time remap in clip model | 0.7 | ⬜ |
-| Crop | Source rectangle in clip props | 0.4 | ⬜ |
-| Markers | Timeline markers, exported as chapters | 0.9 | ⬜ |
-| Detach audio from video | Split one media into linked video + audio clips | 0.7 | ⬜ |
-
+| Copy/paste, multi-clip drag, grouping | Engine ops on selections; groups as nested timelines | 0.4 | ✅ |
+| Magnetic tracks, gap removal | Ripple logic per track | 0.4 | ✅ |
+| Clip speed, freeze frame, extend frame | Time remap in clip model | 0.7 | ✅ |
+| Crop | Source rectangle in clip props | 0.4 | ✅ |
+| Markers | Timeline markers, exported as chapters | 0.9 | ✅ (also written to MP4 as chapters) |
+| Detach audio from video | Split one media into linked video + audio clips | 0.7 | ✅ |
 ### Annotations and text
 
 | Feature | Plan | Release | Status |
@@ -111,8 +110,8 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
-| Captions track and editor | Timed text clips | 0.9 | 🟡 (imported captions shown and exported; no editor or timeline lane yet) |
-| SRT / VTT import and export | Parser/writer | 0.9 | 🟡 (SRT and WebVTT in, SRT out) |
+| Captions track and editor | Timed text clips | 0.9 | ✅ |
+| SRT / VTT import and export | Parser/writer | 0.9 | ✅ |
 | Burned-in captions | Compositor text | 0.9 | ✅ |
 | Speech-to-text | Windows speech recognition via WinRT from PowerShell (as SnapShackle does OCR), with an optional bundled WASM model | 0.9 | ⬜ |
 

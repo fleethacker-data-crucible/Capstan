@@ -2,6 +2,7 @@
 // (each video seeked to the exact frame time), encoded with WebCodecs H.264, and the audio is
 // mixed with an OfflineAudioContext and encoded as AAC (or Opus where AAC is unavailable).
 import { drawFrame } from './compositor';
+import { chapterList } from './markers';
 import { seekTo } from './media';
 import { type AudioTrackConfig, Mp4Muxer } from './mp4/muxer';
 import { resizeCanvas } from './ops';
@@ -16,6 +17,8 @@ export interface ExportOptions {
   includeAudio: boolean;
   /** Burn the project's captions into the picture (default true). */
   captions?: boolean;
+  /** Write the project's chapter markers into the file (default true). */
+  chapters?: boolean;
 }
 
 export interface ExportProgress {
@@ -106,7 +109,7 @@ export async function pickAudioConfig(): Promise<{ config: AudioEncoderConfig; c
 function audible(project: Project, clip: Clip): boolean {
   const media = findMedia(project, clip.mediaId);
   const track = project.tracks.find((t) => t.id === clip.trackId);
-  return !!media && media.kind !== 'image' && media.hasAudio && !track?.muted && !clip.freeze && clip.props.volume > 0;
+  return !!media && media.kind !== 'image' && media.hasAudio && !track?.muted && !clip.freeze && !clip.muteAudio && clip.props.volume > 0;
 }
 
 /** Mixes every audible clip into one stereo buffer covering the whole timeline. */
@@ -245,6 +248,8 @@ async function renderMp4(
     audioConfig,
   );
 
+  if (options.chapters !== false) muxer.setChapters(chapterList(project.markers, seconds));
+
   let failure: Error | null = null;
   const fail = (e: unknown) => {
     failure ??= e instanceof Error ? e : new Error(String(e));
@@ -357,7 +362,7 @@ async function renderMp4(
       const active = activeClipsAt(scaled, t);
       for (const clip of active) {
         const media = findMedia(scaled, clip.mediaId);
-        if (media?.kind !== 'video') continue;
+        if (media?.kind !== 'video' || clip.audioOnly) continue;
         const el = await elementFor(clip);
         // A hair past the frame time so float error never lands on the previous frame.
         if (el) await seekTo(el, Math.min(media.duration, sourceTimeAt(clip, t) + 1e-3));

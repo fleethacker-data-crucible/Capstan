@@ -1,6 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Player } from '../engine/player';
 import type { DragSession, ToolContext } from './previewTools';
+import { useCropView } from './cropMode';
 import { PREVIEW_TOOLS } from './tools';
 import type { Editor } from './useEditor';
 
@@ -32,9 +33,11 @@ export function Preview({ editor, time, onPlayer }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // While a clip is being cropped the preview shows its whole frame (see cropMode.ts).
+  const view = useCropView(project, editor.selection);
   useEffect(() => {
-    playerRef.current?.setProject(project);
-  }, [project, sourcesVersion]);
+    playerRef.current?.setProject(view);
+  }, [view, sourcesVersion]);
 
   // Fit the canvas inside the stage at the project's aspect ratio.
   useLayoutEffect(() => {

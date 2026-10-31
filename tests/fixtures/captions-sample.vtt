@@ -1,0 +1,10 @@
+WEBVTT
+
+NOTE a comment block
+
+cue-a
+00:00.400 --> 00:01.400 align:start
+Hello &amp; welcome
+
+00:01.600 --> 00:02.400
+<v Ann>Second</v> cue
