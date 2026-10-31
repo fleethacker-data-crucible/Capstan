@@ -77,7 +77,7 @@ runCommand(project, 'clip split', { time: '2.5' }, { dryRun: false, confirm: fal
 - **CLI reference.** [CLI.md](CLI.md) lists every command, the flags, exit codes and result envelope; its table is generated from the registry (`bun scripts/gen-cli-doc.ts`) and a test fails when it drifts.
 - **Project file.** [PROJECT-FILE.md](PROJECT-FILE.md) describes the `.capstan` file and its versioning; [project.schema.json](project.schema.json) is its JSON Schema, tested against `parseProject`.
 
-Hand-off files between Capstan and the other Fleet apps are listed in [HANDOFFS.md](HANDOFFS.md).
+Hand-off files between Capstan and the other Fleet apps are listed in [HANDOFFS.md](HANDOFFS.md). Ids that other apps can rely on are described in [IDS.md](IDS.md).
 
 ## Recording
 

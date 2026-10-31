@@ -124,7 +124,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Animated GIF | Port SnapShackle's GIF encoder and quantiser | 1.0 | ✅ |
 | Audio-only (M4A / WAV) | Muxer audio-only path | 1.0 | ✅ |
 | Presets and batch export | Saved option sets, queue | 1.0 | ✅ |
-| Interactive player (quizzes, hotspots, TOC) | Static HTML player bundle | 1.x | ⬜ |
+| Interactive player (quizzes, hotspots, TOC) | Static HTML player bundle | 1.x | ⬜ (decided: not built in Capstan; it belongs in Scrimshaw, which already authors quizzes and publishes standalone HTML; Capstan hands over MP4, WebVTT and chapters, see HANDOFFS.md) |
 
 ### Projects and library
 
