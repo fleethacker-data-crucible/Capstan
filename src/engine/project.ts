@@ -7,6 +7,7 @@ import { parseBehavior } from './behaviors';
 import { type CursorData, type CursorFx, parseCursorData, parseCursorFx } from './cursor';
 import { type ClipEffects, parseEffects } from './fx';
 import { type Marker, parseMarkers } from './markers';
+import { parseRange } from './range';
 import { type Transition, parseTransition } from './transitions';
 import { type ZoomRegion, parseZooms } from './zoom';
 
@@ -134,6 +135,8 @@ export interface Project {
   markers: Marker[];
   /** How the recorded cursor is re-drawn on screen recordings that have cursor data. */
   cursorFx?: CursorFx;
+  /** The in and out marks (seconds): the part of the timeline an "In to out" export covers. */
+  range?: { start: number; end: number };
   updatedAt: number;
 }
 
@@ -325,6 +328,7 @@ export function parseProject(input: unknown): Project {
     zooms: parseZooms(p.zooms, { width, height }),
     markers: parseMarkers(p.markers),
     ...(parseCursorFx(p.cursorFx) ? { cursorFx: parseCursorFx(p.cursorFx) } : {}),
+    ...(parseRange(p.range) ? { range: parseRange(p.range) } : {}),
     updatedAt: num(p.updatedAt, Date.now()),
   };
 }

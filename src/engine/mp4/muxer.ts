@@ -20,7 +20,10 @@ export interface AudioTrackConfig {
 }
 
 interface Sample {
+  /** Dropped (set empty) once the bytes have gone to a streaming sink. */
   data: Uint8Array;
+  /** Byte length, kept after `data` is released. */
+  size: number;
   /** Presentation time in the track timescale. */
   pts: number;
   duration: number;
@@ -156,19 +159,68 @@ export function aacAudioSpecificConfig(sampleRate: number, channels: number): Ui
   return new Uint8Array([(2 << 3) | (index >> 1), ((index & 1) << 7) | (channels << 3)]);
 }
 
+/** Where a streaming muxer sends its bytes: a file on disk (File System Access or OPFS), or anything else. */
+export interface ByteSink {
+  /** Writes `data` at byte `position` of the output (always given; appends arrive in order). */
+  write(data: Uint8Array, position: number): Promise<void> | void;
+  close(): Promise<void> | void;
+  abort?(): Promise<void> | void;
+}
+
+export interface MuxerOptions {
+  /**
+   * Streaming mode: ftyp, then a 64-bit-size mdat that grows as samples arrive, then moov at the
+   * end (and the mdat size patched in place). Memory stays flat. The output sink must accept
+   * positional writes (files do). Without a sink the muxer builds a faststart Blob in finalize().
+   */
+  sink?: ByteSink;
+}
+
+const EMPTY = new Uint8Array(0);
+
 export class Mp4Muxer {
   private video: TrackState | null = null;
   private audio: TrackState | null = null;
   private finished = false;
+  // ---- streaming state (only used with a sink) ----
+  private readonly sink: ByteSink | null;
+  private writes: Promise<void> = Promise.resolve();
+  private writeError: unknown = null;
+  private queuedBytes = 0;
+  private position = 0;
+  private mdatStart = 0;
+  private origin = new Map<TrackState, number>();
+  private open = new Map<TrackState, Chunk>();
+  private ready = new Map<TrackState, Chunk[]>();
+  private floor = new Map<TrackState, number>();
+  private ended = new Set<TrackState>();
+  private emitted: Chunk[] = [];
+  private offsets = new Map<Chunk, number>();
+  /** Number of write calls handed to the sink so far (tests and progress use it). */
+  writeCount = 0;
 
   constructor(
     private videoConfig: VideoTrackConfig | null,
     private audioConfig: AudioTrackConfig | null,
+    options: MuxerOptions = {},
   ) {
     let id = 1;
     if (videoConfig) this.video = { id: id++, kind: 'video', timescale: videoConfig.timescale ?? 90000, samples: [] };
     if (audioConfig) this.audio = { id: id++, kind: 'audio', timescale: audioConfig.sampleRate, samples: [] };
     if (!this.video && !this.audio) throw new Error('An MP4 needs at least one track');
+    this.sink = options.sink ?? null;
+    if (this.sink) {
+      const ftyp = this.ftyp();
+      this.emit(ftyp);
+      this.mdatStart = ftyp.length;
+      this.emit(new Bytes().u32(1).str('mdat').u64(0).done());
+    }
+  }
+
+  private ftyp(): Uint8Array<ArrayBuffer> {
+    return this.video
+      ? box('ftyp', new Bytes().str('isom').u32(0x200).str('isom').str('iso2').str('avc1').str('mp41').done())
+      : box('ftyp', new Bytes().str('M4A ').u32(0x200).str('M4A ').str('mp42').str('isom').str('iso2').done());
   }
 
   /** Video description often only arrives with the first encoded chunk's metadata. */
@@ -193,11 +245,140 @@ export class Mp4Muxer {
     if (!track) throw new Error('Track not configured');
     if (this.finished) throw new Error('Muxer already finalized');
     const k = track.timescale / 1e6;
-    track.samples.push({ data, pts: Math.round(ts * k), duration: Math.max(1, Math.round(dur * k)), key });
+    let pts = Math.round(ts * k);
+    const sample: Sample = { data, size: data.length, pts, duration: Math.max(1, Math.round(dur * k)), key };
+    if (!this.sink) {
+      track.samples.push(sample);
+      return;
+    }
+    // Streaming: times are rebased on the track's first sample, and samples are grouped into
+    // roughly one-second chunks as they arrive.
+    if (!this.origin.has(track)) this.origin.set(track, pts);
+    pts -= this.origin.get(track)!;
+    sample.pts = pts;
+    track.samples.push(sample);
+    const floor = Math.max(this.floor.get(track) ?? 0, pts);
+    this.floor.set(track, floor);
+    let current = this.open.get(track);
+    if (!current || floor - current.start >= track.timescale) {
+      if (current) this.queue(track).push(current);
+      current = { track, samples: [], start: floor, bytes: 0 };
+      this.open.set(track, current);
+    }
+    current.samples.push(sample);
+    current.bytes += data.length;
+    this.pump();
+  }
+
+  private queue(track: TrackState): Chunk[] {
+    let q = this.ready.get(track);
+    if (!q) this.ready.set(track, (q = []));
+    return q;
+  }
+
+  /** Writes ready chunks to the sink in time order, once every unfinished track has one waiting. */
+  private pump(): void {
+    const tracks = [this.video, this.audio].filter((t): t is TrackState => !!t);
+    for (;;) {
+      let head: Chunk | null = null;
+      for (const t of tracks) {
+        const q = this.ready.get(t);
+        if (q?.length) {
+          const c = q[0];
+          if (!head || c.start / t.timescale < head.start / head.track.timescale) head = c;
+        } else if (!this.ended.has(t)) {
+          return; // this track has not produced a whole chunk yet; its next one may start earlier
+        }
+      }
+      if (!head) return;
+      this.ready.get(head.track)!.shift();
+      this.offsets.set(head, this.position);
+      this.emitted.push(head);
+      for (const s of head.samples) {
+        this.emit(s.data);
+        s.data = EMPTY;
+      }
+    }
+  }
+
+  private emit(data: Uint8Array, position?: number): void {
+    const at = position ?? this.position;
+    if (position === undefined) this.position += data.length;
+    const sink = this.sink!;
+    this.queuedBytes += data.length;
+    this.writeCount++;
+    this.writes = this.writes.then(async () => {
+      if (this.writeError) return;
+      try {
+        await sink.write(data, at);
+      } catch (e) {
+        this.writeError = e;
+      } finally {
+        this.queuedBytes -= data.length;
+      }
+    });
+  }
+
+  /** Streaming only: resolves when no more than `maxBytes` wait to be written. Throws if a write failed. */
+  async drain(maxBytes = 0): Promise<void> {
+    while (this.queuedBytes > maxBytes && !this.writeError) await this.writes;
+    if (this.writeError) throw this.writeError;
+  }
+
+  /** Bytes handed to the sink so far (streaming only). */
+  get bytesWritten(): number {
+    return this.position;
+  }
+
+  /** Streaming: declares that a track will receive no more samples (lets its chunks flush). */
+  endTrack(kind: 'video' | 'audio'): void {
+    const t = kind === 'video' ? this.video : this.audio;
+    if (!t || !this.sink) return;
+    const current = this.open.get(t);
+    if (current) {
+      this.queue(t).push(current);
+      this.open.delete(t);
+    }
+    this.ended.add(t);
+    this.pump();
+  }
+
+  /** Streaming: stops writing and aborts the sink (which discards the partial file where it can). */
+  async abort(): Promise<void> {
+    this.finished = true;
+    await this.writes.catch(() => undefined);
+    await this.sink?.abort?.();
+  }
+
+  /**
+   * Streaming: writes the rest of the chunks, the moov box and the final mdat size, then closes
+   * the sink. Resolves to the file size.
+   */
+  async finalizeStream(): Promise<number> {
+    if (!this.sink) throw new Error('finalizeStream needs a sink');
+    if (this.finished) throw new Error('Muxer already finalized');
+    this.finished = true;
+    this.endTrack('video');
+    this.endTrack('audio');
+    const tracks = [this.video, this.audio].filter((t): t is TrackState => !!t && t.samples.length > 0);
+    if (!tracks.length) {
+      await this.sink.abort?.();
+      throw new Error('Nothing was encoded');
+    }
+    this.pump();
+    const payloadEnd = this.position;
+    const co64 = payloadEnd > 0xfffffff0 - 1_000_000;
+    const moov = this.moov(tracks, this.emitted, this.offsets, co64);
+    this.emit(moov);
+    this.emit(new Bytes().u64(payloadEnd - this.mdatStart).done(), this.mdatStart + 8);
+    await this.drain(0);
+    await this.sink.close();
+    return this.position;
   }
 
   /** Produces the file. Sample data is referenced, not copied, so memory stays flat. */
   finalize(): Blob {
+    if (this.sink) throw new Error('This muxer streams to a sink: call finalizeStream()');
     if (this.finished) throw new Error('Muxer already finalized');
     this.finished = true;
     const tracks = [this.video, this.audio].filter((t): t is TrackState => !!t && t.samples.length > 0);
@@ -208,16 +389,13 @@ export class Mp4Muxer {
     const chunks = buildChunks(tracks);
     const mdatPayload = chunks.reduce((s, c) => s + c.bytes, 0);
     const large = mdatPayload + 16 > 0xffffffff;
-    const ftyp = box(
-      'ftyp',
-      new Bytes().str('isom').u32(0x200).str('isom').str('iso2').str('avc1').str('mp41').done(),
-    );
+    const ftyp = this.ftyp();
     const useCo64 = ftyp.length + mdatPayload > 0xfffffff0 - 1_000_000;
     // Box sizes do not depend on offset values: measure once, then write real offsets.
-    let moov = this.moov(tracks, chunks, 0, useCo64);
+    let moov = this.moov(tracks, chunks, chunkOffsets(chunks, 0), useCo64);
     const mdatHeaderSize = large ? 16 : 8;
     const dataStart = ftyp.length + moov.length + mdatHeaderSize;
-    moov = this.moov(tracks, chunks, dataStart, useCo64);
+    moov = this.moov(tracks, chunks, chunkOffsets(chunks, dataStart), useCo64);
     const mdatHeader = large
       ? new Bytes().u32(1).str('mdat').u64(mdatPayload + 16).done()
       : new Bytes().u32(mdatPayload + 8).str('mdat').done();
@@ -226,13 +404,7 @@ export class Mp4Muxer {
     return new Blob(parts, { type: 'video/mp4' });
   }
 
-  private moov(tracks: TrackState[], chunks: Chunk[], dataStart: number, co64: boolean): Uint8Array<ArrayBuffer> {
-    let offset = dataStart;
-    const offsets = new Map<Chunk, number>();
-    for (const c of chunks) {
-      offsets.set(c, offset);
-      offset += c.bytes;
-    }
+  private moov(tracks: TrackState[], chunks: Chunk[], offsets: Map<Chunk, number>, co64: boolean): Uint8Array<ArrayBuffer> {
     const movieDuration = Math.max(...tracks.map((t) => (trackDuration(t) / t.timescale) * MOVIE_TIMESCALE));
     const mvhd = fullBox(
       'mvhd',
@@ -426,7 +598,7 @@ export class Mp4Muxer {
     out.push(fullBox('stsc', 0, 0, stsc.done()));
 
     const stsz = new Bytes().u32(0).u32(samples.length);
-    for (const s of samples) stsz.u32(s.data.length);
+    for (const s of samples) stsz.u32(s.size);
     out.push(fullBox('stsz', 0, 0, stsz.done()));
 
     const co = new Bytes().u32(chunks.length);
@@ -445,6 +617,17 @@ interface Chunk {
   samples: Sample[];
   start: number;
   bytes: number;
+}
+
+/** File offset of each chunk when they are written back to back from `dataStart`. */
+function chunkOffsets(chunks: Chunk[], dataStart: number): Map<Chunk, number> {
+  let offset = dataStart;
+  const offsets = new Map<Chunk, number>();
+  for (const c of chunks) {
+    offsets.set(c, offset);
+    offset += c.bytes;
+  }
+  return offsets;
 }
 
 /** Shifts a track so its first presentation time is zero. */
