@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stopCapstan } from '../scripts/stop-capstan.mjs';
+import { calls as cursorCalls, handleCursor } from './helpers/cursor-host-mirror.mjs';
 
 // On Windows a running Capstan host holds port 8790; stop it first and say so.
 stopCapstan('serve');
@@ -54,6 +55,14 @@ const server = createServer(async (req, res) => {
   } else if (url.pathname === '/api/test/heartbeats') {
     // Test-only: what the page sent, so e2e tests can check the lifecycle signals.
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(heartbeats));
+    return;
+  } else if (url.pathname.startsWith('/api/cursor/')) {
+    // Mirror of modules/CursorCapture.ps1 (synthetic data only, see tests/helpers/cursor-host-mirror.mjs).
+    await handleCursor(req, res, url);
+    return;
+  } else if (url.pathname === '/api/test/cursor-calls') {
+    // Test-only: every /api/cursor/* request the page made.
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(cursorCalls));
     return;
   } else if (url.pathname === '/api/session/stop' && req.method === 'POST') {
     // The test server keeps running so later suites still work; it only records the request.

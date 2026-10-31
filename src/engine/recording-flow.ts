@@ -2,6 +2,8 @@
 // recorder itself needs: settings -> recorder options, finished recording -> project, recovered
 // session -> project. RecordDialog and RecoveryDialog are thin shells over these, so the same
 // operations can later be wrapped as commands.
+import type { CursorData } from './cursor';
+import { attachCursorData, setCursorFx } from './cursorops';
 import type { MediaHints } from './media';
 import { type MediaItem, type Project, projectDuration } from './project';
 import type { CaptureSurface, RecordOptions, Recording } from './recorder';
@@ -36,6 +38,10 @@ export interface RecordSettings {
   pickRegion: boolean;
   /** Ask the browser not to draw the mouse pointer into the capture. */
   hideCursor: boolean;
+  /** Have the host log the pointer and button presses for cursor effects (off unless asked for; the pointer is then left out of the picture). */
+  captureCursor: boolean;
+  /** With `captureCursor`: also log keyboard shortcuts (function keys and Ctrl/Alt/Win combinations), never typed text. */
+  captureKeys: boolean;
   addToTimeline: boolean;
 }
 
@@ -54,6 +60,8 @@ export function defaultSettings(prefs: RecordPrefs = DEFAULT_PREFS): RecordSetti
     toDisk: prefs.toDisk,
     pickRegion: false,
     hideCursor: false,
+    captureCursor: false,
+    captureKeys: false,
     addToTimeline: true,
   };
 }
@@ -82,8 +90,33 @@ export function toRecordOptions(s: RecordSettings, project: Pick<Project, 'width
     separateAudio: s.separateAudio,
     webcam: s.webcam ? webcamOptions(s.cameraId, s.webcamResolution) : null,
     store: s.toDisk ? store : null,
-    hideCursor: s.hideCursor,
+    // Capstan draws the pointer again from the captured data, so the browser must leave it out.
+    hideCursor: s.hideCursor || s.captureCursor,
   };
+}
+
+/** Cursor capture can only follow a whole screen: a browser cannot tell where a shared window or tab is. */
+export const CAPTURE_NEEDS_SCREEN = 'Cursor capture needs “The entire screen”: a browser cannot tell where a shared window or tab is on the screen.';
+
+/** What the setup step asks the host for, or null when cursor capture is off (or the surface cannot support it). */
+export function captureRequest(s: Pick<RecordSettings, 'captureCursor' | 'captureKeys' | 'surface'>): { keys: boolean } | null {
+  if (!s.captureCursor || s.surface !== 'monitor') return null;
+  return { keys: s.captureKeys };
+}
+
+/** The indicator text for the recording bar while capture runs. */
+export function captureLabel(keys: boolean, paused: boolean): string {
+  return paused ? 'Cursor capture paused' : keys ? 'Capturing cursor and shortcuts' : 'Capturing cursor';
+}
+
+/**
+ * Attaches captured cursor data to the new recording. The pointer was left out of the video, so when the
+ * project has no cursor effect settings yet they are created with the drawn cursor on; settings the user
+ * already has are kept.
+ */
+export function attachCaptured(project: Project, mediaId: string, data: CursorData): Project {
+  const next = attachCursorData(project, mediaId, data);
+  return project.cursorFx ? next : setCursorFx(next, { showCursor: true });
 }
 
 export const maxSeconds = (s: Pick<RecordSettings, 'maxMinutes'>) => minutesToSeconds(s.maxMinutes);

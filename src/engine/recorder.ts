@@ -241,6 +241,11 @@ export class ScreenRecorder {
     return (now - this.startedAt - this.pausedTotal) / 1000;
   }
 
+  /** `performance.now()` at the moment the recorders started (0 before that); cursor capture lines its clock up with it. */
+  get startTime(): number {
+    return this.startedAt;
+  }
+
   /** Bytes the recording has produced so far (every source). */
   get bytes(): number {
     return this.lanes.reduce((n, l) => n + l.sink.received, 0);

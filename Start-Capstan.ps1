@@ -36,6 +36,15 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dist = Join-Path $root 'dist'
 . (Join-Path $root 'modules/LocalHttp.ps1')
 . (Join-Path $root 'modules/Lifecycle.ps1')
+# Cursor and shortcut capture for effects (docs/cursor-data.md). If it cannot be compiled here, the routes
+# answer 503 and recording works as before.
+$cursorHost = $null
+try {
+    . (Join-Path $root 'modules/CursorCapture.ps1')
+    $cursorHost = New-CapstanCursorRecorder
+} catch {
+    Write-Warning 'Cursor capture is not available on this computer; recording works without it.'
+}
 $CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
 # Only these compiled files are ever served. Anything else is a 404.
@@ -193,6 +202,18 @@ function Invoke-CapstanRequest($Context) {
         $script:CapstanStopReason = 'End session was chosen in the Capstan window.'
         return
     }
+    if ($path.StartsWith('/api/cursor/')) {
+        # The body is read as text with a hard cap; the module validates everything else.
+        $bodyText = ''
+        if ($request.ContentLength64 -gt 0) {
+            if ($request.ContentLength64 -gt 2000000) { Send-Json $Context @{error='The request is too large.';code='too-large'} 413;return }
+            $reader = New-Object System.IO.StreamReader -ArgumentList $request.InputStream, ([Text.Encoding]::UTF8)
+            try { $bodyText = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        }
+        $result = Invoke-CapstanCursorApi -Recorder $cursorHost -Method $method -Path $path -ContentType ([string]$request.Headers['Content-Type']) -BodyText $bodyText
+        Send-Response $Context ([Text.Encoding]::UTF8.GetBytes($result.Text)) 'application/json; charset=utf-8' $result.Status
+        return
+    }
     if ($path -eq '/api/health' -and $method -eq 'GET') {
         Send-Json $Context @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()};return
     }
@@ -244,6 +265,8 @@ try {
     }
     if ($script:CapstanStopReason) { Write-Host ('Capstan stopped: ' + $script:CapstanStopReason) -ForegroundColor Yellow }
 } finally {
+    # A cursor session that is still running is finished and written, then the sampler thread ends.
+    if ($null -ne $cursorHost) { try { $cursorHost.Shutdown() } catch {} }
     $server.Dispose()
     # Also runs on Ctrl+C.
     Remove-CapstanRuntimeFile -Path $runtimeFile

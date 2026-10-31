@@ -65,7 +65,7 @@ const lifecycle = read('modules/Lifecycle.ps1');
 const csharpBlocks = (text: string) => [...text.matchAll(/Add-Type -TypeDefinition @'([\s\S]*?)'@/g)].map((m) => m[1]);
 
 test('Add-Type C# stays within C# 5 (.NET Framework 4.8.1 compiler)', () => {
-  for (const cs of [...csharpBlocks(lifecycle), ...csharpBlocks(read('modules/LocalHttp.ps1'))]) {
+  for (const cs of [...csharpBlocks(lifecycle), ...csharpBlocks(read('modules/LocalHttp.ps1')), ...csharpBlocks(read('modules/CursorCapture.ps1'))]) {
     expect(cs).not.toMatch(/\?\.|\$"|\bnameof\b|\bout var\b|\)\s*=>/);
   }
 });
@@ -124,7 +124,70 @@ test('built UI sends the heartbeat and the leaving beacon', () => {
 });
 
 test('PowerShell files are ASCII (Windows PowerShell 5.1 reads BOM-less files as ANSI)', () => {
-  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'tests/ps/Lifecycle.Tests.ps1']) {
+  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'modules/CursorCapture.ps1', 'tests/ps/Lifecycle.Tests.ps1', 'tests/ps/CursorCapture.Tests.ps1']) {
     expect(/[^\x00-\x7f]/.test(read(f))).toBe(false);
   }
+});
+
+// ---- Cursor capture (modules/CursorCapture.ps1). The behaviour is exercised on Windows by
+// tests/ps/CursorCapture.Tests.ps1; these keep the wiring and the privacy rules from drifting apart.
+const cursor = read('modules/CursorCapture.ps1');
+
+test('cursor routes sit behind the session token, Host and Origin checks', () => {
+  const tokenCheck = host.indexOf("if ($request.Headers['X-Capstan-Token'] -ne $sessionToken)");
+  const route = host.indexOf("$path.StartsWith('/api/cursor/')");
+  const originCheck = host.indexOf('Origin is not authorized');
+  expect(originCheck).toBeGreaterThan(0);
+  expect(tokenCheck).toBeGreaterThan(originCheck);
+  expect(route).toBeGreaterThan(tokenCheck);
+  expect(host).toContain('Invoke-CapstanCursorApi');
+  // The cursor routes never take the token from a body (only the heartbeat beacon does).
+  expect(host.match(/Get-CapstanBodyText \$body 'session'/g)?.length).toBe(1);
+});
+
+test('cursor routes check method, content type and size, and never take a path from a request', () => {
+  expect(cursor).toContain("application/json");
+  expect(cursor).toContain('415');
+  expect(cursor).toContain('405');
+  expect(cursor).toContain('$script:CursorBodyLimit');
+  // The only file name is built from a validated recording id.
+  expect(cursor).toContain('CursorStore]::ValidId');
+  expect(cursor).not.toMatch(/Get-CursorProp \$body '(path|file|folder|directory|name)'/);
+  expect(cursor).toContain('IdPattern');
+  expect(cursor).toContain('FileAttributes.ReparsePoint');
+});
+
+test('the test-input seam is off unless CAPSTAN_TEST_INPUT=1, and the real devices are only read in the real path', () => {
+  expect(cursor).toContain("$env:CAPSTAN_TEST_INPUT -eq '1'");
+  expect(cursor).toContain("-not $Recorder.TestMode)");
+  expect(cursor).toContain('source = TestMode ? (InputSource)TestInput');
+  // The only user32 reads are in Win32Input.
+  expect(cursor.match(/GetCursorPos|GetAsyncKeyState/g)?.length).toBeGreaterThan(0);
+  const start = cursor.indexOf('public sealed class Win32Input');
+  const end = cursor.indexOf('// A cursor path (straight lines between waypoints)');
+  expect(start).toBeGreaterThan(0);
+  expect(end).toBeGreaterThan(start);
+  const outside = cursor.slice(cursor.indexOf('Add-Type -TypeDefinition'), start) + cursor.slice(end);
+  expect(outside).not.toMatch(/GetCursorPos|GetAsyncKeyState|DllImport/);
+});
+
+test('plain typed keys have no name: the key filter only names function keys and keys under Ctrl, Alt or Win', () => {
+  const name = cursor.slice(cursor.indexOf('public static string Name('), cursor.indexOf('// Every key that can ever be named'));
+  expect(name).toContain('if (!command && !IsFunctionKey(vk)) return null;');
+  expect(name).toContain('if (altGr || IsModifier(vk)) return null;');
+  // Shift never makes a key recordable on its own.
+  expect(name).not.toMatch(/command\s*=[^;]*shift/);
+});
+
+test('the host finishes a running cursor session when it stops', () => {
+  expect(host).toMatch(/finally \{[\s\S]*\$cursorHost\.Shutdown\(\)/);
+});
+
+test('the Node mirror serves the same cursor routes as the host', () => {
+  const mirror = read('tests/helpers/cursor-host-mirror.mjs');
+  for (const route of ['start', 'stop', 'pause', 'resume', 'status', 'test-inject']) {
+    expect(cursor).toContain(`/api/cursor/${route}`);
+    expect(mirror).toContain(`/api/cursor/${route}`);
+  }
+  expect(read('tests/serve.mjs')).toContain("url.pathname.startsWith('/api/cursor/')");
 });

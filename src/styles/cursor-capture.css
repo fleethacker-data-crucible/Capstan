@@ -1,0 +1,5 @@
+/* Cursor capture: the indicator in the recording bar while the host logs the pointer (and shortcuts). */
+.rec-capture { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1px solid var(--fl-accent); border-radius: 999px; color: var(--fl-foreground); font-size: var(--fl-text-caption); }
+.rec-capture::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--fl-accent); }
+.rec-status.paused .rec-capture { border-color: var(--fl-control-border); }
+.rec-status.paused .rec-capture::before { background: var(--fl-muted-foreground); }

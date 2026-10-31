@@ -127,3 +127,6 @@ jobs:
       - name: Host lifecycle (Windows PowerShell 5.1)
         shell: powershell
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1
+      - name: Cursor capture (Windows PowerShell 5.1, scripted input only)
+        shell: powershell
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\CursorCapture.Tests.ps1
