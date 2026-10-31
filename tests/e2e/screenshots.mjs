@@ -1,11 +1,11 @@
 // Captures the README screenshots in both Fleet themes (docs/UNIFIED-UI.md section 11), using only
 // the repository's own test media, so no real recording or project ever ends up in docs/.
 //   node tests/serve.mjs 8790   (in another window)
-//   node tests/e2e/screenshots.mjs
+//   node tests/e2e/screenshots.mjs   (CAPSTAN_URL overrides the address)
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 
-const base = 'http://127.0.0.1:8790';
+const base = process.env.CAPSTAN_URL ?? 'http://127.0.0.1:8790';
 const out = 'docs/screenshots';
 mkdirSync(out, { recursive: true });
 
@@ -33,7 +33,7 @@ for (const [theme, scheme] of [['night-watch', 'dark'], ['chart-room', 'light']]
   const lastLane = lanes.nth((await lanes.count()) - 1);
   const firstLane = lanes.nth(0);
   await page.locator('.bin-item').nth(0).dragTo(lastLane, { targetPosition: { x: 20, y: 20 } });
-  await page.locator('.bin-item').nth(1).dragTo(firstLane, { targetPosition: { x: 200, y: 20 } });
+  await page.locator('.bin-item').nth(1).dragTo(firstLane, { targetPosition: { x: 100, y: 20 } });
   await page.locator('.ruler').click({ position: { x: 150, y: 10 } });
   await page.locator('.clip.kind-image').click({ position: { x: 150, y: 12 } });
   await page.waitForTimeout(400);
