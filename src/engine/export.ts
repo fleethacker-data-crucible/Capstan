@@ -1,14 +1,15 @@
 // Offline MP4 export. Frames are rendered one by one with the same compositor as the preview
 // (each video seeked to the exact frame time), encoded with WebCodecs H.264, and the audio is
 // mixed with an OfflineAudioContext and encoded as AAC (or Opus where AAC is unavailable).
-import { drawFrame } from './compositor';
-import { chapterList } from './markers';
 import { levelEnvelopeDb } from './dsp/duck';
+import { type BlobLookup, type FrameRenderer, createFrameRenderer } from './frames';
 import { planClipGain, setLevelEnvelope } from './gain';
-import { seekTo } from './media';
-import { type AudioTrackConfig, Mp4Muxer } from './mp4/muxer';
-import { resizeCanvas } from './ops';
-import { type Clip, type Project, activeClipsAt, clipSpeed, findMedia, projectDuration, sourceSpan, sourceTimeAt } from './project';
+import { chapterList } from './markers';
+import { type AudioTrackConfig, type ByteSink, Mp4Muxer } from './mp4/muxer';
+import { type Clip, type Project, clipSpeed, findMedia, projectDuration } from './project';
+import { type TimeRange, clipWindow, exportSpan } from './range';
+
+export type { BlobLookup } from './frames';
 
 export interface ExportOptions {
   width: number;
@@ -21,6 +22,15 @@ export interface ExportOptions {
   captions?: boolean;
   /** Write the project's chapter markers into the file (default true). */
   chapters?: boolean;
+  /** Export only this stretch of the timeline (seconds); times in the file start at 0. */
+  range?: TimeRange;
+  /**
+   * Stream the file: called once per attempt to open the destination. The MP4 is written to it as
+   * frames are encoded (moov at the end), so memory stays flat and `ExportResult.blob` is null.
+   */
+  openSink?: () => Promise<ByteSink>;
+  /** Decode source video in order with WebCodecs rather than seeking per frame (default true; falls back by itself). */
+  fast?: boolean;
 }
 
 export interface ExportProgress {
@@ -32,7 +42,13 @@ export interface ExportProgress {
 }
 
 export interface ExportResult {
-  blob: Blob;
+  /** The finished file, or null when it was streamed to a sink. */
+  blob: Blob | null;
+  /** Size of the finished file in bytes. */
+  bytes: number;
+  streamed: boolean;
+  /** How the source pictures were obtained: `fast` from the sequential decoder, `seek` by seeking an element. */
+  decode: { fast: number; seek: number };
   videoCodec: string;
   audioCodec: string | null;
   frames: number;
@@ -41,9 +57,7 @@ export interface ExportResult {
   encoder: 'hardware' | 'software';
 }
 
-export type BlobLookup = (mediaId: string) => Promise<Blob | null>;
-
-const SAMPLE_RATE = 48000;
+export const SAMPLE_RATE = 48000;
 const AUDIO_FRAMES = 1024;
 
 export function defaultExportOptions(project: Project): ExportOptions {
@@ -92,13 +106,14 @@ export async function pickVideoConfig(o: ExportOptions, preference: 'hardware' |
   throw new Error(`No H.264 encoder available for ${o.width}x${o.height} at ${o.fps} fps`);
 }
 
-export async function pickAudioConfig(): Promise<{ config: AudioEncoderConfig; codec: 'aac' | 'opus' } | null> {
+export async function pickAudioConfig(aacOnly = false): Promise<{ config: AudioEncoderConfig; codec: 'aac' | 'opus' } | null> {
   if (typeof AudioEncoder === 'undefined') return null;
   const candidates: Array<{ config: AudioEncoderConfig; codec: 'aac' | 'opus' }> = [
     { codec: 'aac', config: { codec: 'mp4a.40.2', sampleRate: SAMPLE_RATE, numberOfChannels: 2, bitrate: 192000 } },
     { codec: 'opus', config: { codec: 'opus', sampleRate: SAMPLE_RATE, numberOfChannels: 2, bitrate: 160000 } },
   ];
   for (const c of candidates) {
+    if (aacOnly && c.codec !== 'aac') continue;
     try {
       if ((await AudioEncoder.isConfigSupported(c.config)).supported) return c;
     } catch {
@@ -125,8 +140,8 @@ function audible(project: Project, clip: Clip): boolean {
 
 const channelsOf = (b: AudioBuffer) => Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c));
 
-/** Mixes every audible clip into one stereo buffer covering the whole timeline. */
-export async function mixAudio(project: Project, blobs: BlobLookup, seconds: number): Promise<AudioBuffer | null> {
+/** Mixes every audible clip into one stereo buffer of `seconds`, starting at timeline time `from`. */
+export async function mixAudio(project: Project, blobs: BlobLookup, seconds: number, from = 0): Promise<AudioBuffer | null> {
   const clips = project.clips.filter((c) => audible(project, c));
   if (!clips.length) return null;
   const length = Math.max(1, Math.ceil(seconds * SAMPLE_RATE));
@@ -154,15 +169,26 @@ export async function mixAudio(project: Project, blobs: BlobLookup, seconds: num
     pending.push({ clip, buffer });
   }
   for (const { clip, buffer } of pending) {
+    const win = clipWindow({ start: clip.start, in: clip.in, duration: clip.duration, speed: clipSpeed(clip) }, from, from + seconds);
+    if (!win) continue;
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     const gain = ctx.createGain();
     const plan = planClipGain(project, clip);
-    if (plan.curve) gain.gain.setValueCurveAtTime(plan.curve, clip.start, Math.max(clip.duration, 1 / 1000));
-    else gain.gain.value = plan.value;
+    if (plan.curve) {
+      // The mix starts at timeline time `from`: a curve that began earlier is cut at the start of the window.
+      const length = Math.max(clip.duration, 1 / 1000);
+      const cut = Math.max(0, from - clip.start);
+      const skip = Math.min(plan.curve.length - 2, Math.floor(plan.curve.length * (cut / length)));
+      if (skip >= 0 && plan.curve.length - skip >= 2) {
+        gain.gain.setValueCurveAtTime(plan.curve.subarray(skip), Math.max(0, clip.start - from), Math.max((length * (plan.curve.length - skip)) / plan.curve.length, 1 / 1000));
+      } else {
+        gain.gain.value = plan.curve[plan.curve.length - 1] ?? plan.value;
+      }
+    } else gain.gain.value = plan.value;
     source.connect(gain).connect(ctx.destination);
     source.playbackRate.value = clipSpeed(clip);
-    source.start(clip.start, clip.in, sourceSpan(clip));
+    source.start(win.when, win.offset, win.duration);
     any = true;
   }
   if (!any) return null;
@@ -221,6 +247,64 @@ function abortError(): Error {
 type EncoderPreference = 'hardware' | 'software';
 
 /**
+ * Encodes a mixed stereo buffer with the chosen audio encoder and feeds the chunks to the muxer.
+ * Shared by the MP4 export and the audio-only M4A export.
+ */
+export async function encodeMixedAudio(
+  mixed: AudioBuffer,
+  choice: { config: AudioEncoderConfig; codec: 'aac' | 'opus' },
+  muxer: Mp4Muxer,
+  signal?: AbortSignal,
+): Promise<void> {
+  let failure: Error | null = null;
+  const fail = (e: unknown) => {
+    failure ??= e instanceof Error ? e : new Error(String(e));
+  };
+  let audioOut = performance.now();
+  const encoder = new AudioEncoder({
+    output: (chunk, meta) => {
+      audioOut = performance.now();
+      const desc = meta?.decoderConfig?.description;
+      if (desc) muxer.setAudioDescription(toBytes(desc));
+      const data = new Uint8Array(chunk.byteLength);
+      chunk.copyTo(data);
+      muxer.addAudioSample(data, chunk.timestamp, chunk.duration ?? (AUDIO_FRAMES / SAMPLE_RATE) * 1e6);
+    },
+    error: fail,
+  });
+  encoder.configure(choice.config);
+  const left = mixed.getChannelData(0);
+  const right = mixed.getChannelData(1);
+  try {
+    for (let offset = 0; offset < mixed.length; offset += AUDIO_FRAMES) {
+      const n = Math.min(AUDIO_FRAMES, mixed.length - offset);
+      const planar = new Float32Array(n * 2);
+      planar.set(left.subarray(offset, offset + n), 0);
+      planar.set(right.subarray(offset, offset + n), n);
+      const data = new AudioData({
+        format: 'f32-planar',
+        sampleRate: SAMPLE_RATE,
+        numberOfFrames: n,
+        numberOfChannels: 2,
+        timestamp: Math.round((offset / SAMPLE_RATE) * 1e6),
+        data: planar,
+      });
+      encoder.encode(data);
+      data.close();
+      const waitStart = performance.now();
+      await waitForQueue(encoder, 32, () => Math.max(audioOut, waitStart));
+      if (failure) throw failure;
+      if (signal?.aborted) throw abortError();
+    }
+    const flushStart = performance.now();
+    await flushOrStall(encoder, () => Math.max(audioOut, flushStart));
+    if (failure) throw failure;
+  } finally {
+    if (encoder.state !== 'closed') encoder.close();
+  }
+}
+
+/**
  * Exports the timeline. If the hardware video encoder stalls or fails, the export runs again with
  * the software encoder.
  */
@@ -240,6 +324,9 @@ export async function exportMp4(
   }
 }
 
+/** Largest amount of encoded data allowed to wait for the disk before the export slows down. */
+const SINK_BACKLOG = 8 * 1024 * 1024;
+
 async function renderMp4(
   project: Project,
   blobs: BlobLookup,
@@ -248,8 +335,9 @@ async function renderMp4(
   signal: AbortSignal | undefined,
   preference: EncoderPreference,
 ): Promise<ExportResult> {
-  const seconds = projectDuration(project);
-  if (seconds <= 0) throw new Error('The timeline is empty');
+  const span = exportSpan(projectDuration(project), options.range);
+  if (!span) throw new Error(options.range ? 'The in and out marks cover nothing on the timeline' : 'The timeline is empty');
+  const seconds = span.end - span.start;
   onProgress({ stage: 'preparing', fraction: 0 });
   const videoConfig = await pickVideoConfig(options, preference);
   const audioChoice = options.includeAudio ? await pickAudioConfig() : null;
@@ -258,142 +346,58 @@ async function renderMp4(
   let mixed: AudioBuffer | null = null;
   if (audioChoice) {
     onProgress({ stage: 'audio', fraction: 0.02 });
-    mixed = await mixAudio(project, blobs, seconds);
+    mixed = await mixAudio(project, blobs, seconds, span.start);
   }
   if (signal?.aborted) throw abortError();
 
   const audioConfig: AudioTrackConfig | null =
     mixed && audioChoice ? { codec: audioChoice.codec, sampleRate: SAMPLE_RATE, channels: 2 } : null;
+  // Streaming export: the muxer writes to the sink as samples arrive and puts moov at the end.
+  const sink = options.openSink ? await options.openSink() : undefined;
   const muxer = new Mp4Muxer(
     { codec: 'avc', width: options.width, height: options.height, description: new Uint8Array() },
     audioConfig,
+    { sink },
   );
 
-  if (options.chapters !== false) muxer.setChapters(chapterList(project.markers, seconds));
+  if (options.chapters !== false) muxer.setChapters(chapterList(project.markers.map((m) => ({ ...m, time: m.time - span.start })).filter((m) => m.time >= 0), seconds));
 
   let failure: Error | null = null;
   const fail = (e: unknown) => {
     failure ??= e instanceof Error ? e : new Error(String(e));
   };
 
-  if (mixed && audioChoice) {
-    let audioOut = performance.now();
-    const encoder = new AudioEncoder({
-      output: (chunk, meta) => {
-        audioOut = performance.now();
-        const desc = meta?.decoderConfig?.description;
-        if (desc) muxer.setAudioDescription(toBytes(desc));
-        const data = new Uint8Array(chunk.byteLength);
-        chunk.copyTo(data);
-        muxer.addAudioSample(data, chunk.timestamp, chunk.duration ?? (AUDIO_FRAMES / SAMPLE_RATE) * 1e6);
-      },
-      error: fail,
-    });
-    encoder.configure(audioChoice.config);
-    const left = mixed.getChannelData(0);
-    const right = mixed.getChannelData(1);
-    for (let offset = 0; offset < mixed.length; offset += AUDIO_FRAMES) {
-      const n = Math.min(AUDIO_FRAMES, mixed.length - offset);
-      const planar = new Float32Array(n * 2);
-      planar.set(left.subarray(offset, offset + n), 0);
-      planar.set(right.subarray(offset, offset + n), n);
-      const data = new AudioData({
-        format: 'f32-planar',
-        sampleRate: SAMPLE_RATE,
-        numberOfFrames: n,
-        numberOfChannels: 2,
-        timestamp: Math.round((offset / SAMPLE_RATE) * 1e6),
-        data: planar,
-      });
-      encoder.encode(data);
-      data.close();
-      const waitStart = performance.now();
-      await waitForQueue(encoder, 32, () => Math.max(audioOut, waitStart));
-      if (failure) throw failure;
-      if (signal?.aborted) {
-        encoder.close();
-        throw abortError();
-      }
-    }
-    const flushStart = performance.now();
-    await flushOrStall(encoder, () => Math.max(audioOut, flushStart));
-    encoder.close();
-  }
-  if (failure) throw failure;
-
-  // ---- video ---------------------------------------------------------------------------
-  const canvas = new OffscreenCanvas(options.width, options.height);
-  const ctx = canvas.getContext('2d', { alpha: false });
-  if (!ctx) throw new Error('OffscreenCanvas 2D is not available');
-  // Clip positions and blur regions follow the output size.
-  const scaled: Project = resizeCanvas(project, options.width, options.height);
-
-  const urlFor = new Map<string, string>();
-  const videos = new Map<string, HTMLVideoElement>();
-  const bitmaps = new Map<string, ImageBitmap>();
-  for (const media of project.media) {
-    if (media.kind === 'audio' || !project.clips.some((c) => c.mediaId === media.id)) continue;
-    const blob = await blobs(media.id);
-    if (!blob) throw new Error(`Media missing from storage: ${media.name}`);
-    if (media.kind === 'image') bitmaps.set(media.id, await createImageBitmap(blob));
-    else urlFor.set(media.id, URL.createObjectURL(blob));
-  }
-  // One element per video clip, so cuts between two parts of a file never fight over a seek.
-  const elementFor = async (clip: Clip): Promise<HTMLVideoElement | null> => {
-    let el = videos.get(clip.id);
-    if (!el) {
-      const url = urlFor.get(clip.mediaId);
-      if (!url) return null;
-      el = document.createElement('video');
-      el.muted = true;
-      el.preload = 'auto';
-      const ready = new Promise<void>((resolve, reject) => {
-        el!.addEventListener('loadeddata', () => resolve(), { once: true });
-        el!.addEventListener('error', () => reject(new Error('A video could not be decoded')), { once: true });
-      });
-      el.src = url;
-      await ready;
-      videos.set(clip.id, el);
-    }
-    return el;
-  };
-
-  let videoOut = performance.now();
-  const encoder = new VideoEncoder({
-    output: (chunk, meta) => {
-      videoOut = performance.now();
-      const desc = meta?.decoderConfig?.description;
-      if (desc) muxer.setVideoDescription(toBytes(desc));
-      const data = new Uint8Array(chunk.byteLength);
-      chunk.copyTo(data);
-      muxer.addVideoSample(data, chunk.timestamp, chunk.duration ?? 1e6 / options.fps, chunk.type === 'key');
-    },
-    // Marked so exportMp4 can retry in software.
-    error: (e) => fail(Object.assign(e instanceof Error ? e : new Error(String(e)), { videoEncoder: true })),
-  });
-  encoder.configure(videoConfig);
-
   const frames = Math.max(1, Math.round(seconds * options.fps));
   const keyEvery = Math.max(1, Math.round(options.fps * 2));
+  let renderer: FrameRenderer | null = null;
+  let encoder: VideoEncoder | null = null;
   try {
+    if (mixed && audioChoice) await encodeMixedAudio(mixed, audioChoice, muxer, signal);
+    muxer.endTrack('audio');
+    if (signal?.aborted) throw abortError();
+
+    // ---- video -------------------------------------------------------------------------
+    renderer = await createFrameRenderer(project, blobs, { width: options.width, height: options.height, captions: options.captions, fast: options.fast });
+    let videoOut = performance.now();
+    encoder = new VideoEncoder({
+      output: (chunk, meta) => {
+        videoOut = performance.now();
+        const desc = meta?.decoderConfig?.description;
+        if (desc) muxer.setVideoDescription(toBytes(desc));
+        const data = new Uint8Array(chunk.byteLength);
+        chunk.copyTo(data);
+        muxer.addVideoSample(data, chunk.timestamp, chunk.duration ?? 1e6 / options.fps, chunk.type === 'key');
+      },
+      // Marked so exportMp4 can retry in software.
+      error: (e) => fail(Object.assign(e instanceof Error ? e : new Error(String(e)), { videoEncoder: true })),
+    });
+    encoder.configure(videoConfig);
+
     for (let f = 0; f < frames; f++) {
       if (signal?.aborted) throw abortError();
       if (failure) throw failure;
-      const t = f / options.fps;
-      const active = activeClipsAt(scaled, t);
-      for (const clip of active) {
-        const media = findMedia(scaled, clip.mediaId);
-        if (media?.kind !== 'video' || clip.audioOnly) continue;
-        const el = await elementFor(clip);
-        // A hair past the frame time so float error never lands on the previous frame.
-        if (el) await seekTo(el, Math.min(media.duration, sourceTimeAt(clip, t) + 1e-3));
-      }
-      drawFrame(ctx, scaled, t, (clip) => {
-        const media = findMedia(scaled, clip.mediaId);
-        if (media?.kind === 'image') return bitmaps.get(media.id) ?? null;
-        return videos.get(clip.id) ?? null;
-      }, { captions: options.captions !== false });
-      const frame = new VideoFrame(canvas, {
+      await renderer.render(span.start + f / options.fps);
+      const frame = new VideoFrame(renderer.canvas, {
         timestamp: Math.round((f * 1e6) / options.fps),
         duration: Math.round(1e6 / options.fps),
       });
@@ -402,6 +406,7 @@ async function renderMp4(
       // Seeking can take a while on its own, so the stall clock starts when the wait does.
       const waitStart = performance.now();
       await waitForQueue(encoder, 8, () => Math.max(videoOut, waitStart));
+      if (sink) await muxer.drain(SINK_BACKLOG);
       if (f % 5 === 0 || f === frames - 1) {
         onProgress({ stage: 'video', fraction: 0.05 + 0.9 * ((f + 1) / frames), frame: f + 1, frames });
       }
@@ -410,28 +415,36 @@ async function renderMp4(
     await flushOrStall(encoder, () => Math.max(videoOut, flushStart));
     if (failure) throw failure;
     onProgress({ stage: 'finishing', fraction: 0.97 });
-    const blob = muxer.finalize();
+    let blob: Blob | null = null;
+    let bytes: number;
+    if (sink) {
+      bytes = await muxer.finalizeStream();
+    } else {
+      blob = muxer.finalize();
+      bytes = blob.size;
+    }
     onProgress({ stage: 'finishing', fraction: 1 });
     return {
       blob,
+      bytes,
+      streamed: !!sink,
+      decode: { ...renderer.stats },
       videoCodec: videoConfig.codec,
       audioCodec: audioConfig ? audioConfig.codec : null,
       frames,
       seconds,
       encoder: preference,
     };
+  } catch (e) {
+    if (sink) await muxer.abort().catch(() => undefined);
+    throw e;
   } finally {
-    if (encoder.state !== 'closed') encoder.close();
-    for (const el of videos.values()) {
-      el.removeAttribute('src');
-      el.load();
-    }
-    for (const url of urlFor.values()) URL.revokeObjectURL(url);
-    for (const b of bitmaps.values()) b.close();
+    if (encoder && encoder.state !== 'closed') encoder.close();
+    renderer?.close();
   }
 }
 
-function toBytes(source: AllowSharedBufferSource): Uint8Array {
+export function toBytes(source: AllowSharedBufferSource): Uint8Array {
   if (source instanceof ArrayBuffer) return new Uint8Array(source.slice(0));
   const view = source as ArrayBufferView;
   return new Uint8Array(view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer);

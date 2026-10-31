@@ -7,6 +7,7 @@ import { removeRedaction } from '../engine/ops';
 import type { Player } from '../engine/player';
 import { removeZoom } from '../engine/zoom';
 import { parseProject, projectDuration } from '../engine/project';
+import { setRange, setRangeIn, setRangeOut } from '../engine/range';
 import { ExportDialog } from './ExportDialog';
 import { copySelection, cutSelection, duplicateSelection, groupSelection, pasteAtPlayhead, ungroupSelection } from './editActions';
 import { download, safeFileName, timecode } from './format';
@@ -85,6 +86,8 @@ const SHORTCUTS: Array<[string, string]> = [
   ['Ctrl+C / Ctrl+X / Ctrl+V', 'Copy, cut or paste clips at the playhead'],
   ['Ctrl+D', 'Duplicate the selected clips'],
   ['G / Shift+G', 'Group or ungroup the selected clips'],
+  ['I / O', 'Mark the start / end of the part to export'],
+  ['Alt+X', 'Clear the in and out marks'],
   ['Ctrl+wheel', 'Zoom the timeline'],
   ['?', 'Show these shortcuts'],
   ['Esc', 'Clear the selection, or close a dialog'],
@@ -220,6 +223,15 @@ export function App() {
         const dir = e.key === 'ArrowLeft' ? -1 : 1;
         if (e.shiftKey) player?.seek(time + dir);
         else player?.step(dir);
+      } else if (!ctrl && !e.altKey && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        editor.commit(setRangeIn(editor.project, time, duration));
+      } else if (!ctrl && !e.altKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        editor.commit(setRangeOut(editor.project, time));
+      } else if (e.altKey && e.key.toLowerCase() === 'x') {
+        e.preventDefault();
+        editor.commit(setRange(editor.project, undefined));
       } else if (e.key === 'Home') {
         player?.seek(0);
       } else if (e.key === 'End') {
@@ -491,7 +503,7 @@ export function App() {
         </div>
       )}
       {dialog === 'record' && <RecordDialog editor={editor} onClose={() => setDialog(null)} />}
-      {dialog === 'export' && <ExportDialog editor={editor} onClose={() => setDialog(null)} />}
+      {dialog === 'export' && <ExportDialog editor={editor} time={time} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
     </div>
   );
