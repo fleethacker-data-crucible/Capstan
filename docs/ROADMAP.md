@@ -132,7 +132,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | --- | --- | --- | --- |
 | Autosave and restore | IndexedDB | 0.1 | ✅ |
 | Project file (`.capstan`) | JSON | 0.1 | 🟡 (edit only; media stays in Capstan) |
-| Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\Capstan` | 0.2 | 🟡 (library in the browser store only; host endpoints still needed) |
+| Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\Capstan` | 0.2 | ✅ (media is also stored under %LOCALAPPDATA%\Capstan\library through the host, so a project opened on another port finds it; the browser store is still used first and alone when there is no host) |
 | Self-contained project package | Zip with media | 0.2 | ✅ (`.capstanz`) |
 | Templates, themes, reusable assets | Library collections | 1.0 | ✅ |
 | Import SnapShackle captures | Read `%LOCALAPPDATA%\SnapShackle\Captures` (older installs: `CutterMk` or `Lasso`) | 0.2 | 🟡 (through a folder picker; no host access) |
