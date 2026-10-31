@@ -1,5 +1,6 @@
 // Picture exports: a single frame as PNG, and the timeline (or part of it) as an animated GIF.
 // Both draw with the same compositor as the preview and the MP4 export (see frames.ts).
+import { type DecodeDecision, describeDecisions } from './demux/choose';
 import { type BlobLookup, createFrameRenderer } from './frames';
 import { GifEncoder, buildPalette, frameDelays } from './gif';
 import type { ByteSink } from './mp4/muxer';
@@ -51,6 +52,8 @@ export interface GifProgress {
   fraction: number;
   frame?: number;
   frames?: number;
+  /** How the source video is being decoded and why. */
+  decode?: string;
 }
 
 export interface GifResult {
@@ -58,6 +61,7 @@ export interface GifResult {
   bytes: number;
   streamed: boolean;
   decode: { fast: number; seek: number };
+  decisions: DecodeDecision[];
   frames: number;
   seconds: number;
 }
@@ -123,7 +127,7 @@ export async function exportGif(
       await renderer.render(span.start + f / fps);
       encoder.addFrame(renderer.pixels(), delays[f]);
       await flush();
-      if (f % 3 === 0 || f === frames - 1) onProgress({ stage: 'video', fraction: 0.1 + 0.88 * ((f + 1) / frames), frame: f + 1, frames });
+      if (f % 3 === 0 || f === frames - 1) onProgress({ stage: 'video', fraction: 0.1 + 0.88 * ((f + 1) / frames), frame: f + 1, frames, decode: describeDecisions(renderer.decisions) });
     }
     encoder.finish();
     onProgress({ stage: 'finishing', fraction: 0.99 });
@@ -131,11 +135,11 @@ export async function exportGif(
       await flush();
       await sink.close();
       onProgress({ stage: 'finishing', fraction: 1 });
-      return { blob: null, bytes: position, streamed: true, decode: { ...renderer.stats }, frames, seconds };
+      return { blob: null, bytes: position, streamed: true, decode: { ...renderer.stats }, decisions: renderer.decisions.map((d) => ({ ...d })), frames, seconds };
     }
     const blob = new Blob(parts as BlobPart[], { type: 'image/gif' });
     onProgress({ stage: 'finishing', fraction: 1 });
-    return { blob, bytes: blob.size, streamed: false, decode: { ...renderer.stats }, frames, seconds };
+    return { blob, bytes: blob.size, streamed: false, decode: { ...renderer.stats }, decisions: renderer.decisions.map((d) => ({ ...d })), frames, seconds };
   } catch (e) {
     await sink?.abort?.();
     throw e;

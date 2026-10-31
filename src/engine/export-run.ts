@@ -1,6 +1,7 @@
 // Runs one export from a settings object (format, size, range, ...) and reports what it wrote.
 // The dialog and the batch queue both go through here, so a preset behaves the same either way.
 import { exportM4a, exportWav } from './audio-export';
+import type { DecodeDecision } from './demux/choose';
 import { defaultExportOptions, exportMp4 } from './export';
 import { exportFramePng, exportGif } from './export-image';
 import type { ByteSink } from './mp4/muxer';
@@ -40,6 +41,8 @@ export interface RunResult {
   softwareFallback?: boolean;
   /** Source pictures taken from the sequential decoder (fast) or by seeking (seek). */
   decode?: { fast: number; seek: number };
+  /** Per video file: decoded in order (fast) or seeked, and why. Empty when the project has no video. */
+  decisions?: DecodeDecision[];
 }
 
 export function rangeFor(project: Project, settings: ExportSettings) {
@@ -49,6 +52,17 @@ export function rangeFor(project: Project, settings: ExportSettings) {
 }
 
 const seconds = (n: number) => `${n.toFixed(1)} s`;
+
+/** The results-list line, with a note on any video that was seeked (the slow way) and why. */
+function withDecode(summary: string, decisions: DecodeDecision[] | undefined): string {
+  const seeks = (decisions ?? []).filter((d) => d.path === 'seek');
+  return seeks.length ? `${summary}; seeked ${seeks.map((d) => `${d.media} (${d.reason})`).join(', ')}` : summary;
+}
+
+/** The progress line: the frame, and how the video is being decoded once that is known. */
+function frameLine(frame: number | undefined, frames: number | undefined, decode: string | undefined): string {
+  return `Frame ${frame} of ${frames}${decode ? ` · ${decode}` : ''}`;
+}
 
 export async function runExport(project: Project, settings: ExportSettings, options: RunExportOptions): Promise<RunResult> {
   if (!(projectDuration(project) > 0)) throw new Error('The timeline is empty');
@@ -89,10 +103,10 @@ export async function runExport(project: Project, settings: ExportSettings, opti
         range,
         openSink: sink,
       },
-      (p) => report(p.fraction, p.stage === 'video' ? `Frame ${p.frame} of ${p.frames}` : p.stage === 'preparing' ? 'Building the palette…' : 'Writing the file…'),
+      (p) => report(p.fraction, p.stage === 'video' ? frameLine(p.frame, p.frames, p.decode) : p.stage === 'preparing' ? 'Building the palette…' : 'Writing the file…'),
       signal,
     );
-    return { format, blob: r.blob, bytes: r.bytes, streamed: r.streamed, decode: r.decode, summary: `${r.frames} frames, ${seconds(r.seconds)}` };
+    return { format, blob: r.blob, bytes: r.bytes, streamed: r.streamed, decode: r.decode, decisions: r.decisions, summary: withDecode(`${r.frames} frames, ${seconds(r.seconds)}`, r.decisions) };
   }
 
   if (format === 'wav' || format === 'm4a') {
@@ -117,7 +131,7 @@ export async function runExport(project: Project, settings: ExportSettings, opti
     (p) =>
       report(
         p.fraction,
-        p.stage === 'audio' ? 'Mixing audio…' : p.stage === 'video' ? `Frame ${p.frame} of ${p.frames}` : p.stage === 'finishing' ? 'Writing the file…' : 'Preparing…',
+        p.stage === 'audio' ? 'Mixing audio…' : p.stage === 'video' ? frameLine(p.frame, p.frames, p.decode) : p.stage === 'finishing' ? 'Writing the file…' : 'Preparing…',
       ),
     signal,
   );
@@ -126,9 +140,10 @@ export async function runExport(project: Project, settings: ExportSettings, opti
     blob: r.blob,
     bytes: r.bytes,
     streamed: r.streamed,
-    summary: `H.264${r.audioCodec ? ` + ${r.audioCodec === 'aac' ? 'AAC' : 'Opus'}` : ', no audio'}, ${seconds(r.seconds)}`,
+    summary: withDecode(`H.264${r.audioCodec ? ` + ${r.audioCodec === 'aac' ? 'AAC' : 'Opus'}` : ', no audio'}, ${seconds(r.seconds)}`, r.decisions),
     softwareFallback: r.encoder === 'software',
     decode: r.decode,
+    decisions: r.decisions,
   };
 }
 

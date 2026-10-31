@@ -11,7 +11,8 @@ import { addClip, addMedia, moveClip, updateClipProps } from '../../src/engine/o
 import { type MediaItem, type Project, createProject, projectDuration } from '../../src/engine/project';
 import { type ExportRequest, exportWith } from '../../src/engine/export-run';
 import { createFrameRenderer } from '../../src/engine/frames';
-import { demuxVideo } from '../../src/engine/fastdecode';
+import { FastVideoSource, demuxVideo, planFast, readVideo } from '../../src/engine/fastdecode';
+import { choosePath } from '../../src/engine/demux/choose';
 import { fileSink, opfsFile } from '../../src/engine/sinks';
 import { trimEnd } from '../../src/engine/ops';
 
@@ -29,14 +30,31 @@ declare global {
       info: Record<string, any>;
       log: { writes: number[]; closed: boolean; bytesBeforeLastFrame: number };
     }>;
-    compareDecode: (name: string, times: number[]) => Promise<{ out: Array<{ t: number; same: number; neighbour: number; px?: number[][] }>; fastMs: number; slowMs: number; stats: { fast: number; seek: number } }>;
+    /** Fast export: what the fast path makes of a fixture (optionally cut short by `truncateBy` bytes). */
+    pathFor: (name: string, truncateBy?: number) => Promise<{
+      container: string | null;
+      codec: string | null;
+      note: string;
+      samples: number;
+      keys: number;
+      fragmented: boolean;
+      supported: boolean | null;
+      choice: { path: string; reason: string };
+      expected: { path: string; reason: string };
+      hasSource: boolean;
+    }>;
+    /** Fast export: exports a fixture as a 320x180 15 fps MP4 and reports how the pictures were taken. */
+    fastExport: (name: string, opts?: { fast?: boolean; truncateBy?: number }) => Promise<{ base64: string; info: Record<string, any>; details: string[] }>;
+    /** Fast export: RGBA pixels (base64) of the frames drawn at the given times, decoded in order (fast) or seeked. */
+    framePixels: (name: string, times: number[], fast: boolean) => Promise<string[]>;
+    compareDecode: (name: string, times: number[], step?: number) => Promise<{ out: Array<{ t: number; same: number; neighbour: number; px?: number[][] }>; fastMs: number; slowMs: number; stats: { fast: number; seek: number } }>;
   }
 }
 
-async function fixture(name: string): Promise<File> {
+async function fixture(name: string, truncateBy = 0): Promise<File> {
   const res = await fetch(`/fixtures/${name}`);
   const blob = await res.blob();
-  return new File([blob], name, { type: blob.type });
+  return new File([truncateBy ? blob.slice(0, blob.size - truncateBy) : blob], name, { type: blob.type });
 }
 
 window.runExport = async (opts = {}) => {
@@ -219,8 +237,31 @@ window.runFormat = async (job: FmtJob) => {
   };
 };
 
+window.framePixels = async (name, times, fast) => {
+  const blobs = new Map<string, Blob>();
+  let p = createProject('px', 320, 180, 30);
+  const m = await probeMedia(await fixture(name));
+  blobs.set(m.id, await fixture(name));
+  p = addClip(addMedia(p, m), m.id, 0, p.tracks[0].id).project;
+  const r = await createFrameRenderer(p, async (id) => blobs.get(id) ?? null, { width: 320, height: 180, readback: true, fast });
+  try {
+    const out: string[] = [];
+    for (const t of times) {
+      await r.render(t);
+      if (!fast) {
+        await new Promise((res) => setTimeout(res, 80));
+        await r.render(t);
+      }
+      out.push(toBase64(new Uint8Array(r.pixels().buffer.slice(0))));
+    }
+    return out;
+  } finally {
+    r.close();
+  }
+};
+
 /** Mean absolute difference between fast-decoded and seeked frames at the given times (a restart sequence). */
-window.compareDecode = async (name: string, times: number[]) => {
+window.compareDecode = async (name: string, times: number[], step = 1 / 30) => {
   const blobs = new Map<string, Blob>();
   let p = createProject('cmp', 320, 180, 30);
   const m = await probeMedia(await fixture(name));
@@ -252,7 +293,7 @@ window.compareDecode = async (name: string, times: number[]) => {
       await new Promise((r) => setTimeout(r, 80));
       await slow.render(t);
       const b = slow.pixels();
-      await slow.render(t + 1 / 30);
+      await slow.render(t + step);
       const at = (d: Uint8ClampedArray, x: number, y: number) => Array.from(d.slice((y * 320 + x) * 4, (y * 320 + x) * 4 + 3));
       out.push({ t, same: diff(a, b), neighbour: diff(a, slow.pixels()), px: [at(a, 60, 50), at(b, 60, 50), at(a, 200, 100), at(b, 200, 100)] });
     }
@@ -261,6 +302,51 @@ window.compareDecode = async (name: string, times: number[]) => {
     fast.close();
     slow.close();
   }
+};
+
+window.pathFor = async (name, truncateBy = 0) => {
+  const blob = await fixture(name, truncateBy);
+  const read = await readVideo(blob);
+  let supported: boolean | null = null;
+  if (read.info) {
+    try {
+      supported = (await VideoDecoder.isConfigSupported(FastVideoSource.configOf(read.info))).supported === true;
+    } catch {
+      supported = null;
+    }
+  }
+  const plan = await planFast(blob, read);
+  const expected = choosePath(read.container, read.codec, read.info ? supported : null, read.info ? undefined : read.note);
+  const result = {
+    container: read.container,
+    codec: read.codec,
+    note: read.note,
+    samples: read.info?.samples.length ?? 0,
+    keys: read.info?.samples.filter((s) => s.key).length ?? 0,
+    fragmented: read.info?.fragmented === true,
+    supported,
+    choice: plan.choice,
+    expected,
+    hasSource: !!plan.source,
+  };
+  plan.source?.close();
+  return result;
+};
+
+window.fastExport = async (name, opts = {}) => {
+  const file = await fixture(name, opts.truncateBy ?? 0);
+  const m = await probeMedia(file);
+  let p = createProject('fast', 320, 180, 15);
+  p = addMedia(p, m);
+  p = addClip(p, m.id, 0, p.tracks[0].id).project;
+  const details: string[] = [];
+  const result = await exportWith(
+    p,
+    { settings: { format: 'mp4', fast: opts.fast !== false, includeAudio: false } },
+    { blobs: async (id) => (id === m.id ? file : null), onProgress: (pr) => void (details[details.length - 1] !== pr.detail && details.push(pr.detail)) },
+  );
+  const bytes = new Uint8Array(await result.blob!.arrayBuffer());
+  return { base64: toBase64(bytes), info: { ...result, blob: null, size: bytes.length, mediaDuration: m.duration }, details };
 };
 
 (window as unknown as { __demux: unknown }).__demux = { demuxVideo };

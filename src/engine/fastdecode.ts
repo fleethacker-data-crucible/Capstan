@@ -1,21 +1,49 @@
 // Fast export decoding: reads a video's sample table (demux/mp4.ts, demux/webm.ts) and feeds a
 // WebCodecs VideoDecoder in order, instead of seeking a <video> element to every output frame.
-// Covers H.264 in MP4 and VP8/VP9 in WebM or MP4; for anything else open() returns null and the
-// export keeps using the seeking path (frames.ts decides, per clip).
-import { openMp4 } from './demux/mp4';
-import type { VideoSample, VideoTrackInfo } from './demux/types';
-import { openWebm } from './demux/webm';
+// Covers H.264, VP9, AV1 and (where the browser reports support) HEVC in plain or fragmented MP4,
+// and VP8, VP9 and AV1 in WebM. For anything else the clip keeps using the seeking path (frames.ts
+// decides, per clip, using choosePath in demux/choose.ts, and keeps the reason).
+import { type PathChoice, choosePath, codecFamily } from './demux/choose';
+import { readMp4 } from './demux/mp4';
+import type { DemuxRead, VideoSample, VideoTrackInfo } from './demux/types';
+import { readWebm } from './demux/webm';
 
-/** Reads the container of a video file. Null when it is not a layout the fast path understands. */
-export async function demuxVideo(blob: Blob): Promise<VideoTrackInfo | null> {
+/** Reads the container of a video file, with a note on why it is declined when it is. Never throws. */
+export async function readVideo(blob: Blob): Promise<DemuxRead> {
   try {
     const head = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
-    if (head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) return await openWebm(blob);
-    if (String.fromCharCode(...head.subarray(4, 8)) === 'ftyp') return await openMp4(blob);
+    if (head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) return await readWebm(blob);
+    if (String.fromCharCode(...head.subarray(4, 8)) === 'ftyp') return await readMp4(blob);
   } catch {
     /* an unreadable file is handled by the element path */
   }
-  return null;
+  return { info: null, container: null, codec: null, note: 'the file is not an MP4 or WebM that the fast path reads' };
+}
+
+/** Reads the container of a video file. Null when it is not a layout the fast path understands. */
+export async function demuxVideo(blob: Blob): Promise<VideoTrackInfo | null> {
+  return (await readVideo(blob)).info;
+}
+
+/** The outcome of looking at one video file: a source to decode with, or null, and the reason either way. */
+export interface FastPlan {
+  source: FastVideoSource | null;
+  choice: PathChoice;
+}
+
+/** Looks at a video file and decides, with WebCodecs' answer in hand, how its pictures will be taken. */
+export async function planFast(blob: Blob, read?: DemuxRead): Promise<FastPlan> {
+  const seen = read ?? (await readVideo(blob));
+  let supported: boolean | null = null;
+  if (seen.info && typeof VideoDecoder !== 'undefined') {
+    try {
+      supported = (await VideoDecoder.isConfigSupported(FastVideoSource.configOf(seen.info))).supported === true;
+    } catch {
+      supported = null;
+    }
+  }
+  const choice = choosePath(seen.container, seen.codec, seen.info ? supported : null, seen.info ? undefined : seen.note);
+  return { source: choice.path === 'fast' && seen.info ? new FastVideoSource(blob, seen.info) : null, choice };
 }
 
 export class FastDecodeError extends Error {
@@ -80,25 +108,17 @@ export class FastVideoSource {
   }
 
   /** Demuxes and checks the decoder supports the stream. Null means: use the seeking path. */
-  static async open(blob: Blob, info?: VideoTrackInfo | null): Promise<FastVideoSource | null> {
-    if (typeof VideoDecoder === 'undefined') return null;
-    const track = info === undefined ? await demuxVideo(blob) : info;
-    if (!track) return null;
-    try {
-      const support = await VideoDecoder.isConfigSupported(FastVideoSource.configOf(track));
-      if (!support.supported) return null;
-    } catch {
-      return null;
-    }
-    return new FastVideoSource(blob, track);
+  static async open(blob: Blob, read?: DemuxRead): Promise<FastVideoSource | null> {
+    return (await planFast(blob, read)).source;
   }
 
-  private static configOf(info: VideoTrackInfo): VideoDecoderConfig {
+  static configOf(info: VideoTrackInfo): VideoDecoderConfig {
     return {
       codec: info.codec,
       codedWidth: info.width,
       codedHeight: info.height,
-      description: info.description,
+      // AV1 sequence headers travel in the key frames; the av1C record is not passed on.
+      description: codecFamily(info.codec) === 'av1' ? undefined : info.description,
       optimizeForLatency: true,
       // Media elements read an untagged stream as BT.601; WebCodecs would assume BT.709 and the
       // picture would come out darker and less saturated than the preview. Match the element.
