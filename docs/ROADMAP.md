@@ -131,7 +131,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
 | Autosave and restore | IndexedDB | 0.1 | ✅ |
-| Project file (`.capstan`) | JSON | 0.1 | 🟡 (edit only; media stays in Capstan) |
+| Project file (`.capstan`) | JSON | 0.1 | ✅ (edit only by design; the portable form is the `.capstanz` package) |
 | Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\Capstan` | 0.2 | 🟡 (library in the browser store only; host endpoints still needed) |
 | Self-contained project package | Zip with media | 0.2 | ✅ (`.capstanz`) |
 | Templates, themes, reusable assets | Library collections | 1.0 | ✅ |

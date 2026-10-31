@@ -78,6 +78,8 @@ runCommand(project, 'clip split', { time: '2.5' }, { dryRun: false, confirm: fal
 - **CLI reference.** [CLI.md](CLI.md) lists every command, the flags, exit codes and result envelope; its table is generated from the registry (`bun scripts/gen-cli-doc.ts`) and a test fails when it drifts.
 - **Project file.** [PROJECT-FILE.md](PROJECT-FILE.md) describes the `.capstan` file and its versioning; [project.schema.json](project.schema.json) is its JSON Schema, tested against `parseProject`.
 
+Hand-off files between Capstan and the other Fleet apps are listed in [HANDOFFS.md](HANDOFFS.md).
+
 ## Recording
 
 `recorder.ts` asks for the surface the user picked (`displaySurface`), leaves screens out of the picker for a tab or window (`monitorTypeSurfaces: 'exclude'`) and caps the size at the canvas. Before recording, the shared track's `displaySurface` must match a tab or window choice, or the stream is stopped. MP4 is used only after a two-second test recording of the actual track produces data: Edge's H.264 recorder can accept screen capture and write nothing. Otherwise WebM. An empty recording is an error, never a file. The recording is imported with the duration and size the recorder already knows, because probing a recorder WebM means seeking, and browsers suspend decoding of muted video in a hidden window (the usual state when the user stops sharing from the browser bar).
