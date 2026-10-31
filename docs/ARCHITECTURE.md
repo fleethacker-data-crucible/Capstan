@@ -57,6 +57,25 @@ Each feature area plugs into the same few places, so areas can be built side by 
 - **Toolbox tabs** (`ui/toolboxTabs.ts`): a tab shows when its panel module sets `enabled`.
 - **Tests**: `tests/unit/*.test.ts` run with `bun test`; `tests/e2e/*.e2e.mjs` are picked up by `node tests/e2e/run-all.mjs [name fragments]`, which serves `dist/` on a free port.
 
+## Commands
+
+`src/engine/commands/` is the command registry from the Fleet CLI parity proposal: every GUI action is also a named command, `<noun> <verb>` (`clip split`, `marker add`, `annotation add`). A command is a typed wrapper over the pure operations in `src/engine` and runs over plain data, so it needs no browser. The editor does not import the registry, so the bundle is unchanged; the host bridge (issue #33) and the CLI (issue #34) are its first callers.
+
+```ts
+runCommand(project, 'clip split', { time: '2.5' }, { dryRun: false, confirm: false })
+// ok:     { schema: 'capstan.result/1', command, ok: true, result, project }   (dryRun: no project, a `changes` summary instead)
+// failed: { schema: 'capstan.result/1', command, ok: false, errorType, error }
+```
+
+- **Error types.** `usage` (unknown command, missing, unknown or badly typed argument; exit 2), `failed` (the arguments were fine but the work could not be done: no such clip, locked track; exit 1), `needs-confirm` (a `destructive` command without `confirm: true`, the API form of `--yes`; exit 2) and `needs-browser` (exit 1). `runCommand` never throws. Strings from a command line are coerced (`'2.5'` to a number, `'true'` to a boolean), ranges and enums are enforced, and `dryRun` skips the confirmation because it changes nothing.
+- **Two kinds.** `needs: 'project'` commands are pure functions of a project. `needs: 'browser'` commands (export, recording, importing media bytes, packages, the library, saved templates and presets, noise removal) are registered with full typed inputs so the inventory is complete, and answer `needs-browser` until the host bridge implements them against the live page.
+- **Describing.** `describeCommands()` returns `capstan.commands/1`: every command with each input's type (`string`, `number`, `boolean`, `enum`, `id`, `json`), required flag and allowed values or range. `bun scripts/commands.ts [--out FILE]` prints it, which is what `commands --json` shows. Inputs are camelCase; a command line maps `--ease-in` to `easeIn`.
+- **Adding a command.** Write the definition in the area file (`clip-commands.ts`, `caption-commands.ts` ...) by wrapping an existing operation, never by reimplementing it: `name`, `summary`, `inputs` (use the builders in `define.ts`), `result`, `needs`, `destructive` if it replaces or discards more than it names, and a `run(project, args)` that returns `{ project, result }` or calls `fail(...)`. Use the same follow-ups the GUI does (for example `magnetize` after a move). Then list the GUI control that does the same in `inventory.ts`; a command with no GUI control is marked `cliOnly: true`. Add one valid call to `cases()` in `tests/unit/helpers/command-sample.ts`.
+- **Parity.** `tests/unit/commands-parity.test.ts` fails if an inventory entry names a command that does not exist, or a command is neither in the inventory nor `cliOnly`.
+- **The ratchet.** Most UI files still call the edit operations (`ops`, `editops`, `annotationOps` ...) directly, and moving every handler onto the registry is separate work. The same test counts, per file under `src/ui`, the operations imported from the engine's edit modules and compares them with `tests/unit/ui-direct-ops.allowlist.json`: a file that is not on the list, or whose count grows, fails with a message to call the registry instead. The list may only shrink; after moving a handler, lower its number (`UPDATE_UI_OPS_ALLOWLIST=1 bun test tests/unit/commands-parity.test.ts` does it).
+- **CLI reference.** [CLI.md](CLI.md) lists every command, the flags, exit codes and result envelope; its table is generated from the registry (`bun scripts/gen-cli-doc.ts`) and a test fails when it drifts.
+- **Project file.** [PROJECT-FILE.md](PROJECT-FILE.md) describes the `.capstan` file and its versioning; [project.schema.json](project.schema.json) is its JSON Schema, tested against `parseProject`.
+
 Hand-off files between Capstan and the other Fleet apps are listed in [HANDOFFS.md](HANDOFFS.md).
 
 ## Recording
