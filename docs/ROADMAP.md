@@ -4,6 +4,8 @@ Capstan aims to cover the full range of screen recording and video editing, with
 
 **Status key:** ✅ done · 🟡 partial · ⬜ planned
 
+What each open row still needs, in what order, and how to tell it is done: [REMAINING-WORK.md](REMAINING-WORK.md).
+
 ## Releases
 
 Each release ends with the editor usable and tested. Order is by what blocks the most real work.
@@ -33,12 +35,11 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Microphone and system audio, mixed | Web Audio mix into one track | 0.1 | ✅ |
 | Pause / resume | `MediaRecorder.pause()` | 0.1 | ✅ |
 | Global hotkeys, tray, studio not in the shot | Port SnapShackle's `RegisterHotKey` + tray (C# via `Add-Type`) | 0.3 | ⬜ |
-| Region and exact-window capture | SnapShackle's selection overlay drives a cropped capture | 0.3 | ⬜ |
-| Webcam as its own track | `getUserMedia` recorded in parallel, placed as a separate clip | 0.3 | ⬜ |
-| Separate mic / system audio tracks | Parallel recorders, one clip per source | 0.3 | ⬜ |
-| Cursor data (position, clicks, keys) | Low-level hooks in C# log cursor/clicks/keys with timestamps alongside the video; record with `cursor: 'never'` and re-draw it | 0.3 | ⬜ |
-| Countdown, recording limits, recording to disk | Chunks streamed to the host while recording | 0.3 | ⬜ |
-
+| Region and exact-window capture | SnapShackle's selection overlay drives a cropped capture | 0.3 | ✅ (region becomes a crop; window is the existing window choice) |
+| Webcam as its own track | `getUserMedia` recorded in parallel, placed as a separate clip | 0.3 | ✅ |
+| Separate mic / system audio tracks | Parallel recorders, one clip per source | 0.3 | ✅ |
+| Cursor data (position, clicks, keys) | Low-level hooks in C# log cursor/clicks/keys with timestamps alongside the video; record with `cursor: 'never'` and re-draw it | 0.3 | 🟡 (sidecar file format and import; nothing captures the cursor yet) |
+| Countdown, recording limits, recording to disk | Chunks streamed to the host while recording | 0.3 | ✅ |
 ### Editing
 
 | Feature | Plan | Release | Status |
@@ -62,7 +63,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Text and callouts (speech bubbles, labels) | Vector "generated" clips drawn by the compositor | 0.4 | ✅ (text and callouts with an aimable tail) |
 | Arrows, lines, shapes | Same generated-clip system | 0.4 | ✅ |
 | Highlight, spotlight, blur and pixelate regions | Compositor effects over lower tracks | 0.4 | ✅ |
-| Keystroke callouts | From recorded key data (0.3) | 0.4 | ⬜ |
+| Keystroke callouts | From recorded key data (0.3) | 0.4 | 🟡 (from key data in the sidecar; needs the capture host) |
 | Sketch motion (animated drawing) | Path-length animation | 0.5 | ✅ (arrows, lines and shapes draw themselves on) |
 | Text styles, fonts | Bundled fonts only (no web fonts) | 0.4 | ✅ (system font stacks (sans, serif, mono, display); no web fonts) |
 ### Animation and transitions
@@ -73,16 +74,14 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Zoom-n-pan | Keyframes on the canvas camera | 0.5 | ✅ |
 | Transitions (fade, slide, wipe, …) | Two-clip compositor ops at cut points | 0.5 | ✅ (two touching clips on one track fade through the background; use two tracks for a cross-dissolve) |
 | Behaviors (text/clip entrance, emphasis, exit) | Keyframe presets | 0.5 | ✅ |
-| Smart focus (auto zoom on activity) | From cursor data (0.3) | 0.6 | ⬜ |
-
+| Smart focus (auto zoom on activity) | From cursor data (0.3) | 0.6 | 🟡 (suggests zoom regions from cursor data; needs the capture host) |
 ### Cursor effects (needs cursor data from 0.3)
 
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
-| Cursor smoothing, size, hide, replace image | Re-drawn cursor from recorded positions | 0.6 | ⬜ |
-| Highlight, magnify, spotlight | Compositor effects centred on the cursor | 0.6 | ⬜ |
-| Click effects (rings, ripples) and click sounds | From recorded click events | 0.6 | ⬜ |
-
+| Cursor smoothing, size, hide, replace image | Re-drawn cursor from recorded positions | 0.6 | 🟡 (works from cursor data; needs the capture host) |
+| Highlight, magnify, spotlight | Compositor effects centred on the cursor | 0.6 | 🟡 (works from cursor data; needs the capture host) |
+| Click effects (rings, ripples) and click sounds | From recorded click events | 0.6 | 🟡 (works from cursor data; needs the capture host) |
 ### Audio
 
 | Feature | Plan | Release | Status |

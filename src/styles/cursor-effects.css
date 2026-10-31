@@ -1,0 +1,19 @@
+/* Cursor effects: the Cursor tab. Uses the Fleet tokens only. */
+.cursor-panel { min-width: 0; }
+.cfx-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 16px; }
+.cfx-body > .hint { padding-top: 0; }
+.cfx-h { margin: 12px 16px 0; padding-top: 12px; border-top: 1px solid var(--fl-border); font-size: var(--fl-text-body); }
+.cfx-hint { padding: 0 !important; margin: 0; font-size: var(--fl-text-caption); }
+.cfx-toggle { margin: 4px 0; }
+.cfx-body code { font-family: var(--fl-font-mono); font-size: var(--fl-text-caption); color: var(--fl-foreground); }
+.cfx-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0; }
+.cfx-media { list-style: none; margin: 0; padding: 8px 16px 0; display: grid; gap: 8px; }
+.cfx-media-item { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--fl-border); border-radius: var(--fl-radius-control); background: var(--fl-background); min-width: 0; }
+.cfx-media-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.cfx-media-sub { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); overflow: hidden; text-overflow: ellipsis; }
+.cfx-error { margin: 8px 16px 0; font-size: var(--fl-text-secondary); }
+.cfx-count { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
+.cfx-suggestions { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 4px; }
+.cfx-suggestions li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cfx-suggestions .check { margin: 0; align-items: center; }
+.cfx-suggestions .check input { margin-top: 0; }
