@@ -922,6 +922,22 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
 .recover-info .hint { padding: 0; }
 .recover-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
+/* Import from SnapShackle captures: the list dialog the host feeds (see src/ui/projects/SnapshackleDialog.tsx). */
+
+.snap-bar { align-items: center; }
+.snap-search {
+  flex: 1; min-width: 0; height: 32px; padding: 0 8px;
+  background: var(--fl-surface); color: var(--fl-foreground);
+  border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control); font: inherit;
+}
+.snap-count { padding: 0 0 8px; }
+.snap-list { max-height: min(46vh, 440px); overflow-y: auto; padding-right: 2px; }
+.snap-item { padding: 0; }
+.snap-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px; cursor: pointer; }
+.snap-row input[type='checkbox'] { flex: none; width: 18px; height: 18px; accent-color: var(--fl-accent); }
+.snap-row .pp-thumb { width: 80px; height: 50px; }
+.snap-ocr { color: var(--fl-foreground); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+
 /* Visual effects: inspector section and the Effects tab. */
 .fx-fields { gap: 12px; }
 .fx-group { display: grid; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--fl-border); }

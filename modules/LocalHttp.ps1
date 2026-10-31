@@ -90,12 +90,41 @@ namespace Capstan.Transport {
         public long ContentLength64;
         public MemoryStream OutputStream=new MemoryStream();
         byte[] immediateBody=null;
+        Stream bodyStream=null;
+        long bodyStreamLength=0;
+        const int StreamChunk=1048576;
         // Avoid copying large responses into MemoryStream and then cloning them via ToArray().
         public void SetBody(byte[] body) { immediateBody=body ?? new byte[0]; }
+        // Sends a stream (a file) in buffers of at most 1 MB instead of holding it in memory.
+        // Close() writes exactly `length` bytes and then disposes the stream.
+        public void SetStream(Stream source,long length) {
+            if (source==null || length<0) throw new ArgumentException("source");
+            bodyStream=source;
+            bodyStreamLength=length;
+        }
         public Response(NetworkStream s) { stream=s; }
         public void Close() {
             if (closed) return;
             closed=true;
+            if (bodyStream!=null) {
+                try {
+                    byte[] head=BuildHeader(bodyStreamLength);
+                    stream.Write(head,0,head.Length);
+                    byte[] chunk=new byte[StreamChunk];
+                    long left=bodyStreamLength;
+                    while (left>0) {
+                        int got=bodyStream.Read(chunk,0,(int)Math.Min((long)chunk.Length,left));
+                        if (got<=0) throw new IOException("The file ended before its announced length");
+                        stream.Write(chunk,0,got);
+                        left-=got;
+                    }
+                    stream.Flush();
+                } finally {
+                    bodyStream.Dispose();
+                    OutputStream.Dispose();
+                }
+                return;
+            }
             ArraySegment<byte> buffered;
             byte[] body;
             int length;
@@ -103,7 +132,14 @@ namespace Capstan.Transport {
             if (immediateBody!=null) { body=immediateBody; length=body.Length; offset=0; }
             else if (OutputStream.TryGetBuffer(out buffered)) { body=buffered.Array; offset=buffered.Offset; length=buffered.Count; }
             else { body=OutputStream.ToArray(); length=body.Length; offset=0; }
-            string reason=StatusCode==200?"OK":StatusCode==400?"Bad Request":StatusCode==403?"Forbidden":StatusCode==404?"Not Found":StatusCode==409?"Conflict":StatusCode==413?"Payload Too Large":StatusCode==501?"Not Implemented":"Internal Server Error";
+            byte[] header=BuildHeader(length);
+            stream.Write(header,0,header.Length);
+            if (length>0) stream.Write(body,offset,length);
+            stream.Flush();
+            OutputStream.Dispose();
+        }
+        byte[] BuildHeader(long length) {
+            string reason=StatusCode==200?"OK":StatusCode==400?"Bad Request":StatusCode==403?"Forbidden":StatusCode==404?"Not Found":StatusCode==405?"Method Not Allowed":StatusCode==409?"Conflict":StatusCode==413?"Payload Too Large":StatusCode==501?"Not Implemented":"Internal Server Error";
             StringBuilder sb=new StringBuilder();
             sb.Append("HTTP/1.1 ").Append(StatusCode).Append(' ').Append(reason).Append("\r\n");
             sb.Append("Connection: close\r\nContent-Type: ").Append(ContentType).Append("\r\n");
@@ -115,11 +151,7 @@ namespace Capstan.Transport {
                 }
             }
             sb.Append("\r\n");
-            byte[] header=Encoding.ASCII.GetBytes(sb.ToString());
-            stream.Write(header,0,header.Length);
-            if (length>0) stream.Write(body,offset,length);
-            stream.Flush();
-            OutputStream.Dispose();
+            return Encoding.ASCII.GetBytes(sb.ToString());
         }
     }
 
