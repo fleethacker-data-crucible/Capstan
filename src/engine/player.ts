@@ -191,7 +191,7 @@ export class Player {
         if (upcoming && hard && Math.abs(el.currentTime - clip.in) > 0.05) el.currentTime = clip.in;
         continue;
       }
-      el.muted = muted.has(clip.trackId) || !!clip.freeze;
+      el.muted = muted.has(clip.trackId) || !!clip.freeze || !!clip.muteAudio;
       el.volume = Math.min(1, Math.max(0, clip.props.volume));
       el.playbackRate = clipSpeed(clip);
       const want = this.sourceTime(clip);

@@ -76,6 +76,10 @@ export interface Clip extends Animated {
   linkId?: string;
   /** Clips sharing a group id are selected and moved as one. */
   groupId?: string;
+  /** Plays only the sound of its media: never drawn. Made by detaching audio from a video clip. */
+  audioOnly?: boolean;
+  /** The clip's own sound is silenced (preview and export); volume stays as the user set it. Set on the picture clip when its audio is detached. */
+  muteAudio?: boolean;
 }
 
 export interface Track {
@@ -84,6 +88,8 @@ export interface Track {
   muted: boolean;
   hidden: boolean;
   locked: boolean;
+  /** Magnetic: clips on this track close up, so it never has gaps (delete and trim ripple). */
+  magnetic?: boolean;
 }
 
 export type RedactMode = 'blur' | 'pixelate';
@@ -279,6 +285,7 @@ export function parseProject(input: unknown): Project {
     muted: !!t.muted,
     hidden: !!t.hidden,
     locked: !!t.locked,
+    ...(t.magnetic ? { magnetic: true } : {}),
   }));
   const trackIds = new Set(tracks.map((t) => t.id));
   const media = p.media.map((m) => {
@@ -351,5 +358,7 @@ function parseClipExtras(c: Record<string, unknown>): Partial<Clip> {
   if (transitionOut) out.transitionOut = transitionOut;
   if (typeof c.linkId === 'string') out.linkId = c.linkId.slice(0, 80);
   if (typeof c.groupId === 'string') out.groupId = c.groupId.slice(0, 80);
+  if (c.audioOnly === true) out.audioOnly = true;
+  if (c.muteAudio === true) out.muteAudio = true;
   return out;
 }

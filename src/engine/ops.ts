@@ -269,7 +269,7 @@ export function removeTrack(project: Project, trackId: string): Project {
 export function updateTrack(
   project: Project,
   trackId: string,
-  patch: Partial<Pick<Project['tracks'][number], 'name' | 'muted' | 'hidden' | 'locked'>>,
+  patch: Partial<Pick<Project['tracks'][number], 'name' | 'muted' | 'hidden' | 'locked' | 'magnetic'>>,
 ): Project {
   return touch(project, { tracks: project.tracks.map((t) => (t.id === trackId ? { ...t, ...patch } : t)) });
 }

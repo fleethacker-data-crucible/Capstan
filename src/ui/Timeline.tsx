@@ -1,9 +1,12 @@
 import { type DragEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { addClip, addTrack, moveClip, removeTrack, snapTime, trimEnd, trimStart, updateTrack } from '../engine/ops';
+import { bundleIds, closeGaps, expandSelection, magnetize, moveClips, removeGapAt, setTrackMagnetic, trackGaps, trimBundle } from '../engine/editops';
+import { addClip, addTrack, moveClip, removeTrack, snapTime, updateTrack } from '../engine/ops';
 import type { Player } from '../engine/player';
 import { type Clip, type Project, clipEnd, findMedia, projectDuration } from '../engine/project';
 import { timecode } from './format';
 import { ClipDecor } from './ClipDecor';
+import { editNotes } from './decor/EditBadges';
+import { EditIcon } from './editIcons';
 import { Icon } from './icons';
 import { type OverlayLane, OVERLAY_LANES } from './lanes';
 import type { Editor } from './useEditor';
@@ -17,7 +20,7 @@ const SNAP_PX = 8;
 const OVERLAY_HEIGHT = 32;
 
 type Drag =
-  | { kind: 'move'; clipId: string; before: Project; grab: number; startX: number; moved: boolean }
+  | { kind: 'move'; clipId: string; ids: string[]; before: Project; grab: number; startX: number; moved: boolean }
   | { kind: 'trim-start' | 'trim-end'; clipId: string; before: Project }
   | { kind: 'lane'; mode: 'move' | 'start' | 'end'; lane: OverlayLane; itemId: string; before: Project; grab: number; start: number; duration: number }
   | { kind: 'scrub' };
@@ -91,15 +94,21 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const local = e.clientX - rect.left;
+    // Clicking a grouped clip selects its whole group. Dragging any selected clip moves the selection.
+    let picked = selection;
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
-      setSelection(selection.includes(clip.id) ? selection.filter((s) => s !== clip.id) : [...selection, clip.id]);
+      const group = expandSelection(editor.project, [clip.id]);
+      picked = selection.includes(clip.id) ? selection.filter((s) => !group.includes(s)) : [...new Set([...selection, ...group])];
+      setSelection(picked);
     } else if (!selection.includes(clip.id)) {
-      setSelection([clip.id]);
+      picked = expandSelection(editor.project, [clip.id]);
+      setSelection(picked);
     }
+    const moveIds = picked.includes(clip.id) ? picked.filter((id) => editor.project.clips.some((c) => c.id === id)) : [clip.id];
     const before = editor.project;
     if (local <= EDGE) drag.current = { kind: 'trim-start', clipId: clip.id, before };
     else if (rect.width - local <= EDGE) drag.current = { kind: 'trim-end', clipId: clip.id, before };
-    else drag.current = { kind: 'move', clipId: clip.id, before, grab: toTime(e.clientX) - clip.start, startX: e.clientX, moved: false };
+    else drag.current = { kind: 'move', clipId: clip.id, ids: moveIds, before, grab: toTime(e.clientX) - clip.start, startX: e.clientX, moved: false };
   };
 
   const onPointerMove = (e: ReactPointerEvent) => {
@@ -121,7 +130,8 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
       editor.preview(d.lane.update(d.before, d.itemId, patch));
       return;
     }
-    const ignore = new Set([d.clipId]);
+    const bundle = d.kind === 'move' ? bundleIds(d.before, d.ids) : bundleIds(d.before, [d.clipId]);
+    const ignore = new Set(bundle.length ? bundle : [d.clipId]);
     const clip = d.before.clips.find((c) => c.id === d.clipId);
     if (!clip) return;
     if (d.kind === 'move') {
@@ -132,18 +142,24 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
       const snappedEnd = snap(start + clip.duration, ignore);
       if (snappedStart !== start) start = snappedStart;
       else if (snappedEnd !== start + clip.duration) start = snappedEnd - clip.duration;
-      editor.preview(moveClip(d.before, d.clipId, start, trackAt(e.clientY) ?? clip.trackId));
+      const target = trackAt(e.clientY) ?? clip.trackId;
+      if (bundle.length > 1) {
+        // Several clips (a selection, a group, or a video with its audio) move as one block.
+        const order = d.before.tracks.map((t) => t.id);
+        editor.preview(moveClips(d.before, d.ids, start - clip.start, order.indexOf(target) - order.indexOf(clip.trackId)));
+      } else editor.preview(moveClip(d.before, d.clipId, start, target));
     } else if (d.kind === 'trim-start') {
-      editor.preview(trimStart(d.before, d.clipId, snap(toTime(e.clientX), ignore)));
+      editor.preview(trimBundle(d.before, d.clipId, 'start', snap(toTime(e.clientX), ignore)));
     } else {
-      editor.preview(trimEnd(d.before, d.clipId, snap(toTime(e.clientX), ignore)));
+      editor.preview(trimBundle(d.before, d.clipId, 'end', snap(toTime(e.clientX), ignore)));
     }
   };
 
   const onPointerUp = () => {
     const d = drag.current;
     drag.current = null;
-    if (d && d.kind !== 'scrub') editor.commit(editor.project, d.before);
+    // Magnetic tracks close their gaps when the edit is let go.
+    if (d && d.kind !== 'scrub') editor.commit(d.kind === 'lane' ? editor.getProject() : magnetize(editor.getProject()), d.before);
   };
 
   const onBackgroundPointerDown = (e: ReactPointerEvent) => {
@@ -170,7 +186,7 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
     const trackId = trackAt(e.clientY) ?? undefined;
     const r = addClip(editor.project, mediaId, snap(toTime(e.clientX), new Set()), trackId);
     if (r.clipId) {
-      editor.commit(r.project);
+      editor.commit(magnetize(r.project));
       setSelection([r.clipId]);
     }
   };
@@ -235,21 +251,22 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
                   .map((clip) => {
                     const media = findMedia(project, clip.mediaId);
                     const selected = selection.includes(clip.id);
+                    const kind = clip.audioOnly ? 'audio' : (media?.kind ?? 'video');
                     return (
                       <div
                         key={clip.id}
-                        className={`clip kind-${media?.kind ?? 'video'}${selected ? ' selected' : ''}${track.hidden ? ' dim' : ''}`}
+                        className={`clip kind-${kind}${clip.audioOnly ? ' audio-only' : ''}${clip.freeze ? ' freeze' : ''}${selected ? ' selected' : ''}${track.hidden ? ' dim' : ''}`}
                         style={{ left: clip.start * zoom, width: Math.max(2, clip.duration * zoom) }}
                         onPointerDown={(e) => onClipPointerDown(e, clip)}
                         title={`${media?.name ?? 'Missing media'} · ${timecode(clip.duration)}`}
                         role="button"
                         aria-pressed={selected}
-                        aria-label={`${media?.name ?? 'Clip'} at ${timecode(clip.start)}, ${timecode(clip.duration)} long`}
+                        aria-label={`${media?.name ?? 'Clip'} at ${timecode(clip.start)}, ${timecode(clip.duration)} long${editNotes(clip)}`}
                       >
-                        {media?.thumb && media.kind !== 'audio' && clip.duration * zoom > 60 && (
+                        {media?.thumb && media.kind !== 'audio' && !clip.audioOnly && clip.duration * zoom > 60 && (
                           <img className="clip-thumb" src={media.thumb} alt="" draggable={false} />
                         )}
-                        {media?.kind === 'audio' && <div className="clip-wave" aria-hidden />}
+                        {kind === 'audio' && <div className="clip-wave" aria-hidden />}
                         <ClipDecor editor={editor} clip={clip} media={media} zoom={zoom} />
                         <span className="clip-name">{media?.name ?? 'Missing media'}</span>
                         <span className="clip-handle start" aria-hidden />
@@ -257,6 +274,27 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
                       </div>
                     );
                   })}
+                {trackGaps(project, track.id).map((g) => {
+                  const width = (g.end - g.start) * zoom;
+                  if (width < 28 || track.locked) return null;
+                  return (
+                    <button
+                      key={`gap-${g.start}`}
+                      className="lane-gap"
+                      style={{ left: g.start * zoom + width / 2 - 12 }}
+                      title={`Close this ${timecode(g.end - g.start)} gap`}
+                      aria-label={`Close gap of ${timecode(g.end - g.start)} at ${timecode(g.start)}`}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => {
+                        const next = removeGapAt(editor.getProject(), track.id, g.start);
+                        if (next === editor.getProject()) editor.setStatus('Could not close the gap: a linked clip on another track is in the way');
+                        else editor.commit(next);
+                      }}
+                    >
+                      <EditIcon name="closeGaps" size={14} />
+                    </button>
+                  );
+                })}
                 {dropHint?.trackId === track.id && <div className="drop-hint" style={{ left: dropHint.time * zoom }} />}
               </div>
             </TrackRow>
@@ -335,15 +373,37 @@ function TrackRow({
 }) {
   const set = (patch: Parameters<typeof updateTrack>[2]) => editor.commit(updateTrack(editor.project, track.id, patch));
   const hasClips = editor.project.clips.some((c) => c.trackId === track.id);
+  const hasGaps = trackGaps(editor.project, track.id).length > 0;
   return (
     <>
       <div className="track-header" style={{ height: LANE_HEIGHT }}>
-        <input
-          className="track-name"
-          value={track.name}
-          aria-label="Track name"
-          onChange={(e) => set({ name: e.target.value.slice(0, 60) })}
-        />
+        <div className="track-title">
+          <input
+            className="track-name"
+            value={track.name}
+            aria-label="Track name"
+            onChange={(e) => set({ name: e.target.value.slice(0, 60) })}
+          />
+          <button
+            className={`icon-button small track-tool${track.magnetic ? ' on' : ''}`}
+            title={track.magnetic ? 'Magnetic: clips close up on this track. Click to turn off' : 'Make this track magnetic: clips close up, no gaps'}
+            aria-label="Magnetic track"
+            aria-pressed={!!track.magnetic}
+            disabled={track.locked}
+            onClick={() => editor.commit(setTrackMagnetic(editor.getProject(), track.id, !track.magnetic))}
+          >
+            <Icon name="magnet" />
+          </button>
+          <button
+            className="icon-button small track-tool"
+            title="Close all gaps on this track"
+            aria-label="Close gaps"
+            disabled={track.locked || !hasGaps}
+            onClick={() => editor.commit(closeGaps(editor.getProject(), track.id))}
+          >
+            <EditIcon name="closeGaps" />
+          </button>
+        </div>
         <div className="track-buttons">
           <button
             className={`icon-button small${track.hidden ? ' on' : ''}`}

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { removeAnnotation } from '../engine/annotationOps';
-import { deleteClips, removeRedaction, splitAt } from '../engine/ops';
+import { deleteBundle, splitBundle } from '../engine/editops';
+import { removeRedaction } from '../engine/ops';
 import type { Player } from '../engine/player';
 import { removeZoom } from '../engine/zoom';
 import { parseProject, projectDuration } from '../engine/project';
 import { ExportDialog } from './ExportDialog';
+import { copySelection, cutSelection, duplicateSelection, groupSelection, pasteAtPlayhead, ungroupSelection } from './editActions';
 import { download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
 import { Emblem, Welcome } from './Welcome';
@@ -77,6 +79,9 @@ const SHORTCUTS: Array<[string, string]> = [
   ['Home / End', 'Go to start or end'],
   ['Ctrl+Z / Ctrl+Y', 'Undo or redo'],
   ['Ctrl+A', 'Select all clips'],
+  ['Ctrl+C / Ctrl+X / Ctrl+V', 'Copy, cut or paste clips at the playhead'],
+  ['Ctrl+D', 'Duplicate the selected clips'],
+  ['G / Shift+G', 'Group or ungroup the selected clips'],
   ['Ctrl+wheel', 'Zoom the timeline'],
   ['?', 'Show these shortcuts'],
   ['Esc', 'Clear the selection, or close a dialog'],
@@ -145,13 +150,13 @@ export function App() {
   }, [player]);
 
   const split = useCallback(() => {
-    editor.commit(splitAt(editor.project, time, selection));
+    editor.commit(splitBundle(editor.project, time, selection));
   }, [editor, time, selection]);
 
   const remove = useCallback(
     (ripple: boolean) => {
       if (!selection.length) return;
-      let next = deleteClips(editor.project, selection, ripple);
+      let next = deleteBundle(editor.project, selection, ripple);
       for (const id of selection) next = removeZoom(removeAnnotation(removeRedaction(next, id), id), id);
       editor.commit(next);
       editor.setSelection([]);
@@ -178,6 +183,22 @@ export function App() {
       } else if (ctrl && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         editor.setSelection(editor.project.clips.map((c) => c.id));
+      } else if (ctrl && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        copySelection(editor);
+      } else if (ctrl && e.key.toLowerCase() === 'x') {
+        e.preventDefault();
+        cutSelection(editor);
+      } else if (ctrl && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        pasteAtPlayhead(editor, time);
+      } else if (ctrl && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        duplicateSelection(editor);
+      } else if (!ctrl && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelection(editor);
+        else groupSelection(editor);
       } else if (!ctrl && e.key.toLowerCase() === 's') {
         e.preventDefault();
         split();
