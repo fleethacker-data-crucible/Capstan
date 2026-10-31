@@ -1,0 +1,3 @@
+/* Status bar line for the media library the host keeps on disk. Colour stays the foreground token (contrast); a failed copy is marked by text and an underline. */
+.library-line { white-space: nowrap; color: var(--fl-foreground); }
+.library-line.library-failed { text-decoration: underline dotted; text-underline-offset: 3px; }

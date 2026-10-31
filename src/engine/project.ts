@@ -29,7 +29,12 @@ export interface MediaItem {
   createdAt: number;
   /** Cursor, click and key activity recorded with a screen recording (times are seconds into this media). */
   cursor?: CursorData;
+  /** Text that goes with the media, such as the OCR text of a SnapShackle capture. Shown as the bin tooltip. */
+  description?: string;
 }
+
+/** Longest `description` kept when a project is loaded (the host already caps OCR text at 20 KB). */
+export const MAX_DESCRIPTION_CHARS = 20480;
 
 export interface ClipProps {
   /** Centre of the clip on the canvas, in canvas pixels. */
@@ -293,8 +298,9 @@ export function parseProject(input: unknown): Project {
   const trackIds = new Set(tracks.map((t) => t.id));
   const media = p.media.map((m) => {
     const cursor = parseCursorData((m as { cursor?: unknown }).cursor);
-    const { cursor: _dropped, ...rest } = m;
-    return { ...rest, id: String(m.id), name: String(m.name).slice(0, 200), ...(cursor ? { cursor } : {}) };
+    const { cursor: _dropped, description: rawDescription, ...rest } = m;
+    const description = typeof rawDescription === 'string' ? rawDescription.slice(0, MAX_DESCRIPTION_CHARS) : '';
+    return { ...rest, id: String(m.id), name: String(m.name).slice(0, 200), ...(cursor ? { cursor } : {}), ...(description.trim() ? { description } : {}) };
   });
   const mediaIds = new Set(media.map((m) => m.id));
   const base = defaultProps({ width, height });

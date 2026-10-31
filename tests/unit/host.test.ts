@@ -65,7 +65,7 @@ const lifecycle = read('modules/Lifecycle.ps1');
 const csharpBlocks = (text: string) => [...text.matchAll(/Add-Type -TypeDefinition @'([\s\S]*?)'@/g)].map((m) => m[1]);
 
 test('Add-Type C# stays within C# 5 (.NET Framework 4.8.1 compiler)', () => {
-  for (const cs of [...csharpBlocks(lifecycle), ...csharpBlocks(read('modules/LocalHttp.ps1')), ...csharpBlocks(read('modules/CursorCapture.ps1'))]) {
+  for (const cs of [...csharpBlocks(lifecycle), ...csharpBlocks(read('modules/LocalHttp.ps1')), ...csharpBlocks(read('modules/Speech.ps1')), ...csharpBlocks(read('modules/CursorCapture.ps1'))]) {
     expect(cs).not.toMatch(/\?\.|\$"|\bnameof\b|\bout var\b|\)\s*=>/);
   }
 });
@@ -124,7 +124,7 @@ test('built UI sends the heartbeat and the leaving beacon', () => {
 });
 
 test('PowerShell files are ASCII (Windows PowerShell 5.1 reads BOM-less files as ANSI)', () => {
-  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'modules/CursorCapture.ps1', 'tests/ps/Lifecycle.Tests.ps1', 'tests/ps/CursorCapture.Tests.ps1']) {
+  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'modules/Library.ps1', 'modules/CursorCapture.ps1', 'tests/ps/Lifecycle.Tests.ps1', 'tests/ps/Library.Tests.ps1', 'tests/ps/CursorCapture.Tests.ps1']) {
     expect(/[^\x00-\x7f]/.test(read(f))).toBe(false);
   }
 });
@@ -190,4 +190,100 @@ test('the Node mirror serves the same cursor routes as the host', () => {
     expect(mirror).toContain(`/api/cursor/${route}`);
   }
   expect(read('tests/serve.mjs')).toContain("url.pathname.startsWith('/api/cursor/')");
+});
+
+// ---- Speech-to-text (modules/Speech.ps1, issue #24). The behaviour is exercised on Windows by tests/ps/Speech.Tests.ps1.
+const speech = read('modules/Speech.ps1');
+
+test('speech routes sit behind the session token, and the token never comes from the query string', () => {
+  const tokenCheck = host.indexOf("$request.Headers['X-Capstan-Token'] -ne $sessionToken");
+  const route = host.indexOf("'/api/speech/'");
+  expect(tokenCheck).toBeGreaterThan(0);
+  expect(route).toBeGreaterThan(tokenCheck);
+  expect(host).toContain('Invoke-CapstanSpeechRoute');
+  expect(host).toContain('Stop-CapstanSpeech');
+  expect(speech).not.toMatch(/QueryString|X-Capstan-Token/);
+});
+
+test('speech: the fake engine is only reachable through CAPSTAN_SPEECH_ENGINE=fake', () => {
+  expect(speech.match(/'fake'/g)!.length).toBeGreaterThan(0);
+  expect(speech).toContain("$env:CAPSTAN_SPEECH_ENGINE -eq 'fake'");
+  const code = speech.replace(/<#[\s\S]*?#>/, '');
+  expect(code.match(/\$env:CAPSTAN_SPEECH_ENGINE/g)!.length).toBe(1); // one place decides
+  expect(host).not.toContain('CAPSTAN_SPEECH');
+  expect(read('modules/LocalHttp.ps1')).not.toContain('CAPSTAN_SPEECH');
+});
+
+test('speech: files are named from a host-made job id under %LOCALAPPDATA%\Capstan\tmp, never from the request', () => {
+  expect(speech).toContain("'^[0-9a-f]{32}$'");
+  expect(speech).toContain("'Capstan'");
+  expect(speech).toContain('ReparsePoint');
+  expect(speech).toContain('FileMode]::CreateNew');
+  expect(speech).toContain('1048576'); // written in 1 MB buffers
+  const route = speech.slice(speech.indexOf('function Start-CapstanSpeechJob'), speech.indexOf('function Invoke-CapstanSpeechRoute'));
+  expect(route).not.toMatch(/Get-CapstanSpeechQueryValue \$Query '(path|file|name)'/);
+});
+
+test('speech: requests are limited to 30 MB WAV bodies and errors carry no exception text', () => {
+  expect(speech).toContain('$script:SpeechMaxBytes = 30000000');
+  expect(speech).toContain("New-CapstanSpeechError 413 'too-big'");
+  const catchAll = speech.slice(speech.indexOf('} catch {', speech.indexOf('function Invoke-CapstanSpeechRoute')));
+  expect(catchAll).not.toContain('$_.Exception.Message');
+  expect(speech).not.toMatch(/-Message \$_|\$_\.Exception/);
+});
+
+// ---- Media library on disk (modules/Library.ps1; behaviour is exercised by tests/ps/Library.Tests.ps1) ----
+const library = read('modules/Library.ps1');
+
+test('the library routes sit behind the Host, Origin and token checks, and the library is announced in /api/health', () => {
+  const handler = host.slice(host.indexOf('function Invoke-CapstanRequest'));
+  const at = (needle: string) => handler.indexOf(needle);
+  expect(at('Invoke-CapstanLibraryRoute')).toBeGreaterThan(at('Origin is not authorized'));
+  expect(at('Invoke-CapstanLibraryRoute')).toBeGreaterThan(at('Everything below needs the per-launch session token'));
+  expect(host).toContain('modules/Library.ps1');
+  expect(host).toContain('Get-CapstanLibraryInfo');
+  expect(library).toContain('library = $true');
+  expect(library).toContain('library = $false');
+});
+
+test('library rules: strict id pattern, token compared without short-circuit, no CORS, no client libraries, no exception text in answers', () => {
+  expect(library).toContain("'^[a-z0-9_-]{1,80}\\z'");
+  expect(library).toContain("Test-CapstanTokenEqual ([string]$request.Headers['X-Capstan-Token'])");
+  expect(library).toContain('ReparsePoint');
+  expect(library).toContain("'.uploads'");
+  expect(library).not.toMatch(/Access-Control-/i);
+  expect(library).not.toMatch(/Invoke-WebRequest|WebClient|HttpClient|Invoke-RestMethod/);
+  expect(library).not.toMatch(/Send-CapstanLibraryError[^\n]*\$_\.Exception/);
+  expect(library).not.toMatch(/Send-Json[^\n]*\$_\.Exception/);
+  for (const piece of ["'GET' { Send-CapstanLibraryFile", "'PUT' { Receive-CapstanLibraryPart", "'DELETE' { Remove-CapstanLibraryEntry", 'Complete-CapstanLibraryUpload', 'Start-CapstanLibraryUpload', 'Send-CapstanLibraryIndex']) {
+    expect(library).toContain(piece);
+  }
+});
+
+test('library limits: 8 MB chunk, 16 GiB default, parallel uploads, stale timeout, free-space check, 1 MB buffers, nothing read whole', () => {
+  expect(library).toContain('ChunkMax     = 8388608');
+  expect(library).toContain('(16GB)');
+  expect(library).toContain("'CAPSTAN_LIBRARY_MAX_UPLOADS' 4");
+  expect(library).toContain("'CAPSTAN_LIBRARY_STALE_SECONDS' 1800");
+  expect(library).toContain('AvailableFreeSpace');
+  expect(library).toContain('New-Object byte[] 1048576');
+  expect(library).not.toMatch(/ReadAllBytes|WriteAllBytes|ReadAllText|ReadToEnd/);
+  const transport = read('modules/LocalHttp.ps1');
+  expect(transport).toContain('const int StreamChunk=1048576;');
+  expect(transport).toContain('byte[] chunk=new byte[StreamChunk]');
+  expect(transport).toContain('class BodyStream');
+  expect(transport).toContain('MaxStreamBody=67108864');
+});
+
+test('the test server mirrors the library routes and the health flag', () => {
+  expect(read('tests/serve.mjs')).toContain("'/api/files'");
+  expect(read('tests/serve.mjs')).toContain('library: true');
+  const mirror = read('tests/library-mirror.mjs');
+  for (const piece of ["'x-capstan-token'", '/^[a-z0-9_-]{1,80}$/', "'incomplete'", "'checksum_mismatch'", "'chunk_too_large'", "'bad_range'"]) expect(mirror).toContain(piece);
+});
+
+test('built UI talks to the library routes and shows the Library on disk line', () => {
+  const js = read('dist/assets/app.js');
+  expect(js).toContain('/api/files');
+  expect(js).toContain('Library on disk');
 });
