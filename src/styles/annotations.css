@@ -1,0 +1,31 @@
+/* Annotations: toolbox panel, inspector panel, selection handles on the picture, timeline lane. */
+.annotations-panel { overflow-y: auto; }
+.ann-add-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 16px 12px; }
+.ann-add { justify-content: flex-start; }
+.ann-heading { margin: 4px 16px 8px; font-size: var(--fl-text-secondary); color: var(--fl-muted-foreground); font-weight: 600; }
+.ann-presets { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 12px; }
+.annotations-panel .region-item.on { border-color: var(--fl-accent); }
+
+.annotation-panel { overflow-y: auto; }
+.ann-text { width: 100%; resize: vertical; min-height: 64px; user-select: text; font-family: var(--fl-font-body); }
+.ann-toggles { display: flex; gap: 8px; align-items: center; }
+.ann-toggles .button { min-width: 36px; justify-content: center; padding: 0 8px; }
+.ann-toggles .button.on { border-color: var(--fl-accent); background: var(--fl-muted); }
+.ann-toggles select { flex: 1; height: 32px; padding: 0 8px; background: var(--fl-surface); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control); color: var(--fl-foreground); }
+.ann-colour-row { display: flex; align-items: center; gap: 12px; }
+.ann-colour-row .check { margin: 0; }
+.ann-hint { padding: 0 !important; margin: 0; }
+.ann-shadow { margin: 0; }
+
+/* Selection on the picture: the box inherits .selection-box; the handles take pointer events. */
+.annotation-box { border: 0; outline: 2px solid var(--fl-accent); }
+.annotation-box.line-box { outline-color: transparent; }
+.ann-handle {
+  position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; box-sizing: border-box;
+  background: var(--fl-accent); border: 2px solid var(--fl-background); border-radius: 2px; pointer-events: auto; touch-action: none;
+}
+.ann-rotate { margin-top: -26px; border-radius: 50%; cursor: grab; }
+.ann-rotate::after { content: ''; position: absolute; left: 3px; top: 10px; width: 2px; height: 14px; background: var(--fl-accent); }
+.ann-tail { border-radius: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; cursor: crosshair; }
+.ann-end { border-radius: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; cursor: move; }
+.overlay-lane .overlay-item.kind-annotations { border-style: solid; }

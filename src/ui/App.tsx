@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { removeAnnotation } from '../engine/annotationOps';
 import { deleteClips, removeRedaction, splitAt } from '../engine/ops';
 import type { Player } from '../engine/player';
+import { removeZoom } from '../engine/zoom';
 import { parseProject, projectDuration } from '../engine/project';
 import { ExportDialog } from './ExportDialog';
 import { download, safeFileName, timecode } from './format';
@@ -69,7 +71,7 @@ function ShortcutsDialog({ onClose }: { onClose(): void }) {
 const SHORTCUTS: Array<[string, string]> = [
   ['Space', 'Play or pause'],
   ['S', 'Split at the playhead'],
-  ['Delete', 'Delete selected clips or blur region'],
+  ['Delete', 'Delete selected clips, blur region or annotation'],
   ['Shift+Delete', 'Delete and close the gap'],
   ['← / →', 'Step one frame (Shift: one second)'],
   ['Home / End', 'Go to start or end'],
@@ -150,7 +152,7 @@ export function App() {
     (ripple: boolean) => {
       if (!selection.length) return;
       let next = deleteClips(editor.project, selection, ripple);
-      for (const id of selection) next = removeRedaction(next, id);
+      for (const id of selection) next = removeZoom(removeAnnotation(removeRedaction(next, id), id), id);
       editor.commit(next);
       editor.setSelection([]);
     },

@@ -33,6 +33,7 @@ const server = createServer(async (req, res) => {
   else if (url.pathname.startsWith('/assets/')) file = join(root, 'dist', normalize(url.pathname));
   else if (url.pathname.startsWith('/fixtures/')) file = join(root, 'tests', normalize(url.pathname));
   else if (url.pathname === '/harness') file = join(root, 'tests/e2e/harness.html');
+  else if (url.pathname.startsWith('/e2e/')) file = join(root, 'tests/e2e', normalize(url.pathname.slice(5)));
   else if (url.pathname === '/harness.js') file = join(root, 'tests/e2e/.build/harness.js');
   else if (url.pathname === '/api/heartbeat' && req.method === 'POST') {
     // Mirrors the host: token in X-Capstan-Token, or in the JSON body for this route only (sendBeacon).

@@ -60,21 +60,20 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
-| Text and callouts (speech bubbles, labels) | Vector "generated" clips drawn by the compositor | 0.4 | ⬜ |
-| Arrows, lines, shapes | Same generated-clip system | 0.4 | ⬜ |
-| Highlight, spotlight, blur and pixelate regions | Compositor effects over lower tracks | 0.4 | 🟡 (blur and pixelate regions over every track; highlight and spotlight to come) |
+| Text and callouts (speech bubbles, labels) | Vector "generated" clips drawn by the compositor | 0.4 | ✅ (text and callouts with an aimable tail) |
+| Arrows, lines, shapes | Same generated-clip system | 0.4 | ✅ |
+| Highlight, spotlight, blur and pixelate regions | Compositor effects over lower tracks | 0.4 | ✅ |
 | Keystroke callouts | From recorded key data (0.3) | 0.4 | ⬜ |
-| Sketch motion (animated drawing) | Path-length animation | 0.5 | ⬜ |
-| Text styles, fonts | Bundled fonts only (no web fonts) | 0.4 | ⬜ |
-
+| Sketch motion (animated drawing) | Path-length animation | 0.5 | ✅ (arrows, lines and shapes draw themselves on) |
+| Text styles, fonts | Bundled fonts only (no web fonts) | 0.4 | ✅ (system font stacks (sans, serif, mono, display); no web fonts) |
 ### Animation and transitions
 
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
-| Keyframed properties with easing | Per-prop keyframe tracks, evaluated per frame | 0.5 | ⬜ |
-| Zoom-n-pan | Keyframes on the canvas camera | 0.5 | ⬜ |
-| Transitions (fade, slide, wipe, …) | Two-clip compositor ops at cut points | 0.5 | ⬜ |
-| Behaviors (text/clip entrance, emphasis, exit) | Keyframe presets | 0.5 | ⬜ |
+| Keyframed properties with easing | Per-prop keyframe tracks, evaluated per frame | 0.5 | ✅ |
+| Zoom-n-pan | Keyframes on the canvas camera | 0.5 | ✅ |
+| Transitions (fade, slide, wipe, …) | Two-clip compositor ops at cut points | 0.5 | ✅ (two touching clips on one track fade through the background; use two tracks for a cross-dissolve) |
+| Behaviors (text/clip entrance, emphasis, exit) | Keyframe presets | 0.5 | ✅ |
 | Smart focus (auto zoom on activity) | From cursor data (0.3) | 0.6 | ⬜ |
 
 ### Cursor effects (needs cursor data from 0.3)
@@ -100,12 +99,12 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
-| WebGL2 compositor | Replaces Canvas 2D when effects are present; same API | 0.8 | ⬜ |
-| Colour adjustment, colourise | Shader | 0.8 | ⬜ |
-| Remove a colour (green screen) | Chroma-key shader | 0.8 | ⬜ |
-| Drop shadow, border, rounded corners | Shader / 2D | 0.8 | ⬜ |
-| Device frames | Bundled frame images | 0.8 | ⬜ |
-| Blend modes, clip masks | Shader | 0.8 | ⬜ |
+| WebGL2 compositor | Replaces Canvas 2D when effects are present; same API | 0.8 | 🟡 (the compositor stays Canvas 2D; colour and chroma key run in a WebGL2 pass with a CPU fallback) |
+| Colour adjustment, colourise | Shader | 0.8 | ✅ |
+| Remove a colour (green screen) | Chroma-key shader | 0.8 | ✅ |
+| Drop shadow, border, rounded corners | Shader / 2D | 0.8 | ✅ |
+| Device frames | Bundled frame images | 0.8 | ✅ (drawn as vector art: browser, laptop, phone, tablet, monitor) |
+| Blend modes, clip masks | Shader | 0.8 | ✅ (circle and ellipse masks, 13 blend modes) |
 | Background removal (webcam) | On-device segmentation model in WASM | 1.x | ⬜ |
 
 ### Captions
