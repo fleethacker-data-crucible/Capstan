@@ -118,7 +118,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | --- | --- | --- | --- |
 | MP4 (H.264 + AAC/Opus), size and quality | WebCodecs + own muxer | 0.1 | ✅ |
 | Streaming export straight to a file | Fragmented MP4 written through the host, flat memory use | 0.2 | ✅ (File System Access picker; memory stays flat) |
-| Fast export (decode with WebCodecs, not seeking) | Rust → WASM MP4/WebM demuxer feeding `VideoDecoder` | 0.2 | 🟡 (H.264 in MP4 and VP8/VP9 in WebM; other sources seek) |
+| Fast export (decode with WebCodecs, not seeking) | Rust → WASM MP4/WebM demuxer feeding `VideoDecoder` | 0.2 | ✅ (H.264 and AV1 in MP4, fragmented MP4 and WebM, VP8 and VP9 in WebM decode in order; HEVC is tried only where the browser can decode it, and anything else, a damaged file or a file with several video tracks, seeks as before; the path chosen and why is shown in the export detail) |
 | Export part of the timeline, single frame as PNG | Range selection | 0.4 | ✅ |
 | Animated GIF | Port SnapShackle's GIF encoder and quantiser | 1.0 | ✅ |
 | Audio-only (M4A / WAV) | Muxer audio-only path | 1.0 | ✅ |

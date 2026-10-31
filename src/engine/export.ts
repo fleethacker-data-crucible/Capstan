@@ -2,6 +2,7 @@
 // (each video seeked to the exact frame time), encoded with WebCodecs H.264, and the audio is
 // mixed with an OfflineAudioContext and encoded as AAC (or Opus where AAC is unavailable).
 import { clickSoundTimes, scheduleClickSounds } from './cursorsound';
+import { type DecodeDecision, describeDecisions } from './demux/choose';
 import { levelEnvelopeDb } from './dsp/duck';
 import { type BlobLookup, type FrameRenderer, createFrameRenderer } from './frames';
 import { planClipGain, setLevelEnvelope } from './gain';
@@ -40,6 +41,8 @@ export interface ExportProgress {
   fraction: number;
   frame?: number;
   frames?: number;
+  /** How the source video is being decoded and why, e.g. "fast decode" or "seeking clip.mov (reason)". */
+  decode?: string;
 }
 
 export interface ExportResult {
@@ -50,6 +53,8 @@ export interface ExportResult {
   streamed: boolean;
   /** How the source pictures were obtained: `fast` from the sequential decoder, `seek` by seeking an element. */
   decode: { fast: number; seek: number };
+  /** Per video file: fast or seek, and why. */
+  decisions: DecodeDecision[];
   videoCodec: string;
   audioCodec: string | null;
   frames: number;
@@ -415,7 +420,7 @@ async function renderMp4(
       await waitForQueue(encoder, 8, () => Math.max(videoOut, waitStart));
       if (sink) await muxer.drain(SINK_BACKLOG);
       if (f % 5 === 0 || f === frames - 1) {
-        onProgress({ stage: 'video', fraction: 0.05 + 0.9 * ((f + 1) / frames), frame: f + 1, frames });
+        onProgress({ stage: 'video', fraction: 0.05 + 0.9 * ((f + 1) / frames), frame: f + 1, frames, decode: describeDecisions(renderer.decisions) });
       }
     }
     const flushStart = performance.now();
@@ -436,6 +441,7 @@ async function renderMp4(
       bytes,
       streamed: !!sink,
       decode: { ...renderer.stats },
+      decisions: renderer.decisions.map((d) => ({ ...d })),
       videoCodec: videoConfig.codec,
       audioCodec: audioConfig ? audioConfig.codec : null,
       frames,

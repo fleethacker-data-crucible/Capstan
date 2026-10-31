@@ -1,8 +1,11 @@
 // WebM (Matroska) demuxer for the fast export path. Reads the first video track's blocks with their
 // file offsets: only element headers and block headers are read, never the picture data. Handles
-// recorder files (unknown-size segment and clusters, no cues, no duration) and plain files. VP8
-// and VP9 only; anything else (AV1, lacing, encryption) returns null.
-import type { VideoSample, VideoTrackInfo } from './types';
+// recorder files (unknown-size segment and clusters, no cues, no duration) and plain files. VP8,
+// VP9 and AV1 (CodecPrivate is the av1C record); anything else (lacing, encryption, other codecs)
+// is a miss with a note saying why, and the export seeks. Nothing here throws.
+import { av1CodecString } from './av1';
+import { AV1_UNKNOWN, withAv1Codec } from './mp4';
+import type { DemuxRead, VideoSample, VideoTrackInfo } from './types';
 
 const ID = {
   EBML: 0x1a45dfa3,
@@ -109,10 +112,24 @@ interface RawTrack {
   priv?: Uint8Array;
 }
 
+const miss = (note: string, codec: string | null = null): DemuxRead => ({ info: null, container: 'webm', codec, note });
+
 export async function openWebm(blob: Blob): Promise<VideoTrackInfo | null> {
+  return (await readWebm(blob)).info;
+}
+
+export async function readWebm(blob: Blob): Promise<DemuxRead> {
+  try {
+    return await readWebmUnsafe(blob);
+  } catch {
+    return miss('the file is damaged');
+  }
+}
+
+async function readWebmUnsafe(blob: Blob): Promise<DemuxRead> {
   const r = new Reader(blob);
   const head = await readHeader(r, 0);
-  if (!head || head.id !== ID.EBML || head.size < 0) return null;
+  if (!head || head.id !== ID.EBML || head.size < 0) return { info: null, container: null, codec: null, note: 'not a WebM' };
   let pos = head.header + head.size;
   let timecodeScale = 1_000_000;
   const tracks: RawTrack[] = [];
@@ -135,7 +152,7 @@ export async function openWebm(blob: Blob): Promise<VideoTrackInfo | null> {
       pos = body; // read the children next
       continue;
     }
-    if (h.size < 0) return null; // unknown size on a non-master element
+    if (h.size < 0) return miss('an element of unknown size where a size is needed'); // unknown size on a non-master element
     switch (h.id) {
       case ID.TimecodeScale:
         timecodeScale = await readUint(r, body, h.size);
@@ -171,7 +188,7 @@ export async function openWebm(blob: Blob): Promise<VideoTrackInfo | null> {
       case ID.Block: {
         if (videoNumber < 0) {
           const v = tracks.find((t) => t.type === 1);
-          if (!v) return null;
+          if (!v) return miss('the file has no video track');
           videoNumber = v.number;
         }
         const hdr = await r.bytes(body, Math.min(h.size, 12));
@@ -181,7 +198,7 @@ export async function openWebm(blob: Blob): Promise<VideoTrackInfo | null> {
         earliest = Math.min(earliest, clusterTime + (rel > 0x7fff ? rel - 0x10000 : rel));
         if (t.value === videoNumber) {
           const flags = hdr[t.length + 2];
-          if (flags & 0x06) return null; // lacing: not used for video, bail out rather than guess
+          if (flags & 0x06) return miss('the video blocks use lacing'); // not used for video, bail out rather than guess
           const signed = rel > 0x7fff ? rel - 0x10000 : rel;
           const dataStart = body + t.length + 3;
           blocks.push({
@@ -202,11 +219,15 @@ export async function openWebm(blob: Blob): Promise<VideoTrackInfo | null> {
   }
 
   const track = tracks.find((t) => t.type === 1);
-  if (!track || !blocks.length) return null;
+  if (!track) return miss('the file has no video track');
   let codec: string;
   if (track.codec === 'V_VP8') codec = 'vp8';
   else if (track.codec === 'V_VP9') codec = 'vp09.00.10.08';
-  else return null;
+  else if (track.codec === 'V_AV1') {
+    // CodecPrivate is the av1C record; if it is missing or empty the key frame's sequence header names the codec.
+    codec = (track.priv && av1CodecString(track.priv)) || AV1_UNKNOWN;
+  } else return miss(`the video codec ${track.codec || '(unnamed)'} is not one the fast path reads`, track.codec || null);
+  if (!blocks.length) return miss('the video track has no blocks', codec);
   const toUs = (t: number) => Math.round((t * timecodeScale) / 1000);
   blocks.sort((a, b) => a.time - b.time);
   const first = Math.min(earliest, blocks[0].time);
@@ -215,6 +236,9 @@ export async function openWebm(blob: Blob): Promise<VideoTrackInfo | null> {
     const dur = b.duration ? toUs(b.duration) : next !== undefined && next > b.time ? toUs(next - b.time) : i > 0 ? toUs(b.time - blocks[i - 1].time) : 33333;
     return { offset: b.offset, size: b.size, pts: toUs(b.time - first), duration: Math.max(1, dur), key: b.key };
   });
-  if (!samples[0].key) return null;
-  return { container: 'webm', codec, width: track.width, height: track.height, samples };
+  if (!samples[0].key) return miss('the first video block is not a key frame', codec);
+  const last = samples.reduce((m, s) => Math.max(m, s.offset + s.size), 0);
+  if (last > blob.size) return miss('the file is cut off inside a video block', codec);
+  const info: VideoTrackInfo = { container: 'webm', codec, width: track.width, height: track.height, samples };
+  return await withAv1Codec(blob, { info, container: 'webm', codec, note: '' }, 'webm');
 }

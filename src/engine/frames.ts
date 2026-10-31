@@ -1,8 +1,9 @@
 // Renders single frames of a project for export: the same compositor as the preview, with every
 // video clip seeked to the exact source time. Shared by the MP4, GIF and PNG exports.
 import { drawFrame } from './compositor';
-import type { VideoTrackInfo } from './demux/types';
-import { FastVideoSource, demuxVideo } from './fastdecode';
+import type { DecodeDecision } from './demux/choose';
+import type { DemuxRead } from './demux/types';
+import { type FastVideoSource, planFast, readVideo } from './fastdecode';
 import { loadCursorImage } from './cursor';
 import { seekTo } from './media';
 import { resizeCanvas } from './ops';
@@ -17,6 +18,8 @@ export interface FrameRenderer {
   readonly height: number;
   /** Video pictures taken from the sequential decoder (fast) and by seeking an element (seek). */
   readonly stats: { fast: number; seek: number };
+  /** Per video file: which way its pictures are taken and why (filled in as clips are first drawn). */
+  readonly decisions: DecodeDecision[];
   /** Draws the timeline at `time` seconds, seeking each active video to its exact frame. */
   render(time: number): Promise<void>;
   /** RGBA pixels of the frame just rendered (a copy). */
@@ -55,24 +58,38 @@ export async function createFrameRenderer(project: Project, blobs: BlobLookup, o
   const bitmaps = new Map<string, ImageBitmap>();
   const stats = { fast: 0, seek: 0 };
   const fastOn = options.fast !== false;
-  const fastInfo = new Map<string, Promise<VideoTrackInfo | null>>();
+  const fastInfo = new Map<string, Promise<DemuxRead>>();
+  const decisions: DecodeDecision[] = [];
+  const decide = (mediaId: string, path: DecodeDecision['path'], reason: string) => {
+    const name = findMedia(project, mediaId)?.name ?? mediaId;
+    const known = decisions.find((d) => d.media === name);
+    if (known) Object.assign(known, { path, reason });
+    else decisions.push({ media: name, path, reason });
+  };
   const fastSource = new Map<string, FastVideoSource>();
   /** Clips the fast path cannot do (unsupported file, or it failed midway): they seek. */
   const fastUnavailable = new Set<string>();
   const fastBitmap = new Map<string, ImageBitmap>();
   const fastFor = async (clip: Clip): Promise<FastVideoSource | null> => {
-    if (!fastOn || fastUnavailable.has(clip.id)) return null;
+    if (fastUnavailable.has(clip.id)) return null;
+    if (!fastOn) {
+      fastUnavailable.add(clip.id);
+      decide(clip.mediaId, 'seek', 'fast decoding is switched off for this export');
+      return null;
+    }
     const open = fastSource.get(clip.id);
     if (open) return open;
     const blob = await blobs(clip.mediaId);
     let info = fastInfo.get(clip.mediaId);
     if (!info) {
-      info = blob ? demuxVideo(blob) : Promise.resolve(null);
+      info = blob ? readVideo(blob) : Promise.resolve({ info: null, container: null, codec: null, note: 'the media is missing' });
       fastInfo.set(clip.mediaId, info);
     }
-    const source = blob ? await FastVideoSource.open(blob, await info) : null;
+    const plan = blob ? await planFast(blob, await info) : null;
+    const source = plan?.source ?? null;
     if (source) fastSource.set(clip.id, source);
     else fastUnavailable.add(clip.id);
+    if (plan) decide(clip.mediaId, plan.choice.path, plan.choice.reason);
     return source;
   };
   const close = () => {
@@ -127,6 +144,7 @@ export async function createFrameRenderer(project: Project, blobs: BlobLookup, o
     width: options.width,
     height: options.height,
     stats,
+    decisions,
     async render(t: number): Promise<void> {
       const active = activeClipsAt(scaled, t);
       for (const clip of active) {
@@ -140,8 +158,9 @@ export async function createFrameRenderer(project: Project, blobs: BlobLookup, o
             fastBitmap.set(clip.id, await fast.frameAt(at));
             stats.fast++;
             continue;
-          } catch {
+          } catch (e) {
             // The decoder failed midway: this clip seeks from here on.
+            decide(clip.mediaId, 'seek', `the decoder failed partway through${e instanceof Error && e.message ? ` (${e.message})` : ''}`);
             fast.close();
             fastSource.delete(clip.id);
             fastUnavailable.add(clip.id);
