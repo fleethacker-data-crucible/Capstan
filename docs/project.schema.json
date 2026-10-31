@@ -1,0 +1,625 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fleethacker-data-crucible/Capstan/docs/project.schema.json",
+  "title": "Capstan project",
+  "description": "The Capstan project (.capstan file), version 1. It describes the normalised form that parseProject (src/engine/project.ts) returns and the editor saves: a document that validates here loads without being repaired. parseProject is more forgiving than this schema (it clamps numbers, fills defaults and drops what it cannot use), so some files that load fine do not validate. What no schema can say is listed in docs/PROJECT-FILE.md. 'x-extra-fields' on an object says what parseProject does with a field this schema does not list: 'kept' (copied through) or 'dropped' (ignored and lost on the next save). Extra fields never make a file invalid.",
+  "type": "object",
+  "x-extra-fields": "dropped",
+  "required": [
+    "version",
+    "id",
+    "name",
+    "width",
+    "height",
+    "fps",
+    "background",
+    "tracks",
+    "clips",
+    "media",
+    "redactions",
+    "captions",
+    "annotations",
+    "zooms",
+    "markers",
+    "updatedAt"
+  ],
+  "properties": {
+    "version": {
+      "description": "The file format version. A breaking change to the format bumps this and keeps a migration in parseProject.",
+      "const": 1
+    },
+    "id": { "description": "Project id. Any string.", "type": "string" },
+    "name": { "type": "string", "maxLength": 120 },
+    "width": { "description": "Canvas width in pixels.", "type": "integer", "minimum": 16, "maximum": 7680 },
+    "height": { "description": "Canvas height in pixels.", "type": "integer", "minimum": 16, "maximum": 4320 },
+    "fps": { "type": "integer", "minimum": 1, "maximum": 60 },
+    "background": { "description": "Canvas colour, #rrggbb.", "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "tracks": {
+      "description": "Rendered bottom to top: the first track is the bottom layer.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/track" }
+    },
+    "clips": {
+      "description": "parseProject drops a clip whose trackId or mediaId matches no track or media item.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/clip" }
+    },
+    "media": { "type": "array", "items": { "$ref": "#/$defs/media" } },
+    "redactions": {
+      "description": "Blur and pixelate regions. Missing in files saved before they existed (parseProject then uses an empty list).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/redaction" }
+    },
+    "captions": {
+      "description": "Sorted by start time. Missing in older files.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/caption" }
+    },
+    "annotations": {
+      "description": "Text, shapes, arrows and highlights. Later items draw on top. Missing in older files.",
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/annotation" }
+    },
+    "zooms": {
+      "description": "Zoom-n-pan regions. Missing in older files.",
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/zoom" }
+    },
+    "markers": {
+      "description": "Sorted by time. Missing in older files.",
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/marker" }
+    },
+    "cursorFx": { "$ref": "#/$defs/cursorFx" },
+    "range": { "$ref": "#/$defs/range" },
+    "updatedAt": { "description": "Milliseconds since 1970.", "type": "number" }
+  },
+  "$defs": {
+    "hexColour": {
+      "description": "#rrggbb. parseProject lower-cases it.",
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "track": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["id", "name", "muted", "hidden", "locked"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 60 },
+        "muted": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "locked": { "type": "boolean" },
+        "magnetic": { "description": "Clips close up so the track has no gaps. Stored only when true.", "const": true }
+      }
+    },
+    "media": {
+      "description": "Metadata for one media item. The bytes are not in the file. parseProject checks only id, name and cursor; every other field is copied through unchecked, and so are fields not listed here.",
+      "type": "object",
+      "x-extra-fields": "kept",
+      "required": ["id", "name", "kind", "mime", "bytes", "duration", "width", "height", "hasAudio", "createdAt"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 200 },
+        "kind": { "enum": ["video", "audio", "image"] },
+        "mime": { "type": "string" },
+        "bytes": { "type": "number", "minimum": 0 },
+        "duration": { "description": "Source length in seconds.", "type": "number", "minimum": 0 },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "hasAudio": { "type": "boolean" },
+        "thumb": { "description": "Small JPEG data URL for the media bin.", "type": "string" },
+        "createdAt": { "type": "number" },
+        "cursor": { "$ref": "#/$defs/cursorData" }
+      }
+    },
+    "clip": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["id", "trackId", "mediaId", "start", "in", "duration", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "trackId": { "description": "Must name a track in this file, or parseProject drops the clip.", "type": "string" },
+        "mediaId": { "description": "Must name a media item in this file, or parseProject drops the clip.", "type": "string" },
+        "start": { "description": "Timeline position in seconds.", "type": "number", "minimum": 0 },
+        "in": { "description": "Offset into the source media in seconds.", "type": "number", "minimum": 0 },
+        "duration": { "description": "Length on the timeline in seconds (at least one 30th of a second).", "type": "number", "minimum": 0.03333333333333333 },
+        "props": { "$ref": "#/$defs/clipProps" },
+        "speed": {
+          "description": "Playback speed. Stored only when not 1.",
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 8,
+          "not": { "const": 1 }
+        },
+        "freeze": { "description": "Holds the frame at 'in' for the whole clip. Stored only when true.", "const": true },
+        "crop": { "$ref": "#/$defs/crop" },
+        "keys": { "$ref": "#/$defs/keys" },
+        "behavior": { "$ref": "#/$defs/behavior" },
+        "effects": { "$ref": "#/$defs/effects" },
+        "audio": { "$ref": "#/$defs/clipAudio" },
+        "transitionIn": { "$ref": "#/$defs/transition" },
+        "transitionOut": { "$ref": "#/$defs/transition" },
+        "linkId": { "description": "Clips sharing a link id move together (a video and its detached audio).", "type": "string", "maxLength": 80 },
+        "groupId": { "description": "Clips sharing a group id are selected and moved as one.", "type": "string", "maxLength": 80 },
+        "audioOnly": { "description": "Plays only the sound of its media. Stored only when true.", "const": true },
+        "muteAudio": { "description": "The clip's own sound is silenced. Stored only when true.", "const": true }
+      }
+    },
+    "clipProps": {
+      "description": "parseProject fills missing values from the canvas defaults (centre, scale 1, rotation 0, opacity 1, volume 1) and does not clamp them; the editor keeps opacity in 0..1, volume in 0..2 and scale in 0.01..20. Fields not listed here are kept.",
+      "type": "object",
+      "x-extra-fields": "kept",
+      "required": ["x", "y", "scale", "rotation", "opacity", "volume"],
+      "properties": {
+        "x": { "description": "Centre of the clip on the canvas, in canvas pixels.", "type": "number" },
+        "y": { "type": "number" },
+        "scale": { "description": "1 = fit inside the canvas.", "type": "number" },
+        "rotation": { "description": "Degrees.", "type": "number" },
+        "opacity": { "type": "number" },
+        "volume": { "type": "number" }
+      }
+    },
+    "crop": {
+      "description": "The part of the source picture shown, as fractions of the source frame. x + width and y + height stay within 1. A crop that shows everything is not stored.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "width": { "type": "number", "minimum": 0.02, "maximum": 1 },
+        "height": { "type": "number", "minimum": 0.02, "maximum": 1 }
+      }
+    },
+    "keyframe": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["t", "v", "ease"],
+      "properties": {
+        "t": { "description": "Seconds from the start of the owning clip or annotation.", "type": "number", "minimum": 0 },
+        "v": { "type": "number" },
+        "ease": { "$ref": "#/$defs/easeName" }
+      }
+    },
+    "easeName": { "enum": ["linear", "in", "out", "inOut", "hold", "back", "bounce"] },
+    "keyTrack": {
+      "description": "Keyframes of one property, sorted by t. An empty track is not stored.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/keyframe" }
+    },
+    "keys": {
+      "description": "Keyframes per animated property. 'volume' on a clip holds the audio volume points.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "minProperties": 1,
+      "properties": {
+        "x": { "$ref": "#/$defs/keyTrack" },
+        "y": { "$ref": "#/$defs/keyTrack" },
+        "scale": { "$ref": "#/$defs/keyTrack" },
+        "rotation": { "$ref": "#/$defs/keyTrack" },
+        "opacity": { "$ref": "#/$defs/keyTrack" },
+        "volume": { "$ref": "#/$defs/keyTrack" }
+      }
+    },
+    "behavior": {
+      "description": "Entrance, emphasis and exit presets. At least one step is present.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "minProperties": 1,
+      "properties": {
+        "enter": { "$ref": "#/$defs/enterStep" },
+        "emphasis": { "$ref": "#/$defs/emphasisStep" },
+        "exit": { "$ref": "#/$defs/enterStep" }
+      }
+    },
+    "enterStep": {
+      "description": "An entrance or exit preset.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["type", "duration"],
+      "properties": {
+        "type": { "enum": ["fade", "slide-left", "slide-right", "slide-up", "slide-down", "pop", "spin"] },
+        "duration": { "type": "number", "minimum": 0.05, "maximum": 10 }
+      }
+    },
+    "emphasisStep": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["type", "duration"],
+      "properties": {
+        "type": { "enum": ["pulse", "wobble"] },
+        "duration": { "description": "Length of one pulse or wobble in seconds.", "type": "number", "minimum": 0.05, "maximum": 10 }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["type", "duration"],
+      "properties": {
+        "type": {
+          "enum": ["fade", "slide-left", "slide-right", "slide-up", "slide-down", "wipe-left", "wipe-right", "wipe-up", "wipe-down", "zoom", "pop"]
+        },
+        "duration": { "description": "Seconds, inside the clip's own length.", "type": "number", "minimum": 0.05, "maximum": 10 }
+      }
+    },
+    "clipAudio": {
+      "description": "Per-clip sound settings beyond volume. At least one is present.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "minProperties": 1,
+      "properties": {
+        "fadeIn": { "description": "Seconds. Stored only when above 0.", "type": "number", "exclusiveMinimum": 0, "maximum": 600 },
+        "fadeOut": { "description": "Seconds. Stored only when above 0.", "type": "number", "exclusiveMinimum": 0, "maximum": 600 },
+        "fadeCurve": { "description": "Linear is the default and is not stored.", "const": "smooth" },
+        "duck": { "$ref": "#/$defs/duck" },
+        "silent": {
+          "description": "The clip's own sound is silent because a processed copy was placed beside it. Stored only when true.",
+          "const": true
+        }
+      }
+    },
+    "duck": {
+      "description": "Set on a narration clip: audio on the other tracks is pulled down while it speaks.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["thresholdDb", "reductionDb", "attack", "release"],
+      "properties": {
+        "thresholdDb": { "type": "number", "minimum": -90, "maximum": 0 },
+        "reductionDb": { "type": "number", "minimum": 0, "maximum": 60 },
+        "attack": { "type": "number", "minimum": 0.005, "maximum": 5 },
+        "release": { "type": "number", "minimum": 0.02, "maximum": 10 },
+        "hold": { "type": "number", "minimum": 0, "maximum": 5 }
+      }
+    },
+    "effects": {
+      "description": "Visual effects on a clip. Each group is optional; at least one is present.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "minProperties": 1,
+      "properties": {
+        "colour": { "$ref": "#/$defs/colourFx" },
+        "chroma": { "$ref": "#/$defs/chromaFx" },
+        "shadow": { "$ref": "#/$defs/shadowFx" },
+        "border": { "$ref": "#/$defs/borderFx" },
+        "radius": { "description": "Corner radius in canvas pixels. Stored only when above 0.", "type": "number", "exclusiveMinimum": 0, "maximum": 2000 },
+        "mask": { "enum": ["circle", "ellipse"] },
+        "blend": {
+          "description": "'normal' is the default and is not stored.",
+          "enum": [
+            "multiply",
+            "screen",
+            "overlay",
+            "darken",
+            "lighten",
+            "color-dodge",
+            "color-burn",
+            "hard-light",
+            "soft-light",
+            "difference",
+            "exclusion",
+            "add"
+          ]
+        },
+        "frame": { "$ref": "#/$defs/frameFx" }
+      }
+    },
+    "colourFx": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["on", "brightness", "contrast", "saturation", "hue", "tint", "tintAmount"],
+      "properties": {
+        "on": { "type": "boolean" },
+        "brightness": { "type": "number", "minimum": -100, "maximum": 100 },
+        "contrast": { "type": "number", "minimum": -100, "maximum": 100 },
+        "saturation": { "type": "number", "minimum": -100, "maximum": 100 },
+        "hue": { "description": "Degrees.", "type": "number", "minimum": -180, "maximum": 180 },
+        "tint": { "$ref": "#/$defs/hexColour" },
+        "tintAmount": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "chromaFx": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["on", "key", "tolerance", "softness", "spill"],
+      "properties": {
+        "on": { "type": "boolean" },
+        "key": { "$ref": "#/$defs/hexColour" },
+        "tolerance": { "type": "number", "minimum": 0, "maximum": 100 },
+        "softness": { "type": "number", "minimum": 0, "maximum": 100 },
+        "spill": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "shadowFx": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["on", "blur", "dx", "dy", "colour", "opacity"],
+      "properties": {
+        "on": { "type": "boolean" },
+        "blur": { "type": "number", "minimum": 0, "maximum": 1000 },
+        "dx": { "type": "number", "minimum": -2000, "maximum": 2000 },
+        "dy": { "type": "number", "minimum": -2000, "maximum": 2000 },
+        "colour": { "$ref": "#/$defs/hexColour" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "borderFx": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["on", "width", "colour"],
+      "properties": {
+        "on": { "type": "boolean" },
+        "width": { "type": "number", "minimum": 0, "maximum": 500 },
+        "colour": { "$ref": "#/$defs/hexColour" }
+      }
+    },
+    "frameFx": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["on", "kind", "tone"],
+      "properties": {
+        "on": { "type": "boolean" },
+        "kind": { "enum": ["browser", "laptop", "phone", "tablet", "monitor"] },
+        "tone": { "enum": ["dark", "light"] }
+      }
+    },
+    "redaction": {
+      "description": "A blur or pixelate region over every layer beneath it. It stays inside the canvas (x + width <= canvas width, y + height <= canvas height).",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["id", "start", "duration", "x", "y", "width", "height", "mode", "strength"],
+      "properties": {
+        "id": { "type": "string" },
+        "start": { "type": "number", "minimum": 0 },
+        "duration": { "type": "number", "minimum": 0.03333333333333333 },
+        "x": { "description": "Top-left corner in canvas pixels.", "type": "integer", "minimum": 0 },
+        "y": { "type": "integer", "minimum": 0 },
+        "width": { "type": "integer", "minimum": 8 },
+        "height": { "type": "integer", "minimum": 8 },
+        "mode": { "enum": ["blur", "pixelate"] },
+        "strength": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "caption": {
+      "description": "One timed caption. end is after start.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["id", "start", "end", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "start": { "type": "number", "minimum": 0 },
+        "end": { "type": "number", "exclusiveMinimum": 0 },
+        "text": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "annotation": {
+      "description": "Text, callout, shape, arrow, line, highlight or spotlight drawn over the picture. The box (x, y = top-left, width, height) is in canvas pixels; arrows and lines keep their end points as fractions of it, a callout keeps the tail tip as fractions of it. Ids are unique within the file.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["id", "kind", "start", "duration", "x", "y", "width", "height", "rotation", "opacity", "text", "style", "shape", "tail", "line", "sketch"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "kind": { "enum": ["text", "callout", "rect", "ellipse", "arrow", "line", "highlight", "spotlight"] },
+        "start": { "description": "Seconds on the timeline.", "type": "number", "minimum": 0, "maximum": 1000000 },
+        "duration": { "type": "number", "minimum": 0.03333333333333333, "maximum": 3600 },
+        "x": { "description": "Limited to twice the canvas width either side.", "type": "number" },
+        "y": { "description": "Limited to twice the canvas height either side.", "type": "number" },
+        "width": { "description": "At least 8 (1 for arrows and lines), at most four times the canvas width.", "type": "number", "minimum": 1 },
+        "height": { "description": "At least 8 (1 for arrows and lines), at most four times the canvas height.", "type": "number", "minimum": 1 },
+        "rotation": { "description": "Degrees about the box centre.", "type": "number", "minimum": -3600, "maximum": 3600 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "text": { "description": "Text and callout only; empty for the other kinds.", "type": "string", "maxLength": 1000 },
+        "style": { "$ref": "#/$defs/annotationStyle" },
+        "shape": { "description": "Highlight and spotlight: the shape of the lit area.", "enum": ["rect", "ellipse"] },
+        "tail": {
+          "description": "Callout: tip of the tail as fractions of the box.",
+          "type": "object",
+          "x-extra-fields": "dropped",
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number", "minimum": -5, "maximum": 6 },
+            "y": { "type": "number", "minimum": -5, "maximum": 6 }
+          }
+        },
+        "line": {
+          "description": "Arrow and line: end points as fractions of the box. The arrow head is at (x2, y2).",
+          "type": "object",
+          "x-extra-fields": "dropped",
+          "required": ["x1", "y1", "x2", "y2"],
+          "properties": {
+            "x1": { "type": "number", "minimum": 0, "maximum": 1 },
+            "y1": { "type": "number", "minimum": 0, "maximum": 1 },
+            "x2": { "type": "number", "minimum": 0, "maximum": 1 },
+            "y2": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "sketch": { "description": "Seconds an arrow, line, rectangle or ellipse takes to draw itself on. 0 = off, and always 0 for other kinds.", "type": "number", "minimum": 0, "maximum": 60 },
+        "keys": { "$ref": "#/$defs/keys" },
+        "behavior": { "$ref": "#/$defs/behavior" }
+      }
+    },
+    "annotationStyle": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["fill", "fillAlpha", "stroke", "strokeWidth", "color", "font", "size", "bold", "italic", "align", "radius", "shadow", "dim", "feather"],
+      "properties": {
+        "fill": { "description": "#rrggbb, or empty for no fill. For a spotlight, the dimming colour.", "type": "string", "pattern": "^(#[0-9a-fA-F]{6})?$" },
+        "fillAlpha": { "type": "number", "minimum": 0, "maximum": 1 },
+        "stroke": { "description": "#rrggbb, or empty for no outline.", "type": "string", "pattern": "^(#[0-9a-fA-F]{6})?$" },
+        "strokeWidth": { "description": "Canvas pixels.", "type": "number", "minimum": 0, "maximum": 40 },
+        "color": { "description": "Text colour.", "$ref": "#/$defs/hexColour" },
+        "font": { "enum": ["sans", "serif", "mono", "display"] },
+        "size": { "description": "Font size in canvas pixels.", "type": "number", "minimum": 6, "maximum": 400 },
+        "bold": { "type": "boolean" },
+        "italic": { "type": "boolean" },
+        "align": { "enum": ["left", "center", "right"] },
+        "radius": { "description": "Corner radius in canvas pixels.", "type": "number", "minimum": 0, "maximum": 400 },
+        "shadow": { "type": "boolean" },
+        "dim": { "description": "Spotlight: how much the outside is dimmed.", "type": "number", "minimum": 0, "maximum": 1 },
+        "feather": { "description": "Spotlight: width of the soft edge in canvas pixels.", "type": "number", "minimum": 0, "maximum": 300 }
+      }
+    },
+    "zoom": {
+      "description": "A stretch of the timeline where the camera is zoomed onto a rectangle of the canvas (x + width <= canvas width, y + height <= canvas height, and no smaller than one twentieth of the canvas each way).",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["id", "start", "duration", "x", "y", "width", "height", "easeIn", "easeOut", "ease"],
+      "properties": {
+        "id": { "type": "string" },
+        "start": { "type": "number", "minimum": 0 },
+        "duration": { "type": "number", "minimum": 0.03333333333333333 },
+        "x": { "description": "Canvas pixels.", "type": "number", "minimum": 0 },
+        "y": { "type": "number", "minimum": 0 },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "easeIn": { "description": "Seconds to zoom in, at most the duration.", "type": "number", "minimum": 0 },
+        "easeOut": { "description": "Seconds to zoom back out, at most the duration.", "type": "number", "minimum": 0 },
+        "ease": { "$ref": "#/$defs/easeName" }
+      }
+    },
+    "marker": {
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["id", "time", "name", "chapter"],
+      "properties": {
+        "id": { "description": "Unique within the file.", "type": "string", "minLength": 1, "maxLength": 64 },
+        "time": { "description": "Seconds on the timeline.", "type": "number", "minimum": 0 },
+        "name": { "type": "string", "maxLength": 80 },
+        "chapter": { "description": "Written to the exported file as a chapter.", "type": "boolean" }
+      }
+    },
+    "range": {
+      "description": "The in and out marks an 'In to out' export covers. end is at least a 60th of a second after start. Stored only when set.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "number", "minimum": 0 },
+        "end": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "cursorData": {
+      "description": "Cursor, click and key activity recorded with a screen recording; times are seconds into the media. All three lists are sorted by t, and at least one has an entry. parseProject also reads each sample as a [t, x, y] triple but always stores objects.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": ["samples", "clicks", "keys"],
+      "properties": {
+        "samples": {
+          "type": "array",
+          "maxItems": 120000,
+          "items": {
+            "type": "object",
+            "x-extra-fields": "dropped",
+            "required": ["t", "x", "y"],
+            "properties": {
+              "t": { "type": "number", "minimum": 0, "maximum": 86400 },
+              "x": { "description": "Fraction of the recorded frame.", "type": "number", "minimum": 0, "maximum": 1 },
+              "y": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        "clicks": {
+          "type": "array",
+          "maxItems": 20000,
+          "items": {
+            "type": "object",
+            "x-extra-fields": "dropped",
+            "required": ["t", "button", "down"],
+            "properties": {
+              "t": { "type": "number", "minimum": 0, "maximum": 86400 },
+              "button": { "enum": ["left", "right", "middle"] },
+              "down": { "description": "true for a press, false for a release.", "type": "boolean" }
+            }
+          }
+        },
+        "keys": {
+          "type": "array",
+          "maxItems": 50000,
+          "items": {
+            "type": "object",
+            "x-extra-fields": "dropped",
+            "required": ["t", "key", "down"],
+            "properties": {
+              "t": { "type": "number", "minimum": 0, "maximum": 86400 },
+              "key": { "type": "string", "minLength": 1, "maxLength": 24 },
+              "down": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "cursorFx": {
+      "description": "How the recorded cursor is re-drawn on recordings that have cursor data. Sizes are fractions of the clip's height. When present, every field except image is present.",
+      "type": "object",
+      "x-extra-fields": "dropped",
+      "required": [
+        "enabled",
+        "showCursor",
+        "shape",
+        "size",
+        "color",
+        "smoothing",
+        "imageHotX",
+        "imageHotY",
+        "highlight",
+        "highlightSize",
+        "highlightColor",
+        "highlightOpacity",
+        "magnify",
+        "magnifyZoom",
+        "magnifySize",
+        "spotlight",
+        "spotlightSize",
+        "spotlightDim",
+        "clickRings",
+        "clickColor",
+        "clickSize",
+        "clickDuration",
+        "clickSound",
+        "clickVolume",
+        "keys",
+        "keysHold",
+        "keysSize"
+      ],
+      "properties": {
+        "enabled": { "description": "Master switch: off keeps every setting but draws nothing.", "type": "boolean" },
+        "showCursor": { "type": "boolean" },
+        "shape": { "enum": ["arrow", "hand", "pointer"] },
+        "size": { "type": "number", "minimum": 0.5, "maximum": 4 },
+        "color": { "$ref": "#/$defs/hexColour" },
+        "smoothing": { "type": "number", "minimum": 0, "maximum": 1 },
+        "image": {
+          "description": "Replacement cursor picture as a PNG, SVG, WebP or JPEG data URL (at most 350000 characters).",
+          "type": "string",
+          "maxLength": 350000,
+          "pattern": "^data:image/(png|svg\\+xml|webp|jpeg);base64,[A-Za-z0-9+/=]+$"
+        },
+        "imageHotX": { "type": "number", "minimum": 0, "maximum": 1 },
+        "imageHotY": { "type": "number", "minimum": 0, "maximum": 1 },
+        "highlight": { "type": "boolean" },
+        "highlightSize": { "type": "number", "minimum": 0.02, "maximum": 0.25 },
+        "highlightColor": { "$ref": "#/$defs/hexColour" },
+        "highlightOpacity": { "type": "number", "minimum": 0.05, "maximum": 1 },
+        "magnify": { "type": "boolean" },
+        "magnifyZoom": { "type": "number", "minimum": 1.25, "maximum": 6 },
+        "magnifySize": { "type": "number", "minimum": 0.05, "maximum": 0.3 },
+        "spotlight": { "type": "boolean" },
+        "spotlightSize": { "type": "number", "minimum": 0.05, "maximum": 0.6 },
+        "spotlightDim": { "type": "number", "minimum": 0, "maximum": 0.95 },
+        "clickRings": { "type": "boolean" },
+        "clickColor": { "$ref": "#/$defs/hexColour" },
+        "clickSize": { "type": "number", "minimum": 0.02, "maximum": 0.2 },
+        "clickDuration": { "type": "number", "minimum": 0.2, "maximum": 2 },
+        "clickSound": { "type": "boolean" },
+        "clickVolume": { "type": "number", "minimum": 0, "maximum": 1 },
+        "keys": { "type": "boolean" },
+        "keysHold": { "type": "number", "minimum": 0.3, "maximum": 6 },
+        "keysSize": { "type": "number", "minimum": 0.5, "maximum": 2 }
+      }
+    }
+  }
+}
