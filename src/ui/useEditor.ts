@@ -4,7 +4,8 @@ import { History } from '../engine/history';
 import { type MediaHints, probeMedia } from '../engine/media';
 import { addMedia, removeMedia } from '../engine/ops';
 import { type MediaItem, type Project, createProject } from '../engine/project';
-import { deleteMediaBlob, getMediaBlob, loadLastProject, putMediaBlob, requestPersistence, saveProject } from '../engine/storage';
+import { isEmptyProject } from '../engine/projects';
+import { deleteProject, getMediaBlob, loadLastProject, putMediaBlob, requestPersistence, saveProject } from '../engine/storage';
 
 export interface MediaSources {
   url(mediaId: string): string | null;
@@ -31,8 +32,14 @@ export interface Editor {
   /** Adds a fresh recording to the bin; throws if it cannot be added. */
   importRecording(file: File, hints: MediaHints): Promise<MediaItem>;
   deleteMedia(mediaId: string): Promise<void>;
+  /** Starts an empty project. The one being left stays in the Projects list (or is dropped if it was never used). */
   newProject(): void;
   replaceProject(project: Project): void;
+  /**
+   * Switches to `project`: saves the current one, loads the media of `project` from browser storage
+   * and shows it. Resolves with the names of media that are not in storage.
+   */
+  openProject(project: Project): Promise<string[]>;
   sources: MediaSources;
   /** Bumped when media finishes loading so the preview can redraw. */
   sourcesVersion: number;
@@ -205,18 +212,41 @@ export function useEditor(): Editor {
     blobs.current.clear();
   }, []);
 
+  const openProject = useCallback(
+    async (next: Project): Promise<string[]> => {
+      const old = projectRef.current;
+      // From here on the autosave timer and getProject() see the new project, so the one being left
+      // is never written again by a timer that was already pending.
+      projectRef.current = next;
+      if (old.id !== next.id) {
+        try {
+          if (isEmptyProject(old)) await deleteProject(old);
+          else await saveProject(old, { markLast: false });
+        } catch (e) {
+          setStatus(`Could not save ${old.name} before switching: ${(e as Error).message}`);
+        }
+      }
+      history.current.clear();
+      releaseSources();
+      const missing: string[] = [];
+      for (const m of next.media) if (!(await loadSource(m))) missing.push(m.name);
+      setProject(next);
+      setSelection([]);
+      setSourcesVersion((v) => v + 1);
+      try {
+        await saveProject(next);
+      } catch (e) {
+        setStatus(`Could not save ${next.name}: ${(e as Error).message}`);
+      }
+      setStatus(missing.length ? `Opened ${next.name}. Media not found in this browser: ${missing.join(', ')}` : `Opened ${next.name}`);
+      return missing;
+    },
+    [loadSource, releaseSources],
+  );
+
   const newProject = useCallback(() => {
-    const old = projectRef.current;
-    for (const m of old.media) void deleteMediaBlob(m.id).catch(() => undefined);
-    releaseSources();
-    history.current.clear();
-    const fresh = createProject();
-    projectRef.current = fresh;
-    setProject(fresh);
-    setSelection([]);
-    setSourcesVersion((v) => v + 1);
-    setStatus('New project');
-  }, [releaseSources]);
+    void openProject(createProject()).then(() => setStatus('New project'));
+  }, [openProject]);
 
   const replaceProject = useCallback(
     (p: Project) => {
@@ -260,6 +290,7 @@ export function useEditor(): Editor {
     deleteMedia,
     newProject,
     replaceProject,
+    openProject,
     sources,
     sourcesVersion,
     status,

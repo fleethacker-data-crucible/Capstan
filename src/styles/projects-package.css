@@ -1,0 +1,67 @@
+/* Projects and package area: the Project menu, the Projects / Templates / Library dialogs, Welcome extras. */
+
+.project-menu { position: relative; }
+.project-menu-button .menu-caret { font-size: 10px; margin-left: -2px; }
+.project-menu-list {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 15;
+  min-width: 280px; padding: 4px 0;
+  background: var(--fl-popover); border: 1px solid var(--fl-border); border-radius: var(--fl-radius-card);
+  box-shadow: var(--fl-shadow);
+}
+.project-menu-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+  width: 100%; min-height: 36px; padding: 6px 16px;
+  background: transparent; border: 0; border-radius: 0; color: var(--fl-foreground);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.project-menu-item small { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
+.project-menu-item:hover:not(:disabled), .project-menu-item:focus-visible { background: var(--fl-muted); }
+.project-menu-item:disabled { opacity: 0.5; cursor: default; }
+.project-menu-sep { height: 1px; margin: 4px 0; background: var(--fl-border); }
+
+.modal.modal-wide { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; }
+
+.pp-section { margin-top: 20px; }
+.pp-section h3 { margin: 0 0 8px; font-size: var(--fl-text-body); font-weight: 600; }
+.pp-section > .hint, .pp-list + .hint, .modal-wide > .hint { padding: 0 0 8px; }
+.pp-foot { padding: 12px 0 0; }
+
+.pp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pp-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  background: var(--fl-card); border: 1px solid var(--fl-border); border-radius: var(--fl-radius-card);
+}
+.pp-item.current { border-color: var(--fl-accent); }
+.pp-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.pp-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.pp-sub { flex-basis: 100%; color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); line-height: 1.4; }
+.pp-badge { color: var(--fl-accent); }
+.pp-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.pp-actions .button { height: 32px; padding: 0 12px; }
+.pp-rename { flex: 1; min-width: 0; height: 32px; padding: 0 8px; background: var(--fl-surface); color: var(--fl-foreground); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control); font: inherit; }
+.pp-list.compact .pp-item { padding: 6px 12px; }
+.pp-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+.pp-thumb { flex: none; width: 56px; height: 40px; display: grid; place-items: center; overflow: hidden; background: var(--fl-background); border: 1px solid var(--fl-border); border-radius: var(--fl-radius-control); color: var(--fl-muted-foreground); }
+.pp-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.pp-form { display: grid; gap: 6px; }
+.pp-form label { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
+.pp-form input[type='text'] { height: 32px; padding: 0 8px; background: var(--fl-surface); color: var(--fl-foreground); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control); font: inherit; }
+.pp-form .button { justify-self: start; margin-top: 6px; }
+
+.pp-themes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.pp-theme {
+  display: grid; gap: 4px; width: 100%; padding: 10px 12px; text-align: left; cursor: pointer;
+  background: var(--fl-card); color: var(--fl-foreground); border: 1px solid var(--fl-border); border-radius: var(--fl-radius-card); font: inherit;
+}
+.pp-theme:hover { border-color: var(--fl-accent); }
+.pp-swatches { display: flex; height: 22px; border-radius: 4px; overflow: hidden; border: 1px solid var(--fl-border-strong, var(--fl-border)); }
+.pp-swatches span { flex: 1; }
+
+.welcome-more { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.welcome-more .button { height: 32px; padding: 0 14px; }
+
+@media (max-width: 760px) {
+  .pp-item { flex-wrap: wrap; }
+  .pp-actions { width: 100%; justify-content: flex-start; }
+}
