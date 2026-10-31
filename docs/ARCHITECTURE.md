@@ -73,7 +73,9 @@ Each feature area plugs into the same few places, so areas can be built side by 
 
 ## Storage
 
-IndexedDB database `capstan`: store `media` (Blob per media id), `projects` (project JSON by id) and `meta` (`lastProjectId`). The project autosaves 400 ms after each change. Because browser storage is per origin and the origin includes the port, the 0.2 release moves the library to files on disk through the host.
+IndexedDB database `capstan`: store `media` (Blob per media id), `projects` (project JSON by id) and `meta` (`lastProjectId`). Version 2 adds `library` (reusable assets with their metadata, independent of any project) and `templates` (the user's own). Every project owns its media Blobs under its own media ids (`cloneProject` re-ids on duplicate and on opening a package of a project that already exists), so deleting a project never removes another's media. The project autosaves 400 ms after each change. Because browser storage is per origin and the origin includes the port, the 0.2 release moves the library to files on disk through the host.
+
+**Packages.** `engine/zip.ts` is a pure-TypeScript zip writer (streaming, data descriptors, store or deflate-raw through `CompressionStream`) and reader (central directory, safe-name, entry-count, size and ratio caps, CRC-32 verified on read). `engine/package.ts` writes a `.capstanz`: `manifest.json`, `project.json` and `media/<id>-<name>`. Opening verifies everything before storing anything. Save streams to a file with `showSaveFilePicker` where it exists, else downloads. The host cannot yet hold a library on disk: `LocalHttp.ps1` buffers whole request bodies (30 MB cap, one request at a time, no chunked transfer), so large media would need chunked, token-checked PUT/GET endpoints with their own PowerShell tests first.
 
 ## Lifecycle
 

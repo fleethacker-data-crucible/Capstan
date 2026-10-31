@@ -6,7 +6,8 @@ import { addMarker, removeMarker } from '../engine/markers';
 import { removeRedaction } from '../engine/ops';
 import type { Player } from '../engine/player';
 import { removeZoom } from '../engine/zoom';
-import { parseProject, projectDuration } from '../engine/project';
+import { projectDuration } from '../engine/project';
+import { setRange, setRangeIn, setRangeOut } from '../engine/range';
 import { ExportDialog } from './ExportDialog';
 import { copySelection, cutSelection, duplicateSelection, groupSelection, pasteAtPlayhead, ungroupSelection } from './editActions';
 import { download, safeFileName, timecode } from './format';
@@ -15,6 +16,8 @@ import { Emblem, Welcome } from './Welcome';
 import { Inspector } from './Inspector';
 import { endSession, isBusy, onEngineState, sessionToken, startHeartbeat, type EngineState } from './lifecycle';
 import { Preview } from './Preview';
+import { ProjectMenu } from './projects/ProjectMenu';
+import { openAnyProjectFile } from './projects/actions';
 import { RecordDialog } from './RecordDialog';
 import { applyTheme, nextTheme, readSidebarCollapsed, readTheme, saveSidebarCollapsed, themeName, useModal, type ThemeChoice } from './shell';
 import { Timeline } from './Timeline';
@@ -85,6 +88,8 @@ const SHORTCUTS: Array<[string, string]> = [
   ['Ctrl+C / Ctrl+X / Ctrl+V', 'Copy, cut or paste clips at the playhead'],
   ['Ctrl+D', 'Duplicate the selected clips'],
   ['G / Shift+G', 'Group or ungroup the selected clips'],
+  ['I / O', 'Mark the start / end of the part to export'],
+  ['Alt+X', 'Clear the in and out marks'],
   ['Ctrl+wheel', 'Zoom the timeline'],
   ['?', 'Show these shortcuts'],
   ['Esc', 'Clear the selection, or close a dialog'],
@@ -171,7 +176,7 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (dialog || target.closest('input, select, textarea, [contenteditable="true"]')) return;
+      if (dialog || target.closest('input, select, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
       const ctrl = e.ctrlKey || e.metaKey;
       if (e.key === ' ') {
         e.preventDefault();
@@ -220,6 +225,15 @@ export function App() {
         const dir = e.key === 'ArrowLeft' ? -1 : 1;
         if (e.shiftKey) player?.seek(time + dir);
         else player?.step(dir);
+      } else if (!ctrl && !e.altKey && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        editor.commit(setRangeIn(editor.project, time, duration));
+      } else if (!ctrl && !e.altKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        editor.commit(setRangeOut(editor.project, time));
+      } else if (e.altKey && e.key.toLowerCase() === 'x') {
+        e.preventDefault();
+        editor.commit(setRange(editor.project, undefined));
       } else if (e.key === 'Home') {
         player?.seek(0);
       } else if (e.key === 'End') {
@@ -265,18 +279,10 @@ export function App() {
   const saveProjectFile = () => {
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
     download(blob, `${safeFileName(project.name)}.capstan`);
-    editor.setStatus('Project file saved. Media stays in Capstan on this computer.');
+    editor.setStatus('Project file saved (the edit only). To carry the media too, use Project > Save package.');
   };
 
-  const openProjectFile = async (file: File) => {
-    try {
-      const p = parseProject(JSON.parse(await file.text()));
-      editor.replaceProject(p);
-      editor.setStatus(`Opened ${p.name}`);
-    } catch (e) {
-      editor.setStatus(`Could not open ${file.name}: ${(e as Error).message}`);
-    }
-  };
+  const openProjectFile = (file: File) => openAnyProjectFile(editor, file);
 
   if (ended) {
     return (
@@ -359,7 +365,7 @@ export function App() {
         </h1>
         <div className="tool-group">
           <button className="icon-button" title="New project" onClick={() => {
-            if (project.clips.length && !window.confirm('Start a new project? The current project and its media will be removed from Capstan.')) return;
+            if (project.clips.length && !window.confirm('Start a new project? The current project stays in Project > Projects.')) return;
             editor.newProject();
           }}>
             <Icon name="newDoc" />
@@ -373,7 +379,7 @@ export function App() {
           <input
             ref={openInput}
             type="file"
-            accept=".capstan,application/json"
+            accept=".capstan,.capstanz,application/json,application/zip"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -382,6 +388,7 @@ export function App() {
             }}
           />
         </div>
+        <ProjectMenu editor={editor} />
         <div className="tool-group">
           <button className="icon-button" title="Undo (Ctrl+Z)" disabled={!editor.canUndo} onClick={editor.undo}>
             <Icon name="undo" />
@@ -491,7 +498,7 @@ export function App() {
         </div>
       )}
       {dialog === 'record' && <RecordDialog editor={editor} onClose={() => setDialog(null)} />}
-      {dialog === 'export' && <ExportDialog editor={editor} onClose={() => setDialog(null)} />}
+      {dialog === 'export' && <ExportDialog editor={editor} time={time} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
     </div>
   );

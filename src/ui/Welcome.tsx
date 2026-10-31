@@ -1,4 +1,5 @@
 import { Icon } from './icons';
+import { openProjectDialog } from './projects/bus';
 
 /** The full Capstan emblem (assets/ui, from assets/brand/emblem-*.png), one per theme. */
 export function Emblem({ size, className }: { size: number; className?: string }) {
@@ -33,6 +34,14 @@ export function Welcome({ onRecord, onImport, onOpen, onEditor }: { onRecord: ()
         <button className="button fl-btn fl-btn--secondary fl-btn--lg" onClick={onOpen}>
           <Icon name="open" />
           Open project
+        </button>
+      </div>
+      <div className="welcome-more">
+        <button className="button fl-btn fl-btn--secondary" onClick={() => openProjectDialog('projects')}>
+          Projects
+        </button>
+        <button className="button fl-btn fl-btn--secondary" onClick={() => openProjectDialog('templates-new')}>
+          New from template
         </button>
       </div>
       <button className="welcome-skip" onClick={onEditor}>

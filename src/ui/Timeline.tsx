@@ -3,6 +3,7 @@ import { bundleIds, closeGaps, expandSelection, magnetize, moveClips, removeGapA
 import { moveMarker } from '../engine/markers';
 import { addClip, addTrack, moveClip, removeTrack, snapTime, updateTrack } from '../engine/ops';
 import type { Player } from '../engine/player';
+import { makeRange, setRange } from '../engine/range';
 import { type Clip, type Project, clipEnd, findMedia, projectDuration } from '../engine/project';
 import { timecode } from './format';
 import { ClipDecor } from './ClipDecor';
@@ -25,6 +26,7 @@ type Drag =
   | { kind: 'trim-start' | 'trim-end'; clipId: string; before: Project }
   | { kind: 'lane'; mode: 'move' | 'start' | 'end'; lane: OverlayLane; itemId: string; before: Project; grab: number; start: number; duration: number }
   | { kind: 'marker'; id: string; before: Project; grab: number }
+  | { kind: 'range'; anchor: number; before: Project }
   | { kind: 'scrub' };
 
 interface Props {
@@ -124,6 +126,12 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
       editor.preview(moveMarker(d.before, d.id, snap(toTime(e.clientX) - d.grab, new Set())));
       return;
     }
+    if (d.kind === 'range') {
+      // The in and out marks follow the pointer, snapped like clip edges.
+      const at = snap(toTime(e.clientX), new Set());
+      if (Math.abs(at - d.anchor) * zoom >= 3) editor.preview(setRange(d.before, makeRange(d.anchor, at)));
+      return;
+    }
     if (d.kind === 'lane') {
       const at = toTime(e.clientX);
       const end = d.start + d.duration;
@@ -166,6 +174,14 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
     drag.current = null;
     // Magnetic tracks close their gaps when the edit is let go.
     if (d && d.kind !== 'scrub') editor.commit(d.kind === 'lane' ? editor.getProject() : magnetize(editor.getProject()), d.before);
+  };
+
+  /** Dragging in the thin strip under the ruler labels marks the part of the timeline to export. */
+  const onRangePointerDown = (e: ReactPointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    drag.current = { kind: 'range', anchor: snap(toTime(e.clientX), new Set()), before: editor.project };
   };
 
   const onBackgroundPointerDown = (e: ReactPointerEvent) => {
@@ -268,6 +284,17 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
                 </div>
               );
             })}
+            {project.range && (
+              <div className="range-bar" aria-hidden style={{ left: project.range.start * zoom, width: Math.max(2, (project.range.end - project.range.start) * zoom) }} />
+            )}
+            <div
+              className="range-strip"
+              onPointerDown={onRangePointerDown}
+              onDoubleClick={() => editor.commit(setRange(editor.project, undefined))}
+              title="Drag to mark the part to export (double-click to clear)"
+              aria-label="In and out marks: drag to mark the part to export, double-click to clear"
+              role="presentation"
+            />
           </div>
 
           {lanes.map((track) => (
@@ -370,6 +397,16 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
             );
           })}
 
+          {project.range && (
+            <div
+              className="range-shade"
+              style={{ left: HEADER_WIDTH + project.range.start * zoom, width: Math.max(2, (project.range.end - project.range.start) * zoom) }}
+              role="img"
+              aria-label={`Export range from ${timecode(project.range.start)} to ${timecode(project.range.end)}`}
+            >
+              <span className="range-label">{`${timecode(project.range.start)} to ${timecode(project.range.end)}`}</span>
+            </div>
+          )}
           <div className="playhead" style={{ left: HEADER_WIDTH + time * zoom }} aria-hidden>
             <div className="playhead-cap" />
           </div>
