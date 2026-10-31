@@ -59,6 +59,7 @@ const media = (id: string, kind: MediaItem['kind'], extra: Partial<MediaItem> = 
   height: kind === 'audio' ? 0 : 720,
   hasAudio: kind !== 'image',
   createdAt: 1_700_000_000_000,
+  description: `Sample description for ${id}`,
   ...extra,
 });
 
