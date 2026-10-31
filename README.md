@@ -13,7 +13,7 @@
 
 A *capstan* is the drum on a ship's deck that the crew walks around to haul in a heavy line, turning steady effort into steady pull. In a tape recorder, the capstan is the spinning shaft that pulls the tape past the heads at an exact speed. Capstan does both jobs for your screen: it hauls in what you record, and it runs your footage through the timeline at an even pace to a finished video. Capstan was briefly called **OpenTape**; projects saved under that name do not carry over.
 
-**Status: v0.1, foundation.** The editor below works end to end and is covered by automated tests. It is not yet feature-complete; [the roadmap](docs/ROADMAP.md) tracks every Camtasia feature and when it lands. The Windows host is adapted from [SnapShackle](https://github.com/fleethacker-data-crucible/SnapShackle)'s tested loopback server and passes its Windows PowerShell 5.1 tests on the build PC. Please report anything that misbehaves before relying on it.
+**Status: v0.1, growing toward Camtasia parity.** The editor below works end to end and is covered by automated tests. [The roadmap](docs/ROADMAP.md) tracks every Camtasia feature: most rows are done, the rest are marked partial or planned, and the notes in each row say what is missing. The Windows host is adapted from [SnapShackle](https://github.com/fleethacker-data-crucible/SnapShackle)'s tested loopback server and passes its Windows PowerShell 5.1 tests on the build PC. Please report anything that misbehaves before relying on it.
 
 The interface follows the Fleet Unified UI ([docs/UNIFIED-UI.md](docs/UNIFIED-UI.md)): Night watch and Chart room themes that follow Windows (switch in the sidebar), a collapsible sidebar, and a status bar with the engine state and address.
 
@@ -46,29 +46,34 @@ Set `CAPSTAN_AUTO_STOP=0` in the environment to turn off stopping when the windo
 
 Use a current **Edge or Chrome**: Capstan needs WebCodecs (video encoding) and screen capture, which they provide.
 
-## What works in v0.1
+## What works
 
 | Area | What you can do |
 | --- | --- |
-| Record | Choose a browser tab, a window or the entire screen. For a tab or window, screens are left out of the browser's picker, and anything else the browser shares is refused before a frame is recorded. Microphone and computer sound mixed together. Pause, resume, stop. Larger sources are scaled to the canvas. The recording lands in the media bin and, optionally, at the end of the timeline, even if Capstan's window was in the background when it stopped. |
-| Blur regions | Hide names, addresses and other personal details: a blur or pixelate box over every track for a stretch of time. Add one at the playhead, drag it in the preview, set its strength. Exports include it. |
-| Captions | Import an SRT or WebVTT file. Captions show in the preview, are burned into the export (or not, your choice), and can be saved back out as SRT. |
-| Import | Video (MP4, WebM, MOV and anything else the browser decodes), audio (MP3, WAV, M4A, Ogg, …) and images. Use the button or drop files anywhere in the window. |
-| Timeline | Any number of tracks; drag clips between them; trim either edge; split at the playhead (S); delete or ripple-delete (Shift+Delete); duplicate; snapping to clip edges and the playhead; zoom with Ctrl+wheel; hide, mute and lock tracks. |
-| Canvas | 1080p, 720p, 1440p, 4K, vertical or square; 24–60 fps; background colour. Click a clip in the preview to select it, drag to move it (snaps to the centre), drag the corner to resize. |
-| Clip properties | Position, scale, rotation, opacity, volume. Picture-in-picture is just a smaller clip on a higher track. |
-| Playback | Play, pause, frame step, jump to start or end. Press ? for every shortcut. |
-| Undo | Unlimited undo and redo within a session (Ctrl+Z, Ctrl+Y). |
-| Saving | Projects and media autosave inside the browser on this computer and come back when you reopen Capstan. **Save project file** writes an `.capstan` file of the edit (media stays in Capstan). |
-| Export | MP4 with H.264 video and AAC audio (Opus where the browser cannot encode AAC). Same size as the project, 1080p or 720p, at three quality levels. Frame-accurate: every frame is rendered with the same compositor as the preview. If the hardware video encoder stops responding, the export carries on with the software encoder. |
+| Record | Choose a browser tab, a window or the entire screen. For a tab or window, screens are left out of the browser's picker, and anything else the browser shares is refused before a frame is recorded. Microphone and computer sound mixed, or on separate tracks. Optional webcam as its own picture-in-picture track. Countdown (3 or 5 s), a maximum length, and recording straight to disk so memory stays flat; a recording interrupted by a crash is offered back at the next start. Select a region of the shared screen first and it becomes the clip's crop. Pause, resume, stop. |
+| Import | Video (MP4, WebM, MOV and anything else the browser decodes), audio (MP3, WAV, M4A, Ogg, ...) and images. Use the button or drop files anywhere in the window. |
+| Timeline | Any number of tracks; drag clips between them; trim either edge; split at the playhead (S); delete or ripple-delete (Shift+Delete); copy, cut, paste, duplicate; drag several clips at once; group clips (G); magnetic tracks and gap removal; snapping; zoom with Ctrl+wheel; hide, mute and lock tracks. Markers (M) on the ruler, written into the MP4 as chapters. Undo and redo (Ctrl+Z, Ctrl+Y). |
+| Clip tools | Position, scale, rotation, opacity, volume; crop with handles in the preview; speed from 0.1x to 8x, freeze frame and extend frame; detach the audio from a video. |
+| Annotations | Text, callouts, arrows, lines, shapes, highlight and spotlight, with fonts, colours and style presets. Arrows and shapes can draw themselves on. Blur and pixelate regions hide personal details. All are timed, move and resize in the preview, and appear in a lane under the tracks. |
+| Animation | Keyframes with easing on position, scale, rotation and opacity; zoom-n-pan regions; transitions (fade, slide, wipe, zoom, pop); entrance, emphasis and exit presets. |
+| Effects | Colour adjustment and tint, green-screen removal, drop shadow, border, rounded corners, circle and ellipse masks, 13 blend modes, and device frames (browser, laptop, phone, tablet, monitor). |
+| Cursor | Attach a cursor-data file (`.cursor.json`, [format](docs/cursor-data.md)) to a recording to re-draw the cursor smoothed, highlighted, magnified or spotlit, with click rings and sounds, key callouts and suggested zooms. Capstan cannot capture the cursor itself yet. |
+| Audio | Fades and volume points, waveforms on the timeline, noise removal, levelling, and ducking music under narration. Noise removal and levelling are applied to a new audio file. |
+| Captions | Import SRT or WebVTT, edit them in a list and a timeline lane, burn them into the export, and save SRT or WebVTT. |
+| Export | MP4 (H.264 with AAC, or Opus where AAC is unavailable), animated GIF, a PNG of one frame, and WAV or M4A audio only. Export the whole timeline or just the part between the I and O marks. Saved presets and a batch queue. Save straight to a file as it renders so long exports do not fill memory. Every frame is rendered with the same compositor as the preview; if the hardware video encoder stops responding, the export carries on with the software encoder. |
+| Projects | Projects and media autosave inside the browser on this computer. A project list, templates, a reusable asset library, and **Save package** writes a single `.capstanz` file with the project and its media, which opens on any computer. **Save project file** still writes the small `.capstan` edit-only file. |
 
-## Known limitations in v0.1
+Press ? in the editor for every shortcut.
 
-- **Media lives in the browser's storage for this address.** If port 8790 is taken and Capstan falls back to another port, your earlier projects will not show until it runs on 8790 again (the console says so). Moving the library to files on disk is the first item on the roadmap.
-- Export renders and seeks frame by frame, so it is slower than it will be once the roadmap's WASM demuxer lands, and it holds the finished file in memory, so very long exports need plenty of RAM. Streaming export to disk is on the roadmap.
-- Blur regions and imported captions are the only annotations so far: no text, callouts, transitions, animations, cursor effects, caption editor or audio effects yet. See [the roadmap](docs/ROADMAP.md).
-- The record button uses the browser's screen-capture picker. Global hotkeys, region capture and cursor data come with the native recorder.
-- Where the browser's H.264 recorder writes nothing for screen capture (seen in Edge with some hardware encoders), Capstan records WebM instead, after a two-second check when you press Start. Export from WebM works but seeks more slowly.
+## Known limitations
+
+- **Media lives in the browser's storage for this address.** If port 8790 is taken and Capstan falls back to another port, your earlier projects will not show until it runs on 8790 again (the console says so). Use **Save package** to move a project between ports or computers. Moving the library to files on disk needs host support that is not built yet.
+- **No cursor or keyboard capture.** A browser cannot read the cursor or keys while it records another app, so the cursor effects need a data file from a tool that can. Global hotkeys and a tray icon, which need the same host support, are not built either.
+- **No speech-to-text and no background removal.** Both need a model or a Windows service the host does not provide yet.
+- Where the browser's H.264 recorder writes nothing for screen capture (seen in Edge with some hardware encoders), Capstan records WebM instead, after a two-second check when you press Start.
+- Two touching clips on one track fade through the background instead of cross-dissolving; put them on two tracks for a true dissolve.
+- Fast video decoding covers H.264 in MP4 and VP8 or VP9 in WebM; other sources fall back to seeking, which is slower.
+- There is no command-line or API way to drive Capstan yet. See [the roadmap](docs/ROADMAP.md).
 
 ## Privacy and security
 
@@ -85,8 +90,8 @@ npm install              # React, TypeScript, Playwright (dev only)
 bun run build            # bundles src/ into dist/ (commit dist/ with your change); on Windows it stops a running Capstan first
 npm run typecheck
 bun test tests/unit      # engine, MP4, host and "dist is up to date" checks
-node tests/serve.mjs &   # test server that mirrors the PowerShell host
-npm run test:e2e         # headless Chromium: export validated with ffprobe, editor driven end to end
+npm run test:e2e         # headless Chromium on a free port: exports validated with ffprobe, every area driven end to end
+node tests/e2e/run-all.mjs captions   # or only the e2e files whose name contains "captions"
 ```
 
 On Windows, `powershell -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1` checks the real host's lifecycle (CI runs it on `windows-latest`).
