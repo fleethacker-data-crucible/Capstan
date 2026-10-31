@@ -13,6 +13,7 @@ import { copySelection, cutSelection, duplicateSelection, groupSelection, pasteA
 import { download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
 import { Emblem, Welcome } from './Welcome';
+import { RecoveryDialog } from './RecoveryDialog';
 import { Inspector } from './Inspector';
 import { endSession, isBusy, onEngineState, sessionToken, startHeartbeat, type EngineState } from './lifecycle';
 import { Preview } from './Preview';
@@ -497,6 +498,7 @@ export function App() {
           <p>Drop to import</p>
         </div>
       )}
+      {editor.ready && <RecoveryDialog editor={editor} />}
       {dialog === 'record' && <RecordDialog editor={editor} onClose={() => setDialog(null)} />}
       {dialog === 'export' && <ExportDialog editor={editor} time={time} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
