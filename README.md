@@ -75,7 +75,7 @@ Making a demo video? [docs/DEMO-RECIPE.md](docs/DEMO-RECIPE.md) has the exact st
 - Where the browser's H.264 recorder writes nothing for screen capture (seen in Edge with some hardware encoders), Capstan records WebM instead, after a two-second check when you press Start.
 - Two touching clips on one track fade through the background instead of cross-dissolving; put them on two tracks for a true dissolve.
 - Fast video decoding covers H.264 in MP4 and VP8 or VP9 in WebM; other sources fall back to seeking, which is slower.
-- There is no command-line or API way to drive Capstan yet. See [the roadmap](docs/ROADMAP.md).
+- A command registry and its JSON contract exist ([docs/CLI.md](docs/CLI.md)); the launcher is not built yet.
 
 ## Privacy and security
 
