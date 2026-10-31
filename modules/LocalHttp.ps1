@@ -103,7 +103,7 @@ namespace Capstan.Transport {
             if (immediateBody!=null) { body=immediateBody; length=body.Length; offset=0; }
             else if (OutputStream.TryGetBuffer(out buffered)) { body=buffered.Array; offset=buffered.Offset; length=buffered.Count; }
             else { body=OutputStream.ToArray(); length=body.Length; offset=0; }
-            string reason=StatusCode==200?"OK":StatusCode==400?"Bad Request":StatusCode==403?"Forbidden":StatusCode==404?"Not Found":StatusCode==409?"Conflict":StatusCode==413?"Payload Too Large":StatusCode==501?"Not Implemented":"Internal Server Error";
+            string reason=StatusCode==200?"OK":StatusCode==400?"Bad Request":StatusCode==403?"Forbidden":StatusCode==404?"Not Found":StatusCode==405?"Method Not Allowed":StatusCode==409?"Conflict":StatusCode==413?"Payload Too Large":StatusCode==415?"Unsupported Media Type":StatusCode==501?"Not Implemented":"Internal Server Error";
             StringBuilder sb=new StringBuilder();
             sb.Append("HTTP/1.1 ").Append(StatusCode).Append(' ').Append(reason).Append("\r\n");
             sb.Append("Connection: close\r\nContent-Type: ").Append(ContentType).Append("\r\n");

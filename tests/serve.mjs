@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stopCapstan } from '../scripts/stop-capstan.mjs';
+import { createHotkeyMirror } from './hotkeys-mirror.mjs';
 
 // On Windows a running Capstan host holds port 8790; stop it first and say so.
 stopCapstan('serve');
@@ -25,10 +26,16 @@ export const CSP =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 const heartbeats = [];
+// Mirrors modules/Hotkeys.ps1: a simulated service when CAPSTAN_TEST_HOTKEYS=1, otherwise hotkeys are off.
+const hotkeys = createHotkeyMirror();
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
   let file;
+  if (url.pathname.startsWith('/api/hotkeys/')) {
+    await hotkeys.handle(req, res, url);
+    return;
+  }
   if (url.pathname === '/') file = join(root, 'dist/index.html');
   else if (url.pathname.startsWith('/assets/')) file = join(root, 'dist', normalize(url.pathname));
   else if (url.pathname.startsWith('/fixtures/')) file = join(root, 'tests', normalize(url.pathname));

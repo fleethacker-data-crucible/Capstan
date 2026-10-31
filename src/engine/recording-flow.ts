@@ -140,3 +140,50 @@ export async function importRecoveredSession(store: RecordingStore, s: Recoverab
   }
   return parts;
 }
+
+/** The choices that are remembered between sessions, so a hotkey can start "with the last used settings". */
+export interface LastUsed {
+  surface: CaptureSurface;
+  microphone: boolean;
+  systemAudio: boolean;
+  webcam: boolean;
+  cameraId: string;
+  hideCursor: boolean;
+  addToTimeline: boolean;
+  /** Share first, record when the hotkey is pressed. */
+  armFirst: boolean;
+}
+
+export const LAST_USED_KEY = 'capstan-record-last';
+
+export function lastUsedFrom(s: RecordSettings, armFirst: boolean): LastUsed {
+  return {
+    surface: s.surface,
+    microphone: s.microphone,
+    systemAudio: s.systemAudio,
+    webcam: s.webcam,
+    cameraId: s.cameraId,
+    hideCursor: s.hideCursor,
+    addToTimeline: s.addToTimeline,
+    armFirst,
+  };
+}
+
+/** Reads the remembered choices; anything missing or of the wrong type is left out. */
+export function parseLastUsed(raw: string | null): Partial<LastUsed> {
+  if (!raw) return {};
+  try {
+    const d: unknown = JSON.parse(raw);
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return {};
+    const o = d as Record<string, unknown>;
+    const out: Partial<LastUsed> = {};
+    if (o.surface === 'browser' || o.surface === 'window' || o.surface === 'monitor') out.surface = o.surface;
+    for (const k of ['microphone', 'systemAudio', 'webcam', 'hideCursor', 'addToTimeline', 'armFirst'] as const) {
+      if (typeof o[k] === 'boolean') out[k] = o[k];
+    }
+    if (typeof o.cameraId === 'string' && o.cameraId.length <= 256) out.cameraId = o.cameraId;
+    return out;
+  } catch {
+    return {};
+  }
+}

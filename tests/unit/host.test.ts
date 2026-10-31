@@ -62,10 +62,10 @@ test('committed dist/ was built from the current sources (run `bun run build`)',
 // ---- Lifecycle (TechStack.md, "Lifecycle rules"). The behaviour itself is exercised on Windows by
 // tests/ps/Lifecycle.Tests.ps1; these keep the pieces wired together on every platform.
 const lifecycle = read('modules/Lifecycle.ps1');
-const csharpBlocks = (text: string) => [...text.matchAll(/Add-Type -TypeDefinition @'([\s\S]*?)'@/g)].map((m) => m[1]);
+const csharpBlocks = (text: string) => [...text.matchAll(/Add-Type [^\n]*?-TypeDefinition @'([\s\S]*?)'@/g)].map((m) => m[1]);
 
 test('Add-Type C# stays within C# 5 (.NET Framework 4.8.1 compiler)', () => {
-  for (const cs of [...csharpBlocks(lifecycle), ...csharpBlocks(read('modules/LocalHttp.ps1'))]) {
+  for (const cs of [...csharpBlocks(lifecycle), ...csharpBlocks(read('modules/LocalHttp.ps1')), ...csharpBlocks(read('modules/Hotkeys.ps1'))]) {
     expect(cs).not.toMatch(/\?\.|\$"|\bnameof\b|\bout var\b|\)\s*=>/);
   }
 });
@@ -124,7 +124,7 @@ test('built UI sends the heartbeat and the leaving beacon', () => {
 });
 
 test('PowerShell files are ASCII (Windows PowerShell 5.1 reads BOM-less files as ANSI)', () => {
-  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'tests/ps/Lifecycle.Tests.ps1']) {
+  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'modules/Hotkeys.ps1', 'tests/ps/Lifecycle.Tests.ps1', 'tests/ps/Hotkeys.Tests.ps1']) {
     expect(/[^\x00-\x7f]/.test(read(f))).toBe(false);
   }
 });

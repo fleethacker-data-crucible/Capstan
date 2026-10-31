@@ -26,6 +26,7 @@ foreach ($a in @($Rest)) {
         '^--?no-browser$' { $NoBrowser = $true }
         '^--?default-browser$' { $DefaultBrowser = $true }
         '^--?diagnostics$' { $Diagnostics = $true }
+        '^--?no-hotkeys$' { $env:CAPSTAN_HOTKEYS = '0' }
         default { if ($a) { Write-Warning ('Ignoring unknown option ' + $a) } }
     }
 }
@@ -36,6 +37,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dist = Join-Path $root 'dist'
 . (Join-Path $root 'modules/LocalHttp.ps1')
 . (Join-Path $root 'modules/Lifecycle.ps1')
+. (Join-Path $root 'modules/Hotkeys.ps1')
 $CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
 # Only these compiled files are ever served. Anything else is a 404.
@@ -196,11 +198,23 @@ function Invoke-CapstanRequest($Context) {
     if ($path -eq '/api/health' -and $method -eq 'GET') {
         Send-Json $Context @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()};return
     }
+    # Global hotkeys and the tray (modules/Hotkeys.ps1). A long poll is parked, not waited on, so the loop stays free.
+    if ($path.StartsWith('/api/hotkeys/')) {
+        $result = Invoke-CapstanHotkeyApi -Service $hotkeys -Request $request -SessionToken $sessionToken
+        if ($result.Park) {
+            Add-CapstanParkedPoll -Context $Context -Since $result.Since -Seconds $result.Seconds
+            $script:CapstanContextParked = $true
+            return
+        }
+        Send-Json $Context $result.Payload $result.Status;return
+    }
     Send-Json $Context @{error='Route not found'} 404
 }
 
 $base="http://127.0.0.1:$Port/"
 $runtimeFile = $null
+$hotkeys = $null
+$script:CapstanContextParked = $false
 try {
     $runtimeFile = Write-CapstanRuntimeFile -Root $root -Port $Port -Url $base
     Write-Host "Capstan $CapstanVersion local server: $base" -ForegroundColor Yellow
@@ -210,6 +224,9 @@ try {
     } else {
         Write-Host 'Auto-stop is off (-Stay or CAPSTAN_AUTO_STOP=0). To quit: "End session" in the window, Ctrl+C here, or Stop-Capstan.ps1.'
     }
+    # Global hotkeys and the tray icon run on their own background thread; they never keep the host alive.
+    $hotkeys = New-CapstanHotkeyService -OpenUrl $base
+    Write-CapstanHotkeySummary -Service $hotkeys
     if (-not $NoBrowser) {
         try {
             $edge = if ($DefaultBrowser) { $null } else { Find-CapstanEdge }
@@ -226,9 +243,12 @@ try {
             break
         }
         $context=$null
+        $script:CapstanContextParked = $false
+        # Answer long polls that have an event or ran out of time (a parked poll wants a faster tick).
+        Complete-CapstanParkedPolls -Service $hotkeys
         try {
             # Wake at least once a second for the lifecycle tick; this also lets Ctrl+C through.
-            $context=$server.TryAccept(1000)
+            $context=$server.TryAccept($(if ($script:CapstanParkedPolls.Count -gt 0) { 100 } else { 1000 }))
             if ($null -eq $context) { continue }
             Invoke-CapstanRequest $context
         } catch [System.IO.InvalidDataException] {
@@ -239,11 +259,13 @@ try {
                 try { if ($context.Response.OutputStream.CanWrite) { Send-Json $context @{error='Request failed'} 500 } } catch {}
             }
         } finally {
-            if ($null -ne $context) { $context.Dispose() }
+            if ($null -ne $context -and -not $script:CapstanContextParked) { $context.Dispose() }
         }
     }
     if ($script:CapstanStopReason) { Write-Host ('Capstan stopped: ' + $script:CapstanStopReason) -ForegroundColor Yellow }
 } finally {
+    # Unregisters every hotkey and removes the tray icon (also on Ctrl+C).
+    Stop-CapstanHotkeyService -Service $hotkeys
     $server.Dispose()
     # Also runs on Ctrl+C.
     Remove-CapstanRuntimeFile -Path $runtimeFile

@@ -15,6 +15,7 @@ import { Icon } from './icons';
 import { Emblem, Welcome } from './Welcome';
 import { RecoveryDialog } from './RecoveryDialog';
 import { Inspector } from './Inspector';
+import { onHotkey, startHotkeys } from './hotkeys';
 import { endSession, isBusy, onEngineState, sessionToken, startHeartbeat, type EngineState } from './lifecycle';
 import { Preview } from './Preview';
 import { ProjectMenu } from './projects/ProjectMenu';
@@ -80,6 +81,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ['Space', 'Play or pause'],
   ['S', 'Split at the playhead'],
   ['M', 'Add a marker at the playhead'],
+  ['Ctrl+Shift+F9 / F10 / F11', 'Anywhere in Windows (changeable in Record screen): start or stop, pause or resume, add a marker'],
   ['Delete', 'Delete selected clips, blur region, annotation, zoom, caption or marker'],
   ['Shift+Delete', 'Delete and close the gap'],
   ['← / →', 'Step one frame (Shift: one second)'],
@@ -104,6 +106,8 @@ export function App() {
   const [zoom, setZoom] = useState(60);
   const [snapping, setSnapping] = useState(true);
   const [dialog, setDialog] = useState<'record' | 'export' | 'shortcuts' | null>(null);
+  // Opened by the start hotkey: the Record dialog tries to start with the last used settings.
+  const [recordAuto, setRecordAuto] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [ended, setEnded] = useState(false);
   // An empty project opens on the Welcome landing view until there is media or the viewer asks for the editor.
@@ -136,6 +140,38 @@ export function App() {
     stopHeartbeat.current = startHeartbeat();
     return () => stopHeartbeat.current();
   }, []);
+
+  // Global hotkeys and the tray icon (the Windows host queues them; the Record dialog answers while it is open).
+  const hotkeyContext = useRef({ editor, time, dialog });
+  hotkeyContext.current = { editor, time, dialog };
+  useEffect(() => startHotkeys(), []);
+  useEffect(
+    () =>
+      onHotkey((e) => {
+        const { editor: ed, time: t, dialog: d } = hotkeyContext.current;
+        if (e.name === 'start-stop') {
+          if (d === null) {
+            setRecordAuto(true);
+            setDialog('record');
+          }
+          return true;
+        }
+        if (e.name === 'marker') {
+          const r = addMarker(ed.project, t);
+          if (r.id) {
+            ed.commit(r.project);
+            ed.setSelection([r.id]);
+          }
+          return true;
+        }
+        if (e.name === 'tray-open') {
+          window.focus();
+          return true;
+        }
+        return true;
+      }),
+    [],
+  );
 
   const quit = async () => {
     const busyNote = isBusy() ? ' An export or recording is still running and will be lost.' : '';
@@ -499,7 +535,16 @@ export function App() {
         </div>
       )}
       {editor.ready && <RecoveryDialog editor={editor} />}
-      {dialog === 'record' && <RecordDialog editor={editor} onClose={() => setDialog(null)} />}
+      {dialog === 'record' && (
+        <RecordDialog
+          editor={editor}
+          autostart={recordAuto}
+          onClose={() => {
+            setDialog(null);
+            setRecordAuto(false);
+          }}
+        />
+      )}
       {dialog === 'export' && <ExportDialog editor={editor} time={time} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
     </div>

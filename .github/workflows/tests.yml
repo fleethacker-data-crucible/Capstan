@@ -127,3 +127,6 @@ jobs:
       - name: Host lifecycle (Windows PowerShell 5.1)
         shell: powershell
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1
+      - name: Hotkeys and tray, synthetic input only (Windows PowerShell 5.1)
+        shell: powershell
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Hotkeys.Tests.ps1

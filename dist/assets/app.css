@@ -777,6 +777,33 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
 .export-item.status-done .export-item-status { color: var(--fl-success); }
 .progress.small { height: 8px; margin-top: 4px; }
 
+/* Global hotkeys: the Record dialog's Hotkeys group and the armed step. */
+
+.hotkeys-panel .hotkeys-note { margin: 4px 0 8px; }
+.hotkey-rows { display: grid; gap: 6px; margin-top: 8px; }
+.hotkey-row { display: grid; grid-template-columns: minmax(110px, 1fr) auto auto; gap: 4px 12px; align-items: center; padding: 6px 0; border-top: 1px solid var(--fl-border); }
+.hotkey-name { font-weight: 600; color: var(--fl-foreground); }
+.hotkey-mods { display: inline-flex; gap: 10px; flex-wrap: wrap; }
+.hotkey-mods .check { margin: 0; }
+.hotkey-row select {
+  height: 32px; min-width: 96px; padding: 0 8px;
+  background: var(--fl-surface); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control);
+  color: var(--fl-foreground);
+}
+.hotkey-state { grid-column: 1 / -1; font-size: var(--fl-text-caption); color: var(--fl-muted-foreground); }
+.hotkey-state.good { color: var(--fl-foreground); }
+.hotkey-state.good::before { content: '\2713\00a0'; color: var(--fl-success); }
+.hotkey-state.bad { color: var(--fl-foreground); padding: 4px 8px; border: 1px solid var(--fl-warning); border-radius: var(--fl-radius-control); background: color-mix(in srgb, var(--fl-warning) 16%, transparent); }
+.hotkey-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.hotkeys-help { margin-top: 8px; }
+.hotkeys-help summary { cursor: pointer; color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
+.hotkeys-help p { margin: 6px 0 0; padding: 0; }
+
+.rec-status.armed .rec-dot { background: var(--fl-warning); }
+.record-flash { margin: 4px 0 0; padding: 0; color: var(--fl-foreground); }
+
+@media (max-width: 520px) { .hotkey-row { grid-template-columns: 1fr; } }
+
 /* Keyboard access to the timeline: visible focus on clips, and the export in and out handles. */
 .clip:focus-visible { outline: 2px solid var(--fl-brass); outline-offset: -3px; z-index: 3; }
 .range-handle {
