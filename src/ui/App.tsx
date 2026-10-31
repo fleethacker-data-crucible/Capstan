@@ -6,7 +6,7 @@ import { addMarker, removeMarker } from '../engine/markers';
 import { removeRedaction } from '../engine/ops';
 import type { Player } from '../engine/player';
 import { removeZoom } from '../engine/zoom';
-import { parseProject, projectDuration } from '../engine/project';
+import { projectDuration } from '../engine/project';
 import { setRange, setRangeIn, setRangeOut } from '../engine/range';
 import { ExportDialog } from './ExportDialog';
 import { copySelection, cutSelection, duplicateSelection, groupSelection, pasteAtPlayhead, ungroupSelection } from './editActions';
@@ -16,6 +16,8 @@ import { Emblem, Welcome } from './Welcome';
 import { Inspector } from './Inspector';
 import { endSession, isBusy, onEngineState, sessionToken, startHeartbeat, type EngineState } from './lifecycle';
 import { Preview } from './Preview';
+import { ProjectMenu } from './projects/ProjectMenu';
+import { openAnyProjectFile } from './projects/actions';
 import { RecordDialog } from './RecordDialog';
 import { applyTheme, nextTheme, readSidebarCollapsed, readTheme, saveSidebarCollapsed, themeName, useModal, type ThemeChoice } from './shell';
 import { Timeline } from './Timeline';
@@ -174,7 +176,7 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (dialog || target.closest('input, select, textarea, [contenteditable="true"]')) return;
+      if (dialog || target.closest('input, select, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
       const ctrl = e.ctrlKey || e.metaKey;
       if (e.key === ' ') {
         e.preventDefault();
@@ -277,18 +279,10 @@ export function App() {
   const saveProjectFile = () => {
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
     download(blob, `${safeFileName(project.name)}.capstan`);
-    editor.setStatus('Project file saved. Media stays in Capstan on this computer.');
+    editor.setStatus('Project file saved (the edit only). To carry the media too, use Project > Save package.');
   };
 
-  const openProjectFile = async (file: File) => {
-    try {
-      const p = parseProject(JSON.parse(await file.text()));
-      editor.replaceProject(p);
-      editor.setStatus(`Opened ${p.name}`);
-    } catch (e) {
-      editor.setStatus(`Could not open ${file.name}: ${(e as Error).message}`);
-    }
-  };
+  const openProjectFile = (file: File) => openAnyProjectFile(editor, file);
 
   if (ended) {
     return (
@@ -371,7 +365,7 @@ export function App() {
         </h1>
         <div className="tool-group">
           <button className="icon-button" title="New project" onClick={() => {
-            if (project.clips.length && !window.confirm('Start a new project? The current project and its media will be removed from Capstan.')) return;
+            if (project.clips.length && !window.confirm('Start a new project? The current project stays in Project > Projects.')) return;
             editor.newProject();
           }}>
             <Icon name="newDoc" />
@@ -385,7 +379,7 @@ export function App() {
           <input
             ref={openInput}
             type="file"
-            accept=".capstan,application/json"
+            accept=".capstan,.capstanz,application/json,application/zip"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -394,6 +388,7 @@ export function App() {
             }}
           />
         </div>
+        <ProjectMenu editor={editor} />
         <div className="tool-group">
           <button className="icon-button" title="Undo (Ctrl+Z)" disabled={!editor.canUndo} onClick={editor.undo}>
             <Icon name="undo" />
