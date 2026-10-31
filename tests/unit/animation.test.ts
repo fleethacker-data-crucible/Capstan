@@ -386,7 +386,8 @@ describe('keyframe edits and auto-key', () => {
   test('without keyframes it is an ordinary edit, and locked tracks stay locked', () => {
     const { p, id } = withClip();
     expect(updateClipPropsAt(p, id, { x: 5 }, 3).clips[0].props.x).toBe(5);
-    expect(updateClipPropsAt(p, id, { x: 5 }, 3)).toEqual(updateClipProps(p, id, { x: 5 }));
+    // updatedAt is the clock at the moment of each edit, so it may differ by a millisecond.
+    expect({ ...updateClipPropsAt(p, id, { x: 5 }, 3), updatedAt: 0 }).toEqual({ ...updateClipProps(p, id, { x: 5 }), updatedAt: 0 });
     const locked = { ...addClipKey(p, id, 'x', 2, 1), tracks: p.tracks.map((t) => ({ ...t, locked: true })) };
     expect(updateClipPropsAt(locked, id, { x: 9 }, 3)).toBe(locked);
   });
