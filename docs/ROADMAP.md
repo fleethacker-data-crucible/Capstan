@@ -4,6 +4,8 @@ Capstan aims to cover everything people use Camtasia for, within the stack rules
 
 **Status key:** ✅ done · 🟡 partial · ⬜ planned
 
+What each open row still needs, in what order, and how to tell it is done: [REMAINING-WORK.md](REMAINING-WORK.md).
+
 ## Releases
 
 Each release ends with the editor usable and tested. Order is by what blocks the most real work.
