@@ -2,6 +2,8 @@
 // are kept within a small drift of the timeline and composited onto the preview canvas.
 import { drawFrame } from './compositor';
 import { previewVolume } from './gain';
+import { CURSOR_IMAGE_EVENT } from './cursor';
+import { ClickSoundPlayer } from './cursorsound';
 import { type Clip, type Project, clipEnd, clipSpeed, findMedia, projectDuration, sourceTimeAt } from './project';
 
 export interface PlayerSources {
@@ -27,6 +29,8 @@ export class Player {
   private _time = 0;
   private _playing = false;
   private redrawQueued = false;
+  private clickSounds = new ClickSoundPlayer();
+  private onCursorImage = () => this.requestRedraw();
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -37,6 +41,8 @@ export class Player {
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('Canvas 2D is not available');
     this.ctx = ctx;
+    this.clickSounds.setProject(project);
+    window.addEventListener(CURSOR_IMAGE_EVENT, this.onCursorImage);
     this.resize();
   }
 
@@ -56,6 +62,7 @@ export class Player {
   setProject(project: Project): void {
     const sizeChanged = project.width !== this.project.width || project.height !== this.project.height;
     this.project = project;
+    this.clickSounds.setProject(project);
     if (sizeChanged) this.resize();
     const live = new Set(project.clips.map((c) => c.id));
     for (const [id, el] of this.elements) {
@@ -71,6 +78,7 @@ export class Player {
     if (end <= 0) return;
     if (this._time >= end - 1e-3) this._time = 0;
     this._playing = true;
+    this.clickSounds.prepare();
     this.clockStart = performance.now();
     this.timeAtStart = this._time;
     this.sync(true);
@@ -115,6 +123,8 @@ export class Player {
     cancelAnimationFrame(this.raf);
     for (const [id, el] of this.elements) this.dropElement(id, el);
     this.listeners.clear();
+    window.removeEventListener(CURSOR_IMAGE_EVENT, this.onCursorImage);
+    this.clickSounds.destroy();
   }
 
   requestRedraw(): void {
@@ -134,7 +144,9 @@ export class Player {
   private loop = (): void => {
     if (!this._playing) return;
     const end = projectDuration(this.project);
+    const before = this._time;
     this._time = this.timeAtStart + (performance.now() - this.clockStart) / 1000;
+    this.clickSounds.tick(before, Math.min(this._time, end));
     if (this._time >= end) {
       this._time = end;
       this.render();

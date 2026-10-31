@@ -1,5 +1,19 @@
-// Screen recording with the browser's screen-capture permission. System audio (when the user
-// shares it) and the microphone are mixed into one track, since MediaRecorder records one.
+// Screen recording with the browser's screen-capture permission. By default system audio (when the
+// user shares it) and the microphone are mixed into one track; "separate tracks" records each on
+// its own. A webcam can be recorded in parallel. Every source has its own MediaRecorder, and the
+// chunks can stream to disk (see recording-store.ts) so memory stays flat on a long recording.
+import { type WebcamOptions, webcamConstraints } from './recording-sources';
+import {
+  type ChunkSink,
+  type DiskSinkOptions,
+  MemorySink,
+  type PartRole,
+  type PlacementPlan,
+  type RecordingStore,
+  newManifest,
+  newSessionId,
+  partFileName,
+} from './recording-store';
 
 /** What the user chose to record. Matches MediaTrackSettings.displaySurface. */
 export type CaptureSurface = 'browser' | 'window' | 'monitor';
@@ -15,6 +29,26 @@ export interface RecordOptions {
   /** Larger sources are scaled down to fit; smaller ones are never scaled up. */
   maxWidth?: number;
   maxHeight?: number;
+  /** Record the microphone and computer sound as separate files instead of one mixed track. */
+  separateAudio?: boolean;
+  /** Ask the browser to leave the mouse pointer out of the capture (off by default). */
+  hideCursor?: boolean;
+  /** Record the webcam as its own file. */
+  webcam?: WebcamOptions | null;
+  /** Stream chunks into this store; without one they stay in memory. */
+  store?: RecordingStore | null;
+  /** Segment sizes for the store (tests use small ones). */
+  sink?: DiskSinkOptions;
+}
+
+/** A recorded source other than the screen. */
+export interface RecordingPart {
+  role: Exclude<PartRole, 'screen'>;
+  blob: Blob;
+  name: string;
+  seconds: number;
+  width: number;
+  height: number;
 }
 
 export interface Recording {
@@ -23,6 +57,12 @@ export interface Recording {
   name: string;
   width: number;
   height: number;
+  /** Webcam, microphone and system sound, when recorded on their own. */
+  parts: RecordingPart[];
+  /** Things the user should know: a source that was unavailable, a disk fallback. */
+  notes: string[];
+  /** The store session holding the footage on disk, if any. */
+  session: string | null;
 }
 
 /**
@@ -32,6 +72,7 @@ export interface Recording {
 export function displayMediaOptions(o: RecordOptions): DisplayMediaStreamOptions & Record<string, unknown> {
   const surface = o.surface ?? 'monitor';
   const video: MediaTrackConstraints & Record<string, unknown> = { frameRate: { ideal: o.frameRate, max: 60 }, displaySurface: surface };
+  if (o.hideCursor) video.cursor = 'never';
   if (o.maxWidth && o.maxHeight) {
     video.width = { max: o.maxWidth };
     video.height = { max: o.maxHeight };
@@ -80,6 +121,20 @@ export function recorderCandidates(): string[] {
   return types.filter((t) => MediaRecorder.isTypeSupported(t) && playable(t));
 }
 
+/** Audio-only formats: Opus in WebM first (always playable here), then AAC in MP4. */
+export function audioRecorderType(): string {
+  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  if (typeof MediaRecorder === 'undefined') return '';
+  return types.find((t) => MediaRecorder.isTypeSupported(t)) ?? '';
+}
+
+/** File extension for a recorder MIME type. */
+export function extensionFor(type: string): string {
+  if (type.includes('mp4')) return 'mp4';
+  if (type.includes('ogg')) return 'ogg';
+  return 'webm';
+}
+
 /**
  * True if a short test recording of `track` in `type` produces data. Edge's H.264 recorder can
  * accept screen and tab capture and then write nothing at all, with no error.
@@ -119,21 +174,64 @@ async function workingRecorderType(track: MediaStreamTrack): Promise<string> {
   return '';
 }
 
+/** One MediaRecorder and where its chunks go. */
+interface Lane {
+  role: PartRole;
+  recorder: MediaRecorder;
+  sink: ChunkSink;
+  type: string;
+  width: number;
+  height: number;
+  /** Resolves with the finished file once the recorder has stopped and its chunks are flushed. */
+  result: Promise<Blob>;
+}
+
+/** Everything chosen and probed before recording starts (so a countdown can sit in between). */
+interface Prepared {
+  options: RecordOptions;
+  display: MediaStream;
+  mic: MediaStream | null;
+  webcam: MediaStream | null;
+  screenType: string;
+  webcamType: string;
+  notes: string[];
+}
+
 export class ScreenRecorder {
-  private recorder: MediaRecorder | null = null;
+  private lanes: Lane[] = [];
+  private prepared: Prepared | null = null;
   private streams: MediaStream[] = [];
   private audioContext: AudioContext | null = null;
-  private chunks: Blob[] = [];
   private startedAt = 0;
   private stoppedAt = 0;
   private pausedTotal = 0;
   private pausedAt = 0;
   private finished: Promise<Recording> | null = null;
   private size = { width: 0, height: 0 };
+  private session: string | null = null;
+  private store: RecordingStore | null = null;
+  private notes: string[] = [];
+  private cancelled = false;
+  /** The shared screen ended (the browser's "Stop sharing" bar), before or during recording. */
   onEnded: (() => void) | null = null;
 
   get state(): RecordingState | 'idle' {
-    return this.recorder?.state ?? 'idle';
+    return this.lanes[0]?.recorder.state ?? 'idle';
+  }
+
+  /** True between `prepare` and `begin`: the screen is shared but nothing is recorded yet. */
+  get isPrepared(): boolean {
+    return this.prepared !== null && this.lanes.length === 0;
+  }
+
+  /** Size of the shared screen in pixels (0 until known). */
+  get sourceSize(): { width: number; height: number } {
+    return this.size;
+  }
+
+  /** The id of the on-disk session, or null when recording in memory. */
+  get sessionId(): string | null {
+    return this.session;
   }
 
   get elapsed(): number {
@@ -143,10 +241,22 @@ export class ScreenRecorder {
     return (now - this.startedAt - this.pausedTotal) / 1000;
   }
 
-  async start(options: RecordOptions): Promise<void> {
+  /** Bytes the recording has produced so far (every source). */
+  get bytes(): number {
+    return this.lanes.reduce((n, l) => n + l.sink.received, 0);
+  }
+
+  /** Bytes already safely written to disk (0 when recording in memory). */
+  get bytesOnDisk(): number {
+    return this.lanes.reduce((n, l) => n + l.sink.written, 0);
+  }
+
+  /** Asks for the screen (and webcam, microphone), checks them and picks recording formats. */
+  async prepare(options: RecordOptions): Promise<void> {
     if (!navigator.mediaDevices?.getDisplayMedia) {
       throw new Error('Screen recording needs a current Edge or Chrome on this computer.');
     }
+    this.notes = [];
     const display = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions(options));
     this.streams.push(display);
     const settings = display.getVideoTracks()[0]?.getSettings() ?? {};
@@ -156,6 +266,25 @@ export class ScreenRecorder {
       throw new Error(problem);
     }
     this.size = { width: settings.width ?? 0, height: settings.height ?? 0 };
+    display.getVideoTracks()[0].addEventListener('ended', () => this.sharingEnded());
+
+    let webcam: MediaStream | null = null;
+    if (options.webcam) {
+      try {
+        webcam = await navigator.mediaDevices.getUserMedia(webcamConstraints(options.webcam));
+        this.streams.push(webcam);
+      } catch (e) {
+        this.cleanup();
+        const name = (e as Error).name;
+        throw new Error(
+          name === 'NotAllowedError'
+            ? 'The webcam was blocked. Allow the camera for this page, or turn the webcam off.'
+            : name === 'NotFoundError' || name === 'OverconstrainedError'
+              ? 'That camera was not found. Choose another camera, or turn the webcam off.'
+              : `The webcam could not be started: ${(e as Error).message}`,
+        );
+      }
+    }
     let mic: MediaStream | null = null;
     if (options.microphone) {
       try {
@@ -163,86 +292,250 @@ export class ScreenRecorder {
         this.streams.push(mic);
       } catch {
         mic = null; // carry on without the microphone rather than failing the recording
+        this.notes.push('The microphone was not available, so it was not recorded.');
       }
     }
-    const audioSources = [display, mic].filter((s): s is MediaStream => !!s && s.getAudioTracks().length > 0);
-    const tracks: MediaStreamTrack[] = [...display.getVideoTracks()];
-    if (audioSources.length === 1) {
-      tracks.push(audioSources[0].getAudioTracks()[0]);
-    } else if (audioSources.length > 1) {
-      this.audioContext = new AudioContext();
-      const destination = this.audioContext.createMediaStreamDestination();
-      for (const s of audioSources) this.audioContext.createMediaStreamSource(s).connect(destination);
-      tracks.push(destination.stream.getAudioTracks()[0]);
+    const [screenType, webcamType] = await Promise.all([
+      workingRecorderType(display.getVideoTracks()[0]),
+      webcam ? workingRecorderType(webcam.getVideoTracks()[0]) : Promise.resolve(''),
+    ]);
+    this.prepared = { options, display, mic, webcam, screenType, webcamType, notes: this.notes };
+  }
+
+  /**
+   * A still of the shared screen as a JPEG data URL, for the region step. `width` and `height`
+   * are the real size of the source, which the region is measured in.
+   */
+  async grabStill(maxWidth = 1280): Promise<{ url: string; width: number; height: number }> {
+    const track = this.prepared?.display.getVideoTracks()[0];
+    if (!track) throw new Error('Nothing is being shared.');
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = new MediaStream([track]);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('The shared screen did not show a picture in time.')), 5000);
+        const ready = () => {
+          if (video.videoWidth > 0) {
+            clearTimeout(timer);
+            resolve();
+          }
+        };
+        video.addEventListener('loadeddata', ready);
+        video.addEventListener('resize', ready);
+        void video.play().then(ready, reject);
+      });
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      this.size = { width, height };
+      const k = Math.min(1, maxWidth / width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(width * k));
+      canvas.height = Math.max(1, Math.round(height * k));
+      canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return { url: canvas.toDataURL('image/jpeg', 0.85), width, height };
+    } finally {
+      video.pause();
+      video.srcObject = null;
     }
-    const stream = new MediaStream(tracks);
-    const mimeType = await workingRecorderType(display.getVideoTracks()[0]);
-    const recorder = new MediaRecorder(stream, {
-      mimeType: mimeType || undefined,
-      videoBitsPerSecond: 8_000_000,
-      audioBitsPerSecond: 160_000,
-    });
-    this.recorder = recorder;
-    this.chunks = [];
-    recorder.ondataavailable = (e) => {
-      if (e.data.size) this.chunks.push(e.data);
-    };
-    this.finished = new Promise<Recording>((resolve, reject) => {
-      recorder.onstop = () => {
-        const seconds = this.elapsed;
-        const type = recorder.mimeType || mimeType || 'video/webm';
-        const blob = new Blob(this.chunks, { type: type.split(';')[0] });
-        this.cleanup();
-        if (!blob.size) {
-          reject(new Error('The browser recorded nothing (no video data arrived). Try again, or choose a different window or tab.'));
-          return;
+  }
+
+  /** Starts every recorder at once. `plan` is stored with the footage so a recovery places it the same way. */
+  async begin(plan: PlacementPlan = { pip: true }): Promise<void> {
+    const prep = this.prepared;
+    if (!prep) throw new Error('Nothing is ready to record.');
+    const { options, display, mic, webcam } = prep;
+    const separate = !!options.separateAudio;
+    const displayAudio = display.getAudioTracks();
+    const micAudio = mic?.getAudioTracks() ?? [];
+
+    // Which recorders, and which tracks each one takes.
+    const plans: Array<{ role: PartRole; tracks: MediaStreamTrack[]; type: string; width: number; height: number }> = [];
+    const screenTracks: MediaStreamTrack[] = [...display.getVideoTracks()];
+    if (!separate) {
+      if (displayAudio.length + micAudio.length === 1) {
+        screenTracks.push(displayAudio[0] ?? micAudio[0]);
+      } else if (displayAudio.length + micAudio.length > 1) {
+        this.audioContext = new AudioContext();
+        const destination = this.audioContext.createMediaStreamDestination();
+        for (const s of [display, mic]) {
+          if (s && s.getAudioTracks().length) this.audioContext.createMediaStreamSource(s).connect(destination);
         }
-        const d = new Date();
-        const p2 = (n: number) => String(n).padStart(2, '0');
-        // Local time, with dots instead of colons so the name is valid on Windows.
-        const stamp = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}.${p2(d.getMinutes())}.${p2(d.getSeconds())}`;
-        resolve({ blob, seconds, name: `Recording ${stamp}.${type.includes('mp4') ? 'mp4' : 'webm'}`, ...this.size });
-      };
-      recorder.onerror = (e) => {
-        this.cleanup();
-        reject((e as unknown as { error?: Error }).error ?? new Error('Recording failed'));
-      };
-    });
-    // The user can end sharing from the browser's own bar; treat that as Stop.
-    display.getVideoTracks()[0].addEventListener('ended', () => {
-      if (this.recorder?.state !== 'inactive') {
-        this.markStopped();
-        this.recorder?.stop();
-        this.onEnded?.();
+        screenTracks.push(destination.stream.getAudioTracks()[0]);
       }
+    }
+    plans.push({ role: 'screen', tracks: screenTracks, type: prep.screenType, ...this.size });
+    if (webcam) {
+      const s = webcam.getVideoTracks()[0]?.getSettings() ?? {};
+      plans.push({ role: 'webcam', tracks: webcam.getVideoTracks(), type: prep.webcamType, width: s.width ?? 0, height: s.height ?? 0 });
+    }
+    if (separate) {
+      const type = audioRecorderType();
+      if (micAudio.length) plans.push({ role: 'mic', tracks: micAudio, type, width: 0, height: 0 });
+      if (displayAudio.length) plans.push({ role: 'system', tracks: displayAudio, type, width: 0, height: 0 });
+      else if (options.systemAudio) this.notes.push('No computer sound was shared, so there is no system audio track. Choose “Share audio” in the browser prompt.');
+    } else if (options.systemAudio && !displayAudio.length) {
+      this.notes.push('No computer sound was shared (choose “Share audio” in the browser prompt).');
+    }
+
+    // On disk when a store is given: the manifest first, so even a crash right now leaves a trace.
+    const startDate = new Date();
+    const store = options.store ?? null;
+    let session: string | null = null;
+    if (store) {
+      session = newSessionId(startDate);
+      try {
+        await store.begin(
+          newManifest(session, startDate.getTime(), {
+            name: partFileName('screen', startDate, extensionFor(prep.screenType)),
+            width: this.size.width,
+            height: this.size.height,
+            place: plan,
+            parts: Object.fromEntries(
+              plans.map((p) => {
+                const ext = extensionFor(p.type);
+                const mime = p.type.split(';')[0] || (p.role === 'mic' || p.role === 'system' ? 'audio/webm' : 'video/webm');
+                return [p.role, { ext, mime, width: p.width, height: p.height }];
+              }),
+            ),
+          }),
+        );
+        this.store = store;
+        this.session = session;
+      } catch {
+        session = null;
+        this.notes.push('Recording to disk was not possible, so the recording is kept in memory.');
+      }
+    }
+
+    const lanes: Lane[] = plans.map((p) => {
+      const isAudio = p.role === 'mic' || p.role === 'system';
+      const recorder = new MediaRecorder(new MediaStream(p.tracks), {
+        mimeType: p.type || undefined,
+        ...(isAudio ? { audioBitsPerSecond: 128_000 } : { videoBitsPerSecond: p.role === 'webcam' ? 4_000_000 : 8_000_000, audioBitsPerSecond: 160_000 }),
+      });
+      const ext = extensionFor(p.type || recorder.mimeType);
+      const sink: ChunkSink =
+        session && store
+          ? store.sink(session, p.role, ext, { ...options.sink, onFallback: () => this.notes.push('Writing to disk failed part way, so the rest of the recording is kept in memory.') })
+          : new MemorySink();
+      recorder.ondataavailable = (e) => {
+        if (e.data.size) sink.push(e.data);
+      };
+      return { role: p.role, recorder, sink, type: p.type, width: p.width, height: p.height, result: Promise.resolve(new Blob()) };
     });
-    recorder.start(1000);
+    const screen = lanes[0];
+    for (const lane of lanes) {
+      lane.result = new Promise<Blob>((resolve, reject) => {
+        lane.recorder.onstop = () => {
+          const type = (lane.recorder.mimeType || lane.type || (lane.role === 'mic' || lane.role === 'system' ? 'audio/webm' : 'video/webm')).split(';')[0];
+          resolve(lane.sink.finish(type));
+        };
+        lane.recorder.onerror = (e) => reject((e as unknown as { error?: Error }).error ?? new Error('Recording failed'));
+      });
+      // A source that fails alone must not become an unhandled rejection; `finished` reports it.
+      lane.result.catch(() => undefined);
+    }
+    this.lanes = lanes;
+    this.prepared = null;
+
+    this.finished = (async () => {
+      let screenBlob: Blob;
+      try {
+        screenBlob = await screen.result;
+      } catch (e) {
+        this.cleanup();
+        void this.discardSession();
+        throw e;
+      }
+      const seconds = this.elapsed;
+      const parts: RecordingPart[] = [];
+      for (const lane of lanes.slice(1)) {
+        try {
+          const blob = await lane.result;
+          if (!blob.size) {
+            this.notes.push(`The ${lane.role === 'webcam' ? 'webcam' : lane.role === 'mic' ? 'microphone' : 'system audio'} recorded nothing, so it was left out.`);
+            continue;
+          }
+          parts.push({ role: lane.role as RecordingPart['role'], blob, name: partFileName(lane.role, startDate, extensionFor(blob.type || lane.type)), seconds, width: lane.width, height: lane.height });
+        } catch {
+          this.notes.push(`The ${lane.role} recording failed and was left out.`);
+        }
+      }
+      this.cleanup();
+      if (this.cancelled) throw new Error('Recording cancelled');
+      if (!screenBlob.size) {
+        void this.discardSession();
+        throw new Error('The browser recorded nothing (no video data arrived). Try again, or choose a different window or tab.');
+      }
+      if (this.store && this.session) {
+        await this.store.update(this.session, { complete: true, seconds }).catch(() => undefined);
+        this.store.release(this.session);
+      }
+      return {
+        blob: screenBlob,
+        seconds,
+        name: partFileName('screen', startDate, extensionFor(screenBlob.type || screen.type)),
+        ...this.size,
+        parts,
+        notes: this.notes,
+        session: this.session,
+      };
+    })();
+    this.finished.catch(() => undefined);
+
+    // Ending the share from the browser's own bar is handled by sharingEnded, registered in prepare.
+    for (const lane of lanes) lane.recorder.start(1000);
     this.startedAt = performance.now();
     this.stoppedAt = 0;
     this.pausedTotal = 0;
     this.pausedAt = 0;
   }
 
+  /** Shares the screen and records at once (no countdown, no region): the original one-step flow. */
+  async start(options: RecordOptions): Promise<void> {
+    await this.prepare(options);
+    await this.begin();
+  }
+
+  private sharingEnded(): void {
+    if (this.lanes.length === 0) {
+      // Before recording: the sharing ended during the countdown or region step.
+      if (this.prepared) this.onEnded?.();
+      return;
+    }
+    if (this.lanes[0].recorder.state !== 'inactive') {
+      this.markStopped();
+      this.stopLanes();
+      this.onEnded?.();
+    }
+  }
+
+  private stopLanes(): void {
+    for (const lane of this.lanes) if (lane.recorder.state !== 'inactive') lane.recorder.stop();
+  }
+
   pause(): void {
-    if (this.recorder?.state === 'recording') {
-      this.recorder.pause();
+    if (this.state === 'recording') {
+      for (const lane of this.lanes) if (lane.recorder.state === 'recording') lane.recorder.pause();
       this.pausedAt = performance.now();
     }
   }
 
   resume(): void {
-    if (this.recorder?.state === 'paused') {
-      this.recorder.resume();
+    if (this.state === 'paused') {
+      for (const lane of this.lanes) if (lane.recorder.state === 'paused') lane.recorder.resume();
       this.pausedTotal += performance.now() - this.pausedAt;
       this.pausedAt = 0;
     }
   }
 
   async stop(): Promise<Recording> {
-    if (!this.recorder || !this.finished) throw new Error('Not recording');
-    if (this.recorder.state !== 'inactive') {
+    if (!this.lanes.length || !this.finished) throw new Error('Not recording');
+    if (this.lanes[0].recorder.state !== 'inactive') {
       this.markStopped();
-      this.recorder.stop();
+      this.stopLanes();
     }
     return this.finished;
   }
@@ -257,12 +550,27 @@ export class ScreenRecorder {
     this.stoppedAt = performance.now();
   }
 
+  /** Gives up: stops everything and deletes any footage already written. */
   cancel(): void {
-    if (this.recorder && this.recorder.state !== 'inactive') {
-      this.recorder.ondataavailable = null;
-      this.recorder.stop();
+    this.cancelled = true;
+    for (const lane of this.lanes) {
+      if (lane.recorder.state !== 'inactive') {
+        lane.recorder.ondataavailable = null;
+        lane.recorder.stop();
+      }
     }
+    this.prepared = null;
     this.cleanup();
+    void this.discardSession();
+  }
+
+  private async discardSession(): Promise<void> {
+    const { store, session } = this;
+    if (!store || !session) return;
+    this.session = null;
+    // Let in-flight segment writes finish first so nothing is recreated after the delete.
+    await Promise.allSettled(this.lanes.map((l) => l.result));
+    await store.discard(session).catch(() => undefined);
   }
 
   private cleanup(): void {

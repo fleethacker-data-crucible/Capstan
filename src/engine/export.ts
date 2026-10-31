@@ -1,6 +1,7 @@
 // Offline MP4 export. Frames are rendered one by one with the same compositor as the preview
 // (each video seeked to the exact frame time), encoded with WebCodecs H.264, and the audio is
 // mixed with an OfflineAudioContext and encoded as AAC (or Opus where AAC is unavailable).
+import { clickSoundTimes, scheduleClickSounds } from './cursorsound';
 import { levelEnvelopeDb } from './dsp/duck';
 import { type BlobLookup, type FrameRenderer, createFrameRenderer } from './frames';
 import { planClipGain, setLevelEnvelope } from './gain';
@@ -143,7 +144,11 @@ const channelsOf = (b: AudioBuffer) => Array.from({ length: b.numberOfChannels }
 /** Mixes every audible clip into one stereo buffer of `seconds`, starting at timeline time `from`. */
 export async function mixAudio(project: Project, blobs: BlobLookup, seconds: number, from = 0): Promise<AudioBuffer | null> {
   const clips = project.clips.filter((c) => audible(project, c));
-  if (!clips.length) return null;
+  // Click sounds are on the timeline; the mix starts at `from`.
+  const clicks = clickSoundTimes(project)
+    .map((c) => ({ ...c, t: c.t - from }))
+    .filter((c) => c.t >= 0 && c.t < seconds);
+  if (!clips.length && !clicks.length) return null;
   const length = Math.max(1, Math.ceil(seconds * SAMPLE_RATE));
   const ctx = new OfflineAudioContext(2, length, SAMPLE_RATE);
   const decoded = new Map<string, AudioBuffer | null>();
@@ -191,6 +196,8 @@ export async function mixAudio(project: Project, blobs: BlobLookup, seconds: num
     source.start(win.when, win.offset, win.duration);
     any = true;
   }
+  // Cursor click sounds are mixed in at each recorded click (cursor.ts).
+  if (scheduleClickSounds(ctx, clicks)) any = true;
   if (!any) return null;
   return ctx.startRendering();
 }
