@@ -127,6 +127,9 @@ jobs:
       - name: Host lifecycle (Windows PowerShell 5.1)
         shell: powershell
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1
+      - name: SnapShackle captures routes (Windows PowerShell 5.1)
+        shell: powershell
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Captures.Tests.ps1
       - name: Media library on disk (Windows PowerShell 5.1)
         shell: powershell
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Library.Tests.ps1

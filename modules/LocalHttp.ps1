@@ -5,7 +5,7 @@
   Body and header limits are enforced before handing requests to the app.
   Bodies are read into memory (30 MB cap), except for /api/files (the on-disk library, modules/Library.ps1):
   those requests hand over an unread, length-bounded stream so a chunk is written to disk in 1 MB buffers,
-  and a file download is streamed from disk in 1 MB buffers (Response.SetFile).
+  and a file download is streamed from disk in 1 MB buffers (Response.SetStream).
 #>
 if (-not ('Capstan.Transport.Server' -as [type])) {
     Add-Type -TypeDefinition @'
@@ -124,36 +124,59 @@ namespace Capstan.Transport {
         public long ContentLength64;
         public MemoryStream OutputStream=new MemoryStream();
         byte[] immediateBody=null;
-        Stream fileBody=null;
-        long fileCount=0;
+        Stream bodyStream=null;
+        long bodyStreamLength=0;
+        const int StreamChunk=1048576;
         // Avoid copying large responses into MemoryStream and then cloning them via ToArray().
         public void SetBody(byte[] body) { immediateBody=body ?? new byte[0]; }
-        // Streams `count` bytes from the current position of `source` (read in 1 MB buffers, closed after
-        // sending). Used by the library for downloads, so a big file is never held in memory.
-        public void SetFile(Stream source,long count) { fileBody=source; fileCount=count; ContentLength64=count; }
-        public Response(NetworkStream s) { stream=s; }
-        static string Reason(int code) {
-            switch (code) {
-                case 200: return "OK";
-                case 206: return "Partial Content";
-                case 400: return "Bad Request";
-                case 403: return "Forbidden";
-                case 404: return "Not Found";
-                case 405: return "Method Not Allowed";
-                case 409: return "Conflict";
-                case 413: return "Payload Too Large";
-                case 415: return "Unsupported Media Type";
-                case 416: return "Range Not Satisfiable";
-                case 422: return "Unprocessable Entity";
-                case 429: return "Too Many Requests";
-                case 501: return "Not Implemented";
-                case 507: return "Insufficient Storage";
-                default: return "Internal Server Error";
-            }
+        // Sends a stream (a file) in buffers of at most 1 MB instead of holding it in memory.
+        // Close() writes exactly `length` bytes and then disposes the stream.
+        public void SetStream(Stream source,long length) {
+            if (source==null || length<0) throw new ArgumentException("source");
+            bodyStream=source;
+            bodyStreamLength=length;
         }
-        byte[] Header(long length) {
+        public Response(NetworkStream s) { stream=s; }
+        public void Close() {
+            if (closed) return;
+            closed=true;
+            if (bodyStream!=null) {
+                try {
+                    byte[] head=BuildHeader(bodyStreamLength);
+                    stream.Write(head,0,head.Length);
+                    byte[] chunk=new byte[StreamChunk];
+                    long left=bodyStreamLength;
+                    while (left>0) {
+                        int got=bodyStream.Read(chunk,0,(int)Math.Min((long)chunk.Length,left));
+                        if (got<=0) throw new IOException("The file ended before its announced length");
+                        stream.Write(chunk,0,got);
+                        left-=got;
+                    }
+                    stream.Flush();
+                } finally {
+                    bodyStream.Dispose();
+                    OutputStream.Dispose();
+                }
+                return;
+            }
+            ArraySegment<byte> buffered;
+            byte[] body;
+            int length;
+            int offset;
+            if (immediateBody!=null) { body=immediateBody; length=body.Length; offset=0; }
+            else if (OutputStream.TryGetBuffer(out buffered)) { body=buffered.Array; offset=buffered.Offset; length=buffered.Count; }
+            else { body=OutputStream.ToArray(); length=body.Length; offset=0; }
+            byte[] header=BuildHeader(length);
+            stream.Write(header,0,header.Length);
+            if (length>0) stream.Write(body,offset,length);
+            stream.Flush();
+            OutputStream.Dispose();
+        }
+        byte[] BuildHeader(long length) {
+            // HTTP reason phrases: the union of every route family (files, captures, and the host features that follow).
+            string reason=StatusCode==200?"OK":StatusCode==206?"Partial Content":StatusCode==400?"Bad Request":StatusCode==403?"Forbidden":StatusCode==404?"Not Found":StatusCode==405?"Method Not Allowed":StatusCode==409?"Conflict":StatusCode==413?"Payload Too Large":StatusCode==415?"Unsupported Media Type":StatusCode==416?"Range Not Satisfiable":StatusCode==422?"Unprocessable Entity":StatusCode==429?"Too Many Requests":StatusCode==501?"Not Implemented":StatusCode==507?"Insufficient Storage":"Internal Server Error";
             StringBuilder sb=new StringBuilder();
-            sb.Append("HTTP/1.1 ").Append(StatusCode).Append(' ').Append(Reason(StatusCode)).Append("\r\n");
+            sb.Append("HTTP/1.1 ").Append(StatusCode).Append(' ').Append(reason).Append("\r\n");
             sb.Append("Connection: close\r\nContent-Type: ").Append(ContentType).Append("\r\n");
             sb.Append("Content-Length: ").Append(length.ToString(CultureInfo.InvariantCulture)).Append("\r\n");
             foreach (string key in Headers.AllKeys) {
@@ -164,39 +187,6 @@ namespace Capstan.Transport {
             }
             sb.Append("\r\n");
             return Encoding.ASCII.GetBytes(sb.ToString());
-        }
-        public void Close() {
-            if (closed) return;
-            closed=true;
-            if (fileBody!=null) {
-                Stream source=fileBody;
-                try {
-                    byte[] head=Header(fileCount);
-                    stream.Write(head,0,head.Length);
-                    byte[] chunk=new byte[1048576];
-                    long left=fileCount;
-                    while (left>0) {
-                        int got=source.Read(chunk,0,(int)Math.Min((long)chunk.Length,left));
-                        if (got<=0) throw new IOException("File ended before the announced length");
-                        stream.Write(chunk,0,got);
-                        left-=got;
-                    }
-                    stream.Flush();
-                } finally { source.Dispose(); OutputStream.Dispose(); }
-                return;
-            }
-            ArraySegment<byte> buffered;
-            byte[] body;
-            int length;
-            int offset;
-            if (immediateBody!=null) { body=immediateBody; length=body.Length; offset=0; }
-            else if (OutputStream.TryGetBuffer(out buffered)) { body=buffered.Array; offset=buffered.Offset; length=buffered.Count; }
-            else { body=OutputStream.ToArray(); length=body.Length; offset=0; }
-            byte[] header=Header(length);
-            stream.Write(header,0,header.Length);
-            if (length>0) stream.Write(body,offset,length);
-            stream.Flush();
-            OutputStream.Dispose();
         }
     }
 

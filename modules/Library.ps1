@@ -521,12 +521,16 @@ function Send-CapstanLibraryFile {
         $response.Headers.Add('Content-Range', ('bytes ' + $start + '-' + ($start + $count - 1) + '/' + $length))
     }
     if ($start -gt 0) { [void]$fs.Seek($start, [IO.SeekOrigin]::Begin) }
-    $response.StatusCode = $status
-    $response.ContentType = 'application/octet-stream'
-    Add-CapstanSecurityHeaders $response
-    $response.Headers.Add('Accept-Ranges', 'bytes')
-    $response.Headers.Add('Content-Disposition', 'attachment; filename="' + $Id + '"')
-    $response.SetFile($fs, $count)
+    # The host's shared helpers: Set-CapstanResponseHeaders (status, type and the security headers) and
+    # Response.SetStream, which sends exactly $count bytes from the stream's current position (after the
+    # Seek above, so a ranged download carries precisely the bytes asked for) and closes the file.
+    try {
+        Set-CapstanResponseHeaders $response 'application/octet-stream' $status
+        $response.Headers.Add('Accept-Ranges', 'bytes')
+        $response.Headers.Add('Content-Disposition', 'attachment; filename="' + $Id + '"')
+        $response.ContentLength64 = $count
+        $response.SetStream($fs, $count)
+    } catch { $fs.Dispose(); throw }
     # Close() streams the bytes; a host job holds the auto-stop while a big file goes out.
     Enter-CapstanLibraryJob
     try { $response.Close() } finally { Exit-CapstanLibraryJob }

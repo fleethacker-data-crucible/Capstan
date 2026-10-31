@@ -36,6 +36,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dist = Join-Path $root 'dist'
 . (Join-Path $root 'modules/LocalHttp.ps1')
 . (Join-Path $root 'modules/Lifecycle.ps1')
+. (Join-Path $root 'modules/Captures.ps1')
 . (Join-Path $root 'modules/Library.ps1')
 $CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
@@ -119,7 +120,9 @@ $ContentSecurityPolicy = "default-src 'none'; script-src 'self' 'wasm-unsafe-eva
 # The on-disk media library (modules/Library.ps1): created before the first request, off if its folder is unusable.
 [void](Initialize-CapstanLibrary)
 
-function Add-CapstanSecurityHeaders($response) {
+function Set-CapstanResponseHeaders($response, [string]$ContentType, [int]$Status) {
+    $response.StatusCode = $Status
+    $response.ContentType = $ContentType
     $response.Headers.Add('Cache-Control','no-store')
     $response.Headers.Add('X-Content-Type-Options','nosniff')
     $response.Headers.Add('X-Frame-Options','DENY')
@@ -128,15 +131,22 @@ function Add-CapstanSecurityHeaders($response) {
     $response.Headers.Add('Permissions-Policy','camera=(self), microphone=(self), display-capture=(self), geolocation=()')
     $response.Headers.Add('Content-Security-Policy',$ContentSecurityPolicy)
 }
-
 function Send-Response($Context, [byte[]]$Bytes, [string]$ContentType='application/json', [int]$Status=200) {
     $response = $Context.Response
-    $response.StatusCode = $Status
-    $response.ContentType = $ContentType
-    Add-CapstanSecurityHeaders $response
+    Set-CapstanResponseHeaders $response $ContentType $Status
     $response.ContentLength64 = $Bytes.Length
     try { $response.SetBody($Bytes) }
     finally { $response.Close() }
+}
+# Streams a file in 1 MB buffers (see Response.SetStream); the stream is closed whatever happens.
+function Send-CapstanFile($Context, [IO.Stream]$Stream, [long]$Length, [string]$ContentType) {
+    $response = $Context.Response
+    try {
+        Set-CapstanResponseHeaders $response $ContentType 200
+        $response.ContentLength64 = $Length
+        $response.SetStream($Stream, $Length)
+    } catch { $Stream.Dispose(); throw }
+    $response.Close()
 }
 function Send-Json($Context, $Payload, [int]$Status=200) {
     $text = ConvertTo-Json -InputObject $Payload -Depth 8 -Compress
@@ -202,9 +212,16 @@ function Invoke-CapstanRequest($Context) {
         return
     }
     if ($path -eq '/api/health' -and $method -eq 'GET') {
-        $health = @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()}
+        $health = @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString();snapshackle=[bool](Get-CapstanCapturesRoot)}
         foreach ($entry in (Get-CapstanLibraryInfo).GetEnumerator()) { $health[$entry.Key] = $entry.Value }
         Send-Json $Context $health;return
+    }
+    # SnapShackle captures: read-only list and file (modules/Captures.ps1). The name is taken from the raw path.
+    if ($path -eq '/api/snapshackle/captures' -or $path.StartsWith('/api/snapshackle/captures/',[StringComparison]::Ordinal)) {
+        $raw = $request.Url.OriginalString
+        $slash = $raw.IndexOf('/',8)
+        Invoke-CapstanCaptureRoute $Context $method $(if ($slash -ge 0) { $raw.Substring($slash) } else { '/' })
+        return
     }
     # Media library on disk: /api/files... (token, size, id and path rules live in modules/Library.ps1).
     if (Invoke-CapstanLibraryRoute -Context $Context -SessionToken $sessionToken) { return }

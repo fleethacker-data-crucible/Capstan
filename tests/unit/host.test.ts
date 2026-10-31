@@ -166,7 +166,8 @@ test('library limits: 8 MB chunk, 16 GiB default, parallel uploads, stale timeou
   expect(library).toContain('New-Object byte[] 1048576');
   expect(library).not.toMatch(/ReadAllBytes|WriteAllBytes|ReadAllText|ReadToEnd/);
   const transport = read('modules/LocalHttp.ps1');
-  expect(transport).toContain('byte[] chunk=new byte[1048576]');
+  expect(transport).toContain('const int StreamChunk=1048576;');
+  expect(transport).toContain('byte[] chunk=new byte[StreamChunk]');
   expect(transport).toContain('class BodyStream');
   expect(transport).toContain('MaxStreamBody=67108864');
 });
