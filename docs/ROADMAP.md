@@ -34,7 +34,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Choose tab / window / screen; refuse anything else | `displaySurface` hint, screens excluded from the picker, shared surface checked before recording | 0.1 | ✅ |
 | Microphone and system audio, mixed | Web Audio mix into one track | 0.1 | ✅ |
 | Pause / resume | `MediaRecorder.pause()` | 0.1 | ✅ |
-| Global hotkeys, tray, studio not in the shot | Port SnapShackle's `RegisterHotKey` + tray (C# via `Add-Type`) | 0.3 | ⬜ |
+| Global hotkeys, tray, studio not in the shot | Port SnapShackle's `RegisterHotKey` + tray (C# via `Add-Type`) | 0.3 | 🟡 (global hotkeys and a tray icon through the host are built and tested with synthetic events; keeping Capstan out of the shot is not possible from the host, so record a tab or a window; a real desktop run is outstanding) |
 | Region and exact-window capture | SnapShackle's selection overlay drives a cropped capture | 0.3 | ✅ (region becomes a crop; window is the existing window choice) |
 | Webcam as its own track | `getUserMedia` recorded in parallel, placed as a separate clip | 0.3 | ✅ |
 | Separate mic / system audio tracks | Parallel recorders, one clip per source | 0.3 | ✅ |
