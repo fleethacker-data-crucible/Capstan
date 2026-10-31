@@ -88,12 +88,11 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
 | Clip volume, track mute | Web Audio gain | 0.1 | ✅ |
-| Fades, volume points | Gain automation in preview and export | 0.7 | ⬜ |
-| Waveforms on the timeline | Peaks computed in a worker (WASM) | 0.2 | ⬜ |
-| Noise removal | Rust → WASM denoiser in an `AudioWorklet` | 0.7 | ⬜ |
-| Volume levelling, compressor | Web Audio `DynamicsCompressor` + loudness analysis | 0.7 | ⬜ |
-| Audio ducking under narration | Side-chain gain automation | 0.7 | ⬜ |
-
+| Fades, volume points | Gain automation in preview and export | 0.7 | ✅ |
+| Waveforms on the timeline | Peaks computed in a worker (WASM) | 0.2 | ✅ (computed on the main thread, not in a worker) |
+| Noise removal | Rust → WASM denoiser in an `AudioWorklet` | 0.7 | ✅ (spectral gating in TypeScript, applied as a bake to a new audio file; no WASM denoiser) |
+| Volume levelling, compressor | Web Audio `DynamicsCompressor` + loudness analysis | 0.7 | ✅ (applied as a bake) |
+| Audio ducking under narration | Side-chain gain automation | 0.7 | ✅ |
 ### Visual effects
 
 | Feature | Plan | Release | Status |
