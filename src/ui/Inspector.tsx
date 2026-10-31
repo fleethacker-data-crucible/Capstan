@@ -11,6 +11,7 @@ import { CaptionPanel } from './inspector/CaptionPanel';
 import { CursorSection } from './inspector/CursorSection';
 import { EditSection, MultiClipPanel } from './inspector/EditSection';
 import { EffectsSection } from './inspector/EffectsSection';
+import { ClipTimingFields } from './inspector/ClipTimingFields';
 import { Field } from './inspector/Field';
 import { MarkerPanel } from './inspector/MarkerPanel';
 import { ProjectSections } from './inspector/ProjectSections';
@@ -269,6 +270,7 @@ export function Inspector({ editor, time, onSeek }: { editor: Editor; time: numb
         </div>
       </dl>
       {locked && <p className="hint">This clip is on a locked track. Unlock the track to edit it.</p>}
+      <ClipTimingFields key={clip.id} editor={editor} clip={clip} locked={locked} />
       <fieldset className="fields" disabled={locked}>
         {visual && (
           <>

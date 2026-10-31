@@ -1,0 +1,9 @@
+/* Keyboard access to the timeline: visible focus on clips, and the export in and out handles. */
+.clip:focus-visible { outline: 2px solid var(--fl-brass); outline-offset: -3px; z-index: 3; }
+.range-handle {
+  position: absolute; bottom: 0; width: 12px; height: 20px; margin-left: -6px; z-index: 4;
+  background: var(--fl-accent); border: 2px solid var(--fl-background); border-radius: 3px;
+  cursor: ew-resize; touch-action: none;
+}
+.range-handle:hover { background: color-mix(in srgb, var(--fl-accent) 80%, var(--fl-foreground)); }
+.range-handle:focus-visible { outline: 2px solid var(--fl-brass); outline-offset: 2px; }
