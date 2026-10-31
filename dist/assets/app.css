@@ -549,6 +549,137 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
 .ann-end { border-radius: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; cursor: move; }
 .overlay-lane .overlay-item.kind-annotations { border-style: solid; }
 
+/* Captions and markers: ruler flags, caption lane, Captions tab, marker list. Fleet tokens only. */
+
+/* ---------- markers on the ruler ---------- */
+.marker-flag {
+  position: absolute; top: 0; bottom: 0; width: 0; z-index: 2; cursor: grab; touch-action: none;
+  border-left: 2px solid var(--fl-warning);
+}
+.marker-flag.chapter { border-left-color: var(--fl-info); }
+.marker-flag::before {
+  /* the pennant */
+  content: ''; position: absolute; left: -2px; top: 0; width: 12px; height: 12px;
+  background: var(--fl-warning); clip-path: polygon(0 0, 100% 0, 70% 50%, 100% 100%, 0 100%);
+}
+.marker-flag.chapter::before { background: var(--fl-info); }
+/* a wider invisible target so the thin flag is easy to grab */
+.marker-flag::after { content: ''; position: absolute; left: -6px; top: 0; bottom: 0; width: 14px; }
+.marker-flag:active { cursor: grabbing; }
+.marker-flag.selected { border-left-width: 3px; }
+.marker-flag.selected::before { outline: 2px solid var(--fl-foreground); outline-offset: 0; }
+.marker-label {
+  position: absolute; left: 14px; bottom: 0; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fl-text-caption); line-height: 12px; color: var(--fl-foreground); pointer-events: none;
+}
+
+/* ---------- caption lane ---------- */
+.overlay-lane .overlay-item.kind-captions { background: color-mix(in srgb, var(--fl-info) 22%, var(--fl-surface)); border-color: var(--fl-info); }
+
+/* ---------- Captions tab ---------- */
+.captions-panel { overflow-y: auto; }
+.captions-panel .bin-actions { flex: none; }
+.caption-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.caption-shift { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.caption-shift label { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
+.caption-shift input {
+  width: 64px; height: 32px; padding: 0 6px; text-align: right; font-family: var(--fl-font-mono); font-size: var(--fl-text-secondary);
+  background: var(--fl-surface); color: var(--fl-foreground); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control);
+}
+.caption-shift span { color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
+.caption-note { padding: 0; }
+.caption-list { list-style: none; margin: 0; padding: 8px 12px 16px; display: grid; gap: 8px; flex: none; }
+.caption-row { border: 1px solid var(--fl-border); border-radius: var(--fl-radius-control); padding: 6px; background: var(--fl-surface); }
+.caption-row.live { border-color: var(--fl-accent); }
+.caption-row.selected { box-shadow: 0 0 0 2px var(--fl-foreground); }
+.caption-row-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 4px; }
+.caption-jump {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 6px; background: transparent; border: 0; cursor: pointer;
+  color: var(--fl-muted-foreground); font: var(--fl-text-caption) var(--fl-font-mono); border-radius: var(--fl-radius-control);
+}
+.caption-jump:hover { color: var(--fl-foreground); background: var(--fl-muted); }
+.caption-num { color: var(--fl-foreground); font-weight: 600; }
+.caption-row textarea, .caption-text {
+  width: 100%; resize: vertical; padding: 6px 8px; font: var(--fl-text-secondary)/1.4 var(--fl-font-body);
+  background: var(--fl-background); color: var(--fl-foreground); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control);
+}
+.field.wide > input[type='number'] { width: 100%; height: 32px; padding: 0 8px; background: var(--fl-surface); color: var(--fl-foreground); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control); font-family: var(--fl-font-mono); }
+
+/* ---------- marker list in the project panel ---------- */
+.marker-list { list-style: none; margin: 0 16px 10px; padding: 0; display: grid; gap: 4px; }
+.marker-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 4px; }
+.marker-row.selected .marker-name { border-color: var(--fl-accent); }
+.marker-jump { min-height: 32px; padding: 0 6px; background: transparent; border: 0; cursor: pointer; color: var(--fl-muted-foreground); font: var(--fl-text-caption) var(--fl-font-mono); border-radius: var(--fl-radius-control); }
+.marker-jump:hover { color: var(--fl-foreground); background: var(--fl-muted); }
+.marker-name { min-width: 0; height: 32px; padding: 0 8px; background: var(--fl-surface); color: var(--fl-foreground); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control); font: var(--fl-text-secondary) var(--fl-font-body); }
+.marker-chapter { display: inline-flex; align-items: center; gap: 4px; color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); cursor: pointer; }
+.marker-chapter input { accent-color: var(--fl-accent); }
+
+/* Clip editing: magnetic tracks and gaps, clip badges, speed and crop controls, the crop frame. */
+
+/* ---------- track header: name + magnetic + close gaps ---------- */
+.track-title { display: flex; align-items: center; gap: 0; min-width: 0; }
+.track-title .track-name { flex: 1; min-width: 0; width: auto; }
+.track-title .track-tool { min-width: 24px; width: 24px; height: 24px; padding: 0; flex: none; }
+.track-title .track-tool svg { width: 14px; height: 14px; }
+
+/* ---------- gaps in a lane ---------- */
+.lane-gap {
+  position: absolute; top: 50%; width: 24px; height: 24px; margin-top: -12px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--fl-popover); color: var(--fl-foreground);
+  border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control);
+  cursor: pointer; opacity: 0; z-index: 1;
+  transition: opacity var(--fl-duration), background-color var(--fl-duration);
+}
+.lane:hover .lane-gap, .lane-gap:focus-visible { opacity: 1; }
+.lane-gap:hover { background: var(--fl-muted); border-color: var(--fl-accent); }
+
+/* ---------- clip decorations ---------- */
+.clip.audio-only .clip-name::before { content: 'Audio · '; font-weight: 500; }
+.clip.freeze { background-image: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--clip-ink) 14%, transparent) 6px 12px); }
+.clip-badges { position: absolute; top: 3px; right: 10px; display: flex; gap: 2px; pointer-events: none; z-index: 1; }
+.clip-badge {
+  display: inline-flex; align-items: center; gap: 2px; height: 16px; padding: 0 4px;
+  background: color-mix(in srgb, var(--fl-background) 82%, transparent); color: var(--fl-foreground);
+  border-radius: 3px; font-size: var(--fl-text-caption); font-weight: 600; line-height: 16px; white-space: nowrap;
+}
+.clip-badge svg { flex: none; }
+
+/* ---------- inspector: speed, hold, crop ---------- */
+.edit-section .check { margin: 2px 0; }
+.edit-section .field.wide input[type='number'] {
+  width: 100%; height: 32px; padding: 0 8px;
+  background: var(--fl-surface); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control);
+  color: var(--fl-foreground); user-select: text;
+}
+.speed-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.speed-presets .speed-preset { height: 28px; padding: 0 8px; font-family: var(--fl-font-mono); }
+.button[aria-pressed='true'], .button.on { border-color: var(--fl-accent); color: var(--fl-accent); }
+.speed-result { font-family: var(--fl-font-mono); font-size: var(--fl-text-caption); }
+
+/* ---------- crop frame over the picture ---------- */
+.crop-overlay { position: absolute; pointer-events: none; transform-origin: center; outline: 1px dashed var(--fl-muted-foreground); }
+.crop-dim { position: absolute; background: rgb(0 0 0 / 0.55); pointer-events: none; }
+.crop-box {
+  position: absolute; border: 2px solid var(--fl-accent); pointer-events: none; box-sizing: border-box; cursor: move;
+  background-image:
+    linear-gradient(to right, transparent 33.2%, rgb(255 255 255 / 0.35) 33.3% 33.5%, transparent 33.6% 66.4%, rgb(255 255 255 / 0.35) 66.5% 66.7%, transparent 66.8%),
+    linear-gradient(to bottom, transparent 33.2%, rgb(255 255 255 / 0.35) 33.3% 33.5%, transparent 33.6% 66.4%, rgb(255 255 255 / 0.35) 66.5% 66.7%, transparent 66.8%);
+}
+.crop-handle {
+  position: absolute; width: 12px; height: 12px; margin: -7px 0 0 -7px; box-sizing: border-box;
+  background: var(--fl-accent); border: 2px solid var(--fl-background); border-radius: 2px; pointer-events: auto;
+}
+.crop-handle-nw { left: 0; top: 0; }
+.crop-handle-n { left: 50%; top: 0; }
+.crop-handle-ne { left: 100%; top: 0; }
+.crop-handle-e { left: 100%; top: 50%; }
+.crop-handle-se { left: 100%; top: 100%; }
+.crop-handle-s { left: 50%; top: 100%; }
+.crop-handle-sw { left: 0; top: 100%; }
+.crop-handle-w { left: 0; top: 50%; }
+
 /* Visual effects: inspector section and the Effects tab. */
 .fx-fields { gap: 12px; }
 .fx-group { display: grid; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--fl-border); }
