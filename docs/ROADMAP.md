@@ -38,7 +38,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Region and exact-window capture | SnapShackle's selection overlay drives a cropped capture | 0.3 | ✅ (region becomes a crop; window is the existing window choice) |
 | Webcam as its own track | `getUserMedia` recorded in parallel, placed as a separate clip | 0.3 | ✅ |
 | Separate mic / system audio tracks | Parallel recorders, one clip per source | 0.3 | ✅ |
-| Cursor data (position, clicks, keys) | Low-level hooks in C# log cursor/clicks/keys with timestamps alongside the video; record with `cursor: 'never'` and re-draw it | 0.3 | 🟡 (sidecar file format and import; nothing captures the cursor yet) |
+| Cursor data (position, clicks, keys) | Low-level hooks in C# log cursor/clicks/keys with timestamps alongside the video; record with `cursor: 'never'` and re-draw it | 0.3 | 🟡 (capture through the host is built and tested with scripted input; a run on a real desktop is outstanding, see #23) |
 | Countdown, recording limits, recording to disk | Chunks streamed to the host while recording | 0.3 | ✅ |
 ### Editing
 
