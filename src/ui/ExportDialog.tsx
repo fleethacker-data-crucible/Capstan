@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { type ExportProgress, type ExportResult, defaultExportOptions, exportMp4 } from '../engine/export';
 import { projectDuration } from '../engine/project';
+import { chapterFiles, saveChapterFiles } from './chapterFiles';
 import { bytes, download, safeFileName, timecode } from './format';
 import { Icon } from './icons';
 import { markBusy } from './lifecycle';
@@ -24,6 +25,7 @@ export function ExportDialog({ editor, onClose }: { editor: Editor; onClose(): v
   const [quality, setQuality] = useState<Quality>('standard');
   const [includeAudio, setIncludeAudio] = useState(true);
   const [burnCaptions, setBurnCaptions] = useState(true);
+  const [saveChapters, setSaveChapters] = useState(true);
   const [progress, setProgress] = useState<ExportProgress | null>(null);
   const [result, setResult] = useState<ExportResult | null>(null);
   const [error, setError] = useState('');
@@ -57,6 +59,7 @@ export function ExportDialog({ editor, onClose }: { editor: Editor; onClose(): v
       );
       setResult(r);
       download(r.blob, `${safeFileName(project.name)}.mp4`);
+      if (saveChapters) saveChapterFiles(project);
       editor.setStatus(`Exported ${safeFileName(project.name)}.mp4 (${bytes(r.blob.size)})`);
     } catch (e) {
       const err = e as Error;
@@ -128,6 +131,12 @@ export function ExportDialog({ editor, onClose }: { editor: Editor; onClose(): v
                 <label className="check">
                   <input type="checkbox" checked={burnCaptions} onChange={(e) => setBurnCaptions(e.target.checked)} />
                   Burn in captions ({project.captions.length})
+                </label>
+              )}
+              {chapterFiles(project).length > 0 && (
+                <label className="check">
+                  <input type="checkbox" checked={saveChapters} onChange={(e) => setSaveChapters(e.target.checked)} />
+                  Also save chapters files (.txt for YouTube, .vtt)
                 </label>
               )}
             </fieldset>

@@ -1,9 +1,8 @@
-import { useRef, useState } from 'react';
-import { formatSrt, parseSubtitles } from '../engine/captions';
+import { useRef } from 'react';
 import { keyedProps, updateClipPropsAt } from '../engine/animate';
-import { addRedaction, duplicateClip, removeRedaction, resizeCanvas, setCaptions, updateClipProps, updateProject, updateRedaction } from '../engine/ops';
+import { addRedaction, duplicateClip, removeRedaction, resizeCanvas, updateClipProps, updateProject, updateRedaction } from '../engine/ops';
 import { type ClipProps, type Project, type Redaction, defaultProps, findMedia, projectDuration } from '../engine/project';
-import { download, safeFileName, timecode } from './format';
+import { timecode } from './format';
 import { Icon } from './icons';
 import { AnimationSection } from './inspector/AnimationSection';
 import { AnnotationPanel } from './inspector/AnnotationPanel';
@@ -82,20 +81,6 @@ function RedactionPanel({ editor, region, onSeek }: { editor: Editor; region: Re
 
 function AnnotationSections({ editor, time, onSeek }: { editor: Editor; time: number; onSeek(t: number): void }) {
   const { project } = editor;
-  const [note, setNote] = useState('');
-  const importCaptions = async (file: File) => {
-    try {
-      const captions = parseSubtitles(await file.text());
-      if (!captions.length) {
-        setNote(`${file.name} has no captions Capstan can read (SRT or WebVTT).`);
-        return;
-      }
-      editor.commit(setCaptions(project, captions));
-      setNote(`Imported ${captions.length} captions from ${file.name}.`);
-    } catch (e) {
-      setNote(`Could not read ${file.name}: ${(e as Error).message}`);
-    }
-  };
   return (
     <>
       <section className="inspector-section" aria-labelledby="blur-heading">
@@ -135,41 +120,9 @@ function AnnotationSections({ editor, time, onSeek }: { editor: Editor; time: nu
         <h3 id="captions-heading">Captions</h3>
         <p className="hint">
           {project.captions.length
-            ? `${project.captions.length} captions, shown in the preview and burned into exports unless you turn them off when exporting.`
-            : 'Import an SRT or WebVTT file to show captions over the video.'}
+            ? `${project.captions.length} captions. Edit, import and export them on the Captions tab at the left.`
+            : 'Add captions, or import an SRT or WebVTT file, on the Captions tab at the left.'}
         </p>
-        <div className="inspector-actions">
-          <label className="button file-button">
-            Import captions
-            <input
-              type="file"
-              accept=".srt,.vtt,text/vtt,application/x-subrip"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = '';
-                if (f) void importCaptions(f);
-              }}
-            />
-          </label>
-          <button className="button" disabled={!project.captions.length} onClick={() => download(new Blob([formatSrt(project.captions)], { type: 'text/plain' }), `${safeFileName(project.name)}.srt`)}>
-            Save as .srt
-          </button>
-          <button
-            className="button"
-            disabled={!project.captions.length}
-            onClick={() => {
-              editor.commit(setCaptions(project, []));
-              setNote('Captions removed.');
-            }}
-          >
-            Remove
-          </button>
-        </div>
-        {note && (
-          <p className="hint" role="status">
-            {note}
-          </p>
-        )}
       </section>
     </>
   );

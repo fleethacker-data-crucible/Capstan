@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { removeAnnotation } from '../engine/annotationOps';
+import { removeCaption } from '../engine/captionops';
 import { deleteBundle, splitBundle } from '../engine/editops';
+import { addMarker, removeMarker } from '../engine/markers';
 import { removeRedaction } from '../engine/ops';
 import type { Player } from '../engine/player';
 import { removeZoom } from '../engine/zoom';
@@ -73,7 +75,8 @@ function ShortcutsDialog({ onClose }: { onClose(): void }) {
 const SHORTCUTS: Array<[string, string]> = [
   ['Space', 'Play or pause'],
   ['S', 'Split at the playhead'],
-  ['Delete', 'Delete selected clips, blur region or annotation'],
+  ['M', 'Add a marker at the playhead'],
+  ['Delete', 'Delete selected clips, blur region, annotation, zoom, caption or marker'],
   ['Shift+Delete', 'Delete and close the gap'],
   ['← / →', 'Step one frame (Shift: one second)'],
   ['Home / End', 'Go to start or end'],
@@ -157,7 +160,7 @@ export function App() {
     (ripple: boolean) => {
       if (!selection.length) return;
       let next = deleteBundle(editor.project, selection, ripple);
-      for (const id of selection) next = removeZoom(removeAnnotation(removeRedaction(next, id), id), id);
+      for (const id of selection) next = removeMarker(removeCaption(removeZoom(removeAnnotation(removeRedaction(next, id), id), id), id), id);
       editor.commit(next);
       editor.setSelection([]);
     },
@@ -199,6 +202,13 @@ export function App() {
         e.preventDefault();
         if (e.shiftKey) ungroupSelection(editor);
         else groupSelection(editor);
+      } else if (!ctrl && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        const r = addMarker(editor.project, time);
+        if (r.id) {
+          editor.commit(r.project);
+          editor.setSelection([r.id]);
+        }
       } else if (!ctrl && e.key.toLowerCase() === 's') {
         e.preventDefault();
         split();

@@ -2,6 +2,7 @@
 // (each video seeked to the exact frame time), encoded with WebCodecs H.264, and the audio is
 // mixed with an OfflineAudioContext and encoded as AAC (or Opus where AAC is unavailable).
 import { drawFrame } from './compositor';
+import { chapterList } from './markers';
 import { seekTo } from './media';
 import { type AudioTrackConfig, Mp4Muxer } from './mp4/muxer';
 import { resizeCanvas } from './ops';
@@ -16,6 +17,8 @@ export interface ExportOptions {
   includeAudio: boolean;
   /** Burn the project's captions into the picture (default true). */
   captions?: boolean;
+  /** Write the project's chapter markers into the file (default true). */
+  chapters?: boolean;
 }
 
 export interface ExportProgress {
@@ -244,6 +247,8 @@ async function renderMp4(
     { codec: 'avc', width: options.width, height: options.height, description: new Uint8Array() },
     audioConfig,
   );
+
+  if (options.chapters !== false) muxer.setChapters(chapterList(project.markers, seconds));
 
   let failure: Error | null = null;
   const fail = (e: unknown) => {
