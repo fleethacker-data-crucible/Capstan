@@ -133,7 +133,9 @@ check('the preview draws the recovered picture (same pixel as before)', pixelB.e
 await b.screenshot({ path: `${out}/library-host-b.png` });
 
 // ---------- a failing host never blocks an edit and is reported ----------
-await hostFetch('/api/test/library-fail?count=30'); // not an /api/files route: no token needed, test server only
+// Fail every chunk until switched off below: a slow runner may retry in the background many times, and a
+// budget that runs out would let a later retry succeed and make the checks below race.
+await hostFetch('/api/test/library-fail?count=100000'); // not an /api/files route: no token needed, test server only
 await b.setInputFiles('.bin-actions input[type=file]', ['tests/fixtures/tone.wav']);
 await b.waitForFunction(() => document.querySelectorAll('.bin-item').length === 3, null, { timeout: 20000 });
 check('with the host failing, the import still lands in the bin', (await b.locator('.bin-item').count()) === 3);
@@ -146,7 +148,8 @@ check('the Library line says the last copy failed', /last copy failed/.test((awa
 const failTitle = (await b.locator('.library-line').getAttribute('title')) ?? '';
 check('its tooltip names the file and says it is still saved in the browser', failTitle.includes('tone.wav') && failTitle.includes('still saved in this browser'), failTitle);
 check('the tone is in IndexedDB', (await idbMedia(b)).some(([, size]) => size === fixture('tone.wav').length));
-check('the failed copy left nothing half-written on the host', !(await hostIndex()).some((f) => f.size === fixture('tone.wav').length));
+const afterFail = await hostIndex();
+check('the failed copy left nothing half-written on the host', !afterFail.some((f) => f.size === fixture('tone.wav').length), JSON.stringify(afterFail.map((f) => [f.id, f.size])));
 await hostFetch('/api/test/library-fail?count=0');
 await b.screenshot({ path: `${out}/library-host-b-failed.png` });
 
@@ -154,7 +157,8 @@ await b.screenshot({ path: `${out}/library-host-b-failed.png` });
 // (the tone is only in profile B's IndexedDB; opening the project again in B makes the host catch up)
 await b.reload();
 await b.waitForSelector('.media-bin, .welcome');
-if (await b.locator('.welcome').count()) await b.getByRole('button', { name: 'Go to the editor' }).click();
+// The Welcome view can disappear by itself once the saved project has loaded, so a missing button is fine.
+await b.getByRole('button', { name: 'Go to the editor' }).click({ timeout: 2000 }).catch(() => undefined);
 await b.waitForSelector('.bin-item', { timeout: 20000 });
 let caught = false;
 for (let i = 0; i < 100 && !caught; i++) {
