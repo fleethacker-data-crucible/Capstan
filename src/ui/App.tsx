@@ -371,10 +371,10 @@ export function App() {
           }}>
             <Icon name="newDoc" />
           </button>
-          <button className="icon-button" title="Open project file" onClick={() => openInput.current?.click()}>
+          <button className="icon-button" title="Open project file (.capstan edit, or a .capstanz package with its media)" onClick={() => openInput.current?.click()}>
             <Icon name="open" />
           </button>
-          <button className="icon-button" title="Save project file" onClick={saveProjectFile}>
+          <button className="icon-button" title="Save project file (.capstan: the edit only, no media). To move a project to another computer use Project, Save package." onClick={saveProjectFile}>
             <Icon name="save" />
           </button>
           <input
