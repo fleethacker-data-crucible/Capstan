@@ -4,7 +4,8 @@
 Launch-Capstan.bat ──► Start-Capstan.ps1 (PowerShell 5.1)
                   └─ modules/LocalHttp.ps1  TcpListener on 127.0.0.1, port fallback
                        serves dist/ (allowlist) + /api/health, /api/heartbeat,
-                       /api/session/stop (session token)
+                       /api/session/stop, /api/snapshackle/captures (session token)
+                  └─ modules/Captures.ps1  read-only SnapShackle captures list and files
                   └─ modules/Lifecycle.ps1  presence rule, runtime file, Stop-Capstan.ps1
                                 │
                                 ▼
@@ -88,6 +89,19 @@ The host writes `logs\capstan-server-<pid>.json` and deletes it in a `finally` (
 - Host: loopback only; rejects wrong `Host`, foreign `Origin`, and cross-site `Sec-Fetch-Site`; fixed file allowlist; per-launch session token for API routes; strict CSP with no inline script and no remote origins; `media-src blob:` for local playback.
 - The editor makes no network requests. `tests/unit/host.test.ts` checks that the bundle references no CDN and that the PowerShell host and the test server send the same CSP.
 
+## Security notes: SnapShackle captures
+
+Needs the Researcher's verdict before merge. Added for "Import SnapShackle captures through the host" (`modules/Captures.ps1`, two routes in `Start-Capstan.ps1`, a streaming body in `modules/LocalHttp.ps1`).
+
+- **What is exposed.** `GET /api/snapshackle/captures` (the newest 500 files: name, size, modified, kind, `hasOcr`, and the OCR text of the `.meta.json` sidecar capped at 20 KB) and `GET /api/snapshackle/captures/<name>` (one file, streamed). `/api/health` adds `"snapshackle": true` when a folder exists. No new listener: same loopback socket, same request loop.
+- **Who can call it.** Only a caller that passes every existing check: loopback peer, `Host` of `127.0.0.1:<port>`, no foreign `Origin`, no cross-site `Sec-Fetch-Site`, and the per-launch session token in `X-Capstan-Token` (compared before the route runs; never read from the query string). No CORS headers are sent, so another site cannot read the answer. Any method but GET is 405 with `Allow: GET`.
+- **Which folder.** The first that exists of `%LOCALAPPDATA%\SnapShackle\Captures`, `%LOCALAPPDATA%\CutterMk\Captures`, `%LOCALAPPDATA%\Lasso\Captures`. It must be an absolute local path, a real directory and not a reparse point. Nothing else is ever listed or read. A request never carries a path.
+- **Which file.** `<name>` is one path segment matching `[A-Za-z0-9 _.()+-]{1,120}` (anchored with `\A..\z`, so a trailing newline does not slip through), decoded from the raw request path exactly once (so `%255c` stays a refused percent sign), with no `..`, no separator or `:`, no trailing dot or space, no Windows device name (`con`, `nul`, `com1`, also with an extension or a space before the dot), and an extension in the allowlist `png jpg jpeg webp gif mp4 webm`. A sidecar `<capture>.meta.json` is only read on behalf of a listed capture and is never served by name. The resolved full path must sit directly in the folder (`GetFullPath`, same directory, same leaf) and be a plain file that is not a reparse point (symlinks and junctions are refused, and are not listed).
+- **Limits.** 500 items per list, OCR text 20 KB (bytes, not characters), a sidecar over 512 KB is ignored, names 120 characters. Files are sent in buffers of at most 1 MB with an exact `Content-Length`; nothing large is held in memory. Responses carry `nosniff`, `no-store` and the usual CSP.
+- **Errors.** A stable `{"error": "..."}` shape: 400 for a refused name, 404 for no folder or no such file (a refused junction or symlink is also a 404), 403 for a failed host or token check, 405 for the method. They never contain a path or exception text.
+- **Test seam.** `CAPSTAN_TEST_CAPTURES` replaces the three folders with one, only when the variable is set. The same rules apply to it. `tests/serve.mjs` mirrors the routes for the browser tests and reads only that variable.
+- **Deliberately not done.** No writing, renaming, deleting or watching. No recursion into subfolders. No hard-link check (a hard link is an ordinary file in the folder). No check that the folder's parents are not links, and a small window between the check and the open in which a file could be swapped for a link (the caller already runs as the same user, and the single-threaded loop makes it narrow). One request is served at a time, so a very large video holds the host until it is sent. The OCR text is shown to the user and kept in the project; it is never sent anywhere.
+
 ## Testing
 
 | Suite | Runs | Covers |
@@ -97,6 +111,9 @@ The host writes `logs\capstan-server-<pid>.json` and deletes it in a `finally` (
 | `tests/e2e/editor.e2e.mjs` | Headless Chromium | Import, drag to timeline, move with snapping, split, undo/redo, trim, inspector, playback, reload persistence, export from the dialog |
 | `tests/e2e/record.e2e.mjs` | Headless Chromium, synthetic capture stream | A tab request that gets a screen is refused with nothing recorded; picker options exclude screens and cap the size; record, pause/resume, stop; recording lands in the bin and timeline with the pause excluded. No fake capture UI: on a Windows runner it shares the real desktop |
 | `tests/e2e/lifecycle.e2e.mjs` | Headless Chromium | Heartbeat with the session header, leaving beacon with the token in the body, new page id after reload, one id per window, End session |
+| `tests/unit/snapshackle-import.test.ts` | `bun test tests/unit` | Name rules on the page, list parsing and search, import ordering and failures, `MediaItem.description` limits, host wiring |
+| `tests/e2e/snapshackle-import.e2e.mjs` | Headless Chromium, its own test server with `CAPSTAN_TEST_CAPTURES` | The list dialog: newest first, thumbnails, search over text, multi-select import with OCR tooltips, empty folder, unreadable file, no folder falls back to the picker, hostile names over HTTP |
+| `tests/ps/Captures.Tests.ps1` | Windows PowerShell 5.1 (CI `windows-host` job) | Name and path rules with hostile names, folder choice and order, listing (order, 500 limit, extension allowlist, OCR cap), junctions and symlinks, and the real host over a raw socket: auth, methods, hostile names, 5.5 MB streaming |
 | `tests/ps/Lifecycle.Tests.ps1` | Windows PowerShell 5.1 (CI `windows-host` job) | Presence rule with simulated time (timeouts, reload, two windows, jobs, busy/hidden, off switch); real host: runtime file without token, heartbeat auth, self-stop after the beacon, End session, `Stop-Capstan.ps1` |
 
 PowerShell runs in CI only for the lifecycle job above. `tests/serve.mjs` mirrors the host's routing and headers; the real host still needs a Windows run (`Launch-Capstan.bat -Diagnostics`, then a normal launch).

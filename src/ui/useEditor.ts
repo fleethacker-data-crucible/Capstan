@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { History } from '../engine/history';
 import { type MediaHints, probeMedia } from '../engine/media';
 import { addMedia, removeMedia } from '../engine/ops';
-import { type MediaItem, type Project, createProject } from '../engine/project';
+import { MAX_DESCRIPTION_CHARS, type MediaItem, type Project, createProject } from '../engine/project';
 import { isEmptyProject } from '../engine/projects';
 import { deleteProject, getMediaBlob, loadLastProject, putMediaBlob, requestPersistence, saveProject } from '../engine/storage';
 
@@ -28,7 +28,8 @@ export interface Editor {
   redo(): void;
   canUndo: boolean;
   canRedo: boolean;
-  importFiles(files: Iterable<File>): Promise<MediaItem[]>;
+  /** `descriptions` attaches text to the media made from a file (the OCR text of a SnapShackle capture). */
+  importFiles(files: Iterable<File>, options?: { descriptions?: ReadonlyMap<File, string> }): Promise<MediaItem[]>;
   /** Adds a fresh recording to the bin; throws if it cannot be added. */
   importRecording(file: File, hints: MediaHints): Promise<MediaItem>;
   deleteMedia(mediaId: string): Promise<void>;
@@ -165,13 +166,15 @@ export function useEditor(): Editor {
   );
 
   const importFiles = useCallback(
-    async (files: Iterable<File>) => {
+    async (files: Iterable<File>, options?: { descriptions?: ReadonlyMap<File, string> }) => {
       const added: MediaItem[] = [];
       const errors: string[] = [];
       let next = projectRef.current;
       for (const file of files) {
         try {
-          const media = await importOne(file);
+          const imported = await importOne(file);
+          const description = options?.descriptions?.get(file)?.slice(0, MAX_DESCRIPTION_CHARS);
+          const media = description?.trim() ? { ...imported, description } : imported;
           next = addMedia(next, media);
           added.push(media);
         } catch (e) {
