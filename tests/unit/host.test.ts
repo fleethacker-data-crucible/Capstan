@@ -106,7 +106,8 @@ test('Stop-Capstan.ps1 finds hosts by runtime file and command line', () => {
   const stop = read('Stop-Capstan.ps1');
   expect(stop).toContain('Stop-CapstanProcesses');
   expect(lifecycle).toContain("capstan-server-*.json");
-  expect(lifecycle).toMatch(/CommandLine -match 'Start-Capstan\\\.ps1'/);
+  expect(lifecycle).toContain('Test-CapstanProcessCommandLine');
+  expect(lifecycle).toContain('[regex]::Escape($scriptPath)');
 });
 
 test('build and test server stop a running host first', () => {
