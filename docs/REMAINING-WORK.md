@@ -17,13 +17,13 @@ Roadmap score today: **57.5 of 67 rows (85.8%)**. Group A takes it to 61.5 (91.8
 | Issue | Roadmap row | Rows |
 | --- | --- | --- |
 | [#24](https://github.com/fleethacker-data-crucible/Capstan/issues/24) Speech-to-text through Windows speech recognition | Speech-to-text | +1.0 |
-| [#25](https://github.com/fleethacker-data-crucible/Capstan/issues/25) Chunked, token-checked file transfer and the library on disk | Library on disk | +0.5 |
+| [#25](https://github.com/fleethacker-data-crucible/Capstan/issues/25) Chunked, token-checked file transfer and the library on disk (done) | Library on disk | +0.5 |
 | [#26](https://github.com/fleethacker-data-crucible/Capstan/issues/26) Import SnapShackle captures through the host | Import SnapShackle captures | +0.5 |
 | [#27](https://github.com/fleethacker-data-crucible/Capstan/issues/27) Decide what the `.capstan` file carries: decided, `.capstan` stays edit-only and `.capstanz` is the portable form (done) | Project file | +0.5 |
 | [#28](https://github.com/fleethacker-data-crucible/Capstan/issues/28) Fast export beyond H.264 MP4 and VP8/VP9 WebM | Fast export | +0.5 |
 | [#29](https://github.com/fleethacker-data-crucible/Capstan/issues/29) Full WebGL2 compositor | WebGL2 compositor | +0.5 |
 | [#30](https://github.com/fleethacker-data-crucible/Capstan/issues/30) Webcam background removal | Background removal | +1.0 |
-| [#31](https://github.com/fleethacker-data-crucible/Capstan/issues/31) Interactive player: decide where it lives | Interactive player | +1.0 |
+| [#31](https://github.com/fleethacker-data-crucible/Capstan/issues/31) Interactive player: decide where it lives (decided: Scrimshaw, see ROADMAP.md) | Interactive player | +1.0 |
 
 ## Command-line and API parity (not a roadmap row)
 

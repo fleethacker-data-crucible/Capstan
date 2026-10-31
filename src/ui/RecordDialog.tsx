@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
+import type { CursorData } from '../engine/cursor';
+import { type CaptureBounds, CursorCapture, type ScreenLike, monitorBounds, newRecordingId } from '../engine/cursor-capture';
 import { type HotkeyEvent, acceptMarkerTime, applyRecordingMarkers, decideHotkey, trayStateFor } from '../engine/hotkeys-host';
 import { projectDuration } from '../engine/project';
 import { type CaptureSurface, SURFACE_LABEL, ScreenRecorder } from '../engine/recorder';
 import {
+  CAPTURE_NEEDS_SCREEN,
   LAST_USED_KEY,
   type RecordSettings,
+  attachCaptured,
+  captureLabel,
+  captureRequest,
   defaultSettings,
   importRecordingSet,
   lastUsedFrom,
@@ -31,7 +37,7 @@ import { download, timecode } from './format';
 import { hotkeyHint, HotkeysPanel } from './HotkeysPanel';
 import { hotkeysWork, onHotkey, setTrayState, useHotkeyStatus } from './hotkeys';
 import { Icon } from './icons';
-import { markBusy } from './lifecycle';
+import { markBusy, sessionToken } from './lifecycle';
 import { RegionPicker } from './RegionPicker';
 import { useModal } from './shell';
 import type { Editor } from './useEditor';
@@ -96,6 +102,12 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
   const [armFirst, setArmFirst] = useState(last.armFirst ?? false);
   const [flash, setFlash] = useState('');
   const { status: hotkeys } = useHotkeyStatus();
+  // Cursor capture is off every time the dialog opens: it is never remembered between recordings.
+  const [captureCursor, setCaptureCursor] = useState(false);
+  const [captureKeys, setCaptureKeys] = useState(false);
+  /** Set while the host is logging the cursor (and shortcuts, if asked): drives the indicator in the recording bar. */
+  const [capturing, setCapturing] = useState<{ keys: boolean } | null>(null);
+  const [notice, setNotice] = useState('');
 
   const [phase, setPhase] = useState<Phase>('setup');
   const [elapsed, setElapsed] = useState(0);
@@ -109,6 +121,7 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
 
   const recorder = useRef<ScreenRecorder | null>(null);
   const store = useRef<RecordingStore | null>(null);
+  const capture = useRef<{ client: CursorCapture; id: string; bounds: CaptureBounds; keys: boolean } | null>(null);
   const plan = useRef<PlacementPlan>({ pip: true });
   const phaseRef = useRef<Phase>('setup');
   const alive = useRef(true);
@@ -126,6 +139,9 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
   const abandon = (message = '') => {
     recorder.current?.cancel();
     recorder.current = null;
+    void capture.current?.client.cancel();
+    capture.current = null;
+    setCapturing(null);
     beginning.current = false;
     setStill(null);
     setPhase('setup');
@@ -159,6 +175,7 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
     return () => {
       alive.current = false;
       recorder.current?.cancel();
+      void capture.current?.client.cancel();
     };
   }, []);
 
@@ -193,25 +210,55 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
     setPhase('saving');
     let file: File | null = null;
     let session: string | null = null;
+    // The host stops logging at once (not after the recorder has flushed); its answer is read below.
+    const cap = capture.current;
+    capture.current = null;
+    const hostText = cap?.client.active ? cap.client.stop().catch((e: unknown) => e as Error) : null;
+    setCapturing(null);
     try {
       const rec = await r.stop();
       recorder.current = null;
       session = rec.session;
       file = new File([rec.blob], rec.name, { type: rec.blob.type });
+      let cursorData: CursorData | null = null;
+      const cursorNotes: string[] = [];
+      if (cap && hostText) {
+        const got = await hostText;
+        if (typeof got === 'string') {
+          try {
+            cursorData = cap.client.collect(got, rec.seconds);
+          } catch (e) {
+            cursorNotes.push(`${(e as Error).message} The recording has no cursor data.`);
+          }
+        } else cursorNotes.push(`${got.message} The recording has no cursor data.`);
+      }
       const { parts, problems } = await importRecordingSet(rec, (f, hints) => editor.importRecording(f, hints));
+      // The new recording gets its cursor data in the same undo step as its place on the timeline.
+      let next = editor.getProject();
+      const hadFx = !!next.cursorFx;
+      if (cursorData) {
+        next = attachCaptured(next, parts[0].media.id, cursorData);
+        cursorNotes.push(
+          `Cursor data attached: ${cursorData.samples.length} positions, ${cursorData.clicks.filter((c) => c.down).length} clicks, ${cursorData.keys.filter((k) => k.down).length} shortcuts.` +
+            (hadFx && !next.cursorFx?.showCursor ? ' Turn on “Draw the cursor” in the Cursor tab to show the pointer.' : ''),
+        );
+      }
+      let committed = false;
       let markersPlaced = false;
       if (addToTimeline) {
         // The recording goes at the end of the timeline; markers taken during it are offset by that start.
-        const start = projectDuration(editor.getProject());
-        const placed = placeAtEnd(editor.getProject(), parts, plan.current);
+        const start = projectDuration(next);
+        const placed = placeAtEnd(next, parts, plan.current);
         if (placed) {
           editor.commit(applyRecordingMarkers(placed.project, start, markerTimes.current));
           editor.setSelection([primaryClip(placed)!]);
+          committed = true;
           markersPlaced = true;
         }
       }
+      if (cursorData && !committed) editor.commit(next);
       if (rec.session) void store.current?.markImported(rec.session).catch(() => undefined);
-      const notes = [...rec.notes, ...problems];
+      const notes = [...rec.notes, ...problems, ...(notice ? [notice] : []), ...cursorNotes];
       if (markerTimes.current.length && !markersPlaced) notes.push('The markers were not added because the recording is not on the timeline.');
       if (notes.length) editor.setStatus(notes.join(' '));
       onClose();
@@ -231,9 +278,21 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
     if (!r || !r.isPrepared || beginning.current) return;
     beginning.current = true;
     try {
+      // The host starts logging just before the recorders start; the gap between the two clocks is measured, not assumed.
+      const cap = capture.current;
+      if (cap) {
+        try {
+          await cap.client.start(cap.id, cap.bounds, cap.keys);
+          setCapturing({ keys: cap.keys });
+        } catch (e) {
+          capture.current = null;
+          setNotice(`Cursor capture could not start: ${(e as Error).message} The pointer is not in this recording.`);
+        }
+      }
       await r.begin(plan.current);
       markerTimes.current = [];
       setFlash('');
+      capture.current?.client.mediaStarted(r.startTime);
       setElapsed(0);
       setDiskBytes(null);
       finishing.current = false;
@@ -293,8 +352,24 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
       toDisk,
       pickRegion,
       hideCursor,
+      captureCursor,
+      captureKeys: captureCursor && captureKeys,
       addToTimeline,
     };
+    // Cursor capture needs the host; check before the picture is shared, because capturing hides the pointer from the video.
+    setNotice('');
+    capture.current = null;
+    const wanted = captureRequest(settings);
+    if (wanted) {
+      const bounds = monitorBounds(window.screen as ScreenLike, window.devicePixelRatio);
+      const client = new CursorCapture({ token: sessionToken() });
+      const why = bounds ? await client.probe() : 'The size of the screen could not be read, so the pointer was recorded normally.';
+      if (why || !bounds) {
+        settings.captureCursor = false;
+        settings.captureKeys = false;
+        setNotice(why ?? '');
+      } else capture.current = { client, id: newRecordingId(), bounds, keys: wanted.keys };
+    }
     savePrefs(settingsToPrefs(settings));
     saveLast(lastUsedFrom(settings, armFirst));
     const r = new ScreenRecorder();
@@ -322,6 +397,7 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
     } catch (e) {
       r.cancel();
       recorder.current = null;
+      capture.current = null;
       const err = e as Error;
       if (alive.current) setError(err.name === 'NotAllowedError' ? 'Screen sharing was cancelled or blocked.' : err.message);
     } finally {
@@ -425,6 +501,36 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
                   <input type="checkbox" checked={pickRegion} onChange={(e) => setPickRegion(e.target.checked)} />
                   Select a region first (the whole screen is still recorded; the region becomes a crop)
                 </label>
+              </fieldset>
+
+              <fieldset className="options record-group">
+                <legend>Cursor effects</legend>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={captureCursor && surface === 'monitor'}
+                    disabled={surface !== 'monitor'}
+                    aria-describedby="cursor-capture-note"
+                    onChange={(e) => setCaptureCursor(e.target.checked)}
+                  />
+                  Capture cursor and keys for effects
+                </label>
+                <p className="hint record-meta" id="cursor-capture-note">
+                  {surface !== 'monitor'
+                    ? CAPTURE_NEEDS_SCREEN
+                    : 'While you record, the Capstan host on this computer logs where the mouse pointer is and when its buttons are pressed. The pointer is left out of the video and drawn again from this log, so you can smooth it, highlight clicks and zoom to it. The log is saved in %LOCALAPPDATA%\\Capstan\\recordings and in your project, and it never leaves this computer.'}
+                </p>
+                {captureCursor && surface === 'monitor' && (
+                  <>
+                    <label className="check">
+                      <input type="checkbox" checked={captureKeys} aria-describedby="cursor-keys-note" onChange={(e) => setCaptureKeys(e.target.checked)} />
+                      Include keyboard shortcuts
+                    </label>
+                    <p className="hint record-meta" id="cursor-keys-note">
+                      Records function keys and key combinations that use Ctrl, Alt or the Windows key, such as Ctrl+C, so they can be shown as callouts. Typed letters, numbers and punctuation are never recorded.
+                    </p>
+                  </>
+                )}
               </fieldset>
               <p className="modal-text">
                 {surface === 'monitor'
@@ -600,7 +706,17 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
               <span className="rec-dot" aria-hidden />
               <span className="rec-time">{timecode(elapsed)}</span>
               <span>{phase === 'paused' ? 'Paused' : phase === 'saving' ? 'Saving…' : 'Recording'}</span>
+              {capturing && phase !== 'saving' && (
+                <span className="rec-capture" role="status" data-testid="capture-indicator">
+                  {captureLabel(capturing.keys, phase === 'paused')}
+                </span>
+              )}
             </div>
+            {notice && phase !== 'saving' && (
+              <p className="record-warning" role="status">
+                {notice}
+              </p>
+            )}
             {limit.warn && phase === 'recording' && (
               <p className="record-warning" role="status">
                 Recording stops and saves in {Math.ceil(limit.remaining ?? 0)} s (maximum length reached).
@@ -625,6 +741,7 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
                   className="button"
                   onClick={() => {
                     recorder.current?.pause();
+                    void capture.current?.client.pause();
                     setPhase('paused');
                   }}
                 >
@@ -636,6 +753,7 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
                   className="button"
                   onClick={() => {
                     recorder.current?.resume();
+                    void capture.current?.client.resume();
                     setPhase('recording');
                   }}
                 >
