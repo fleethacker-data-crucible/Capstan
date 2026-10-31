@@ -5,7 +5,7 @@ import { type MediaHints, probeMedia } from '../engine/media';
 import { addMedia, removeMedia } from '../engine/ops';
 import { type MediaItem, type Project, createProject } from '../engine/project';
 import { isEmptyProject } from '../engine/projects';
-import { deleteProject, getMediaBlob, loadLastProject, putMediaBlob, requestPersistence, saveProject } from '../engine/storage';
+import { deleteProject, getMediaBlob, loadLastProject, putMediaBlob, requestPersistence, saveProject, setLibraryReporter } from '../engine/storage';
 
 export interface MediaSources {
   url(mediaId: string): string | null;
@@ -60,6 +60,11 @@ export function useEditor(): Editor {
   const urls = useRef(new Map<string, string>());
   const bitmaps = useRef(new Map<string, ImageBitmap>());
   const blobs = useRef(new Map<string, Blob>());
+
+  // A failed copy to the library on disk shows in the status bar; the edit itself is never held up by it.
+  useEffect(() => {
+    setLibraryReporter(setStatus);
+  }, []);
 
   const loadSource = useCallback(async (media: MediaItem, blob?: Blob | null) => {
     const b = blob ?? (await getMediaBlob(media.id));

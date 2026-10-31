@@ -16,6 +16,8 @@ import { Emblem, Welcome } from './Welcome';
 import { RecoveryDialog } from './RecoveryDialog';
 import { Inspector } from './Inspector';
 import { endSession, isBusy, onEngineState, sessionToken, startHeartbeat, type EngineState } from './lifecycle';
+import { onLibraryState } from '../engine/storage';
+import type { MirrorState } from '../engine/library-mirror';
 import { Preview } from './Preview';
 import { ProjectMenu } from './projects/ProjectMenu';
 import { openAnyProjectFile } from './projects/actions';
@@ -111,12 +113,14 @@ export function App() {
   const [theme, setTheme] = useState<ThemeChoice>(readTheme);
   const [collapsedPref, setCollapsedPref] = useState(readSidebarCollapsed);
   const [engine, setEngine] = useState<EngineState>('connecting');
+  const [library, setLibrary] = useState<MirrorState>({ active: false, pending: 0, failed: 0, progress: null, lastError: null });
   const narrow = useNarrow();
   const collapsed = collapsedPref || narrow;
   const openInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => onEngineState(setEngine), []);
+  useEffect(() => onLibraryState(setLibrary), []);
 
   const cycleTheme = () => {
     const t = nextTheme(theme);
@@ -484,6 +488,16 @@ export function App() {
           <span className="engine-dot" aria-hidden />
           {ENGINE_WORD[engine]}
         </span>
+        {library.active && (
+          <span
+            className={`library-line${library.failed ? ' library-failed' : ''}`}
+            title={library.lastError ?? 'Media is also kept in a folder on this computer (Capstan, under LOCALAPPDATA), so a project still finds it on another port or after the browser was cleared.'}
+          >
+            Library on disk
+            {library.pending > 0 && ` · saving ${library.pending}${library.progress != null ? ` (${Math.round(library.progress * 100)}%)` : ''}`}
+            {library.failed > 0 && ' · last copy failed'}
+          </span>
+        )}
         <span className="address" title="The address this Capstan is served from">
           {window.location.host || 'file'}
         </span>

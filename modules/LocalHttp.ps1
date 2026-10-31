@@ -3,6 +3,9 @@
   so ordinary users do not need a Windows HTTP.sys URL ACL reservation.
   One request per connection, Connection: close, no chunked transfer encoding.
   Body and header limits are enforced before handing requests to the app.
+  Bodies are read into memory (30 MB cap), except for /api/files (the on-disk library, modules/Library.ps1):
+  those requests hand over an unread, length-bounded stream so a chunk is written to disk in 1 MB buffers,
+  and a file download is streamed from disk in 1 MB buffers (Response.SetFile).
 #>
 if (-not ('Capstan.Transport.Server' -as [type])) {
     Add-Type -TypeDefinition @'
@@ -58,6 +61,37 @@ namespace Capstan.Transport {
         public void Dispose() { Listener.Stop(); }
     }
 
+    // The unread body of a request, bounded by its Content-Length. The library routes read it in 1 MB
+    // buffers; whatever is left is dropped before the connection closes so a refusal still reaches the client.
+    public sealed class BodyStream : Stream {
+        readonly Stream inner;
+        readonly long total;
+        long remaining;
+        public BodyStream(Stream source, long length) { inner=source; total=length; remaining=length; }
+        public long Remaining { get { return remaining; } }
+        public override bool CanRead { get { return true; } }
+        public override bool CanSeek { get { return false; } }
+        public override bool CanWrite { get { return false; } }
+        public override long Length { get { return total; } }
+        public override long Position { get { return total-remaining; } set { throw new NotSupportedException(); } }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) { throw new NotSupportedException(); }
+        public override void SetLength(long value) { throw new NotSupportedException(); }
+        public override void Write(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count) {
+            if (remaining<=0 || count<=0) return 0;
+            int want=(int)Math.Min((long)count,remaining);
+            int got=inner.Read(buffer,offset,want);
+            if (got<=0) throw new IOException("Incomplete request body");
+            remaining-=got;
+            return got;
+        }
+        public void Discard() {
+            byte[] sink=new byte[65536];
+            while (remaining>0) { if (Read(sink,0,sink.Length)<=0) break; }
+        }
+    }
+
     public sealed class Request {
         public Uri Url { get; internal set; }
         public string HttpMethod { get; internal set; }
@@ -90,22 +124,36 @@ namespace Capstan.Transport {
         public long ContentLength64;
         public MemoryStream OutputStream=new MemoryStream();
         byte[] immediateBody=null;
+        Stream fileBody=null;
+        long fileCount=0;
         // Avoid copying large responses into MemoryStream and then cloning them via ToArray().
         public void SetBody(byte[] body) { immediateBody=body ?? new byte[0]; }
+        // Streams `count` bytes from the current position of `source` (read in 1 MB buffers, closed after
+        // sending). Used by the library for downloads, so a big file is never held in memory.
+        public void SetFile(Stream source,long count) { fileBody=source; fileCount=count; ContentLength64=count; }
         public Response(NetworkStream s) { stream=s; }
-        public void Close() {
-            if (closed) return;
-            closed=true;
-            ArraySegment<byte> buffered;
-            byte[] body;
-            int length;
-            int offset;
-            if (immediateBody!=null) { body=immediateBody; length=body.Length; offset=0; }
-            else if (OutputStream.TryGetBuffer(out buffered)) { body=buffered.Array; offset=buffered.Offset; length=buffered.Count; }
-            else { body=OutputStream.ToArray(); length=body.Length; offset=0; }
-            string reason=StatusCode==200?"OK":StatusCode==400?"Bad Request":StatusCode==403?"Forbidden":StatusCode==404?"Not Found":StatusCode==409?"Conflict":StatusCode==413?"Payload Too Large":StatusCode==501?"Not Implemented":"Internal Server Error";
+        static string Reason(int code) {
+            switch (code) {
+                case 200: return "OK";
+                case 206: return "Partial Content";
+                case 400: return "Bad Request";
+                case 403: return "Forbidden";
+                case 404: return "Not Found";
+                case 405: return "Method Not Allowed";
+                case 409: return "Conflict";
+                case 413: return "Payload Too Large";
+                case 415: return "Unsupported Media Type";
+                case 416: return "Range Not Satisfiable";
+                case 422: return "Unprocessable Entity";
+                case 429: return "Too Many Requests";
+                case 501: return "Not Implemented";
+                case 507: return "Insufficient Storage";
+                default: return "Internal Server Error";
+            }
+        }
+        byte[] Header(long length) {
             StringBuilder sb=new StringBuilder();
-            sb.Append("HTTP/1.1 ").Append(StatusCode).Append(' ').Append(reason).Append("\r\n");
+            sb.Append("HTTP/1.1 ").Append(StatusCode).Append(' ').Append(Reason(StatusCode)).Append("\r\n");
             sb.Append("Connection: close\r\nContent-Type: ").Append(ContentType).Append("\r\n");
             sb.Append("Content-Length: ").Append(length.ToString(CultureInfo.InvariantCulture)).Append("\r\n");
             foreach (string key in Headers.AllKeys) {
@@ -115,7 +163,36 @@ namespace Capstan.Transport {
                 }
             }
             sb.Append("\r\n");
-            byte[] header=Encoding.ASCII.GetBytes(sb.ToString());
+            return Encoding.ASCII.GetBytes(sb.ToString());
+        }
+        public void Close() {
+            if (closed) return;
+            closed=true;
+            if (fileBody!=null) {
+                Stream source=fileBody;
+                try {
+                    byte[] head=Header(fileCount);
+                    stream.Write(head,0,head.Length);
+                    byte[] chunk=new byte[1048576];
+                    long left=fileCount;
+                    while (left>0) {
+                        int got=source.Read(chunk,0,(int)Math.Min((long)chunk.Length,left));
+                        if (got<=0) throw new IOException("File ended before the announced length");
+                        stream.Write(chunk,0,got);
+                        left-=got;
+                    }
+                    stream.Flush();
+                } finally { source.Dispose(); OutputStream.Dispose(); }
+                return;
+            }
+            ArraySegment<byte> buffered;
+            byte[] body;
+            int length;
+            int offset;
+            if (immediateBody!=null) { body=immediateBody; length=body.Length; offset=0; }
+            else if (OutputStream.TryGetBuffer(out buffered)) { body=buffered.Array; offset=buffered.Offset; length=buffered.Count; }
+            else { body=OutputStream.ToArray(); length=body.Length; offset=0; }
+            byte[] header=Header(length);
             stream.Write(header,0,header.Length);
             if (length>0) stream.Write(body,offset,length);
             stream.Flush();
@@ -126,9 +203,15 @@ namespace Capstan.Transport {
     public sealed class ClientContext : IDisposable {
         const int MaxHeaders=32768;
         const int MaxBody=30000000;
+        // Bodies of /api/files requests are not buffered; the library routes enforce their own, much
+        // smaller limits and answer 413 above them. This only bounds how much is read to drop a refused body.
+        const int MaxStreamBody=67108864;
         readonly TcpClient client;
         public Request Request { get; private set; }
         public Response Response { get; private set; }
+        static bool IsStreamedTarget(string target) {
+            return target=="/api/files" || target.StartsWith("/api/files/",StringComparison.Ordinal) || target.StartsWith("/api/files?",StringComparison.Ordinal);
+        }
         public ClientContext(TcpClient tcp,int port) {
             client=tcp;
             try {
@@ -166,24 +249,42 @@ namespace Capstan.Transport {
                 string expectedHost="127.0.0.1:"+port.ToString(CultureInfo.InvariantCulture);
                 if (headers["Host"]!=expectedHost) throw new InvalidDataException("Invalid Host header");
                 if (headers["Transfer-Encoding"]!=null || headers["Expect"]!=null) throw new InvalidDataException("Chunked/Expect requests are unsupported");
+                bool streamed=IsStreamedTarget(requestLine[1]);
                 int length=0;
-                if (headers["Content-Length"]!=null && (!int.TryParse(headers["Content-Length"],NumberStyles.None,CultureInfo.InvariantCulture,out length) || length<0 || length>MaxBody))
+                if (headers["Content-Length"]!=null && (!int.TryParse(headers["Content-Length"],NumberStyles.None,CultureInfo.InvariantCulture,out length) || length<0 || length>(streamed?MaxStreamBody:MaxBody)))
                     throw new InvalidDataException("HTTP request body size invalid");
-                if (requestLine[0]!="GET" && headers["Content-Length"]==null) throw new InvalidDataException("Content-Length is required");
-                byte[] body=new byte[length];
-                int n=0;
-                while (n<length) {
-                    int got=incoming.Read(body,n,length-n);
-                    if (got<=0) throw new IOException("Incomplete request body");
-                    n+=got;
+                // GET and DELETE may omit Content-Length (a browser sends none for a DELETE without a body).
+                if ((requestLine[0]=="POST" || requestLine[0]=="PUT") && headers["Content-Length"]==null) throw new InvalidDataException("Content-Length is required");
+                Stream bodyStream;
+                if (streamed) {
+                    bodyStream=new BodyStream(incoming,length);
+                } else {
+                    byte[] body=new byte[length];
+                    int n=0;
+                    while (n<length) {
+                        int got=incoming.Read(body,n,length-n);
+                        if (got<=0) throw new IOException("Incomplete request body");
+                        n+=got;
+                    }
+                    bodyStream=new MemoryStream(body,false);
                 }
                 Uri uri=new Uri("http://"+expectedHost+requestLine[1],UriKind.Absolute);
                 if (uri.Host!="127.0.0.1" || uri.Port!=port) throw new InvalidDataException("Invalid URI authority");
-                Request=new Request{Url=uri,HttpMethod=requestLine[0],Headers=headers,InputStream=new MemoryStream(body,false),ContentLength64=length,RemoteEndPoint=(IPEndPoint)client.Client.RemoteEndPoint};
+                Request=new Request{Url=uri,HttpMethod=requestLine[0],Headers=headers,InputStream=bodyStream,ContentLength64=length,RemoteEndPoint=(IPEndPoint)client.Client.RemoteEndPoint};
                 Response=new Response(ns);
             } catch { client.Close(); throw; }
         }
-        public void Dispose() { if (Request!=null) Request.InputStream.Dispose(); client.Close(); }
+        public void Dispose() {
+            if (Request!=null) {
+                BodyStream unread=Request.InputStream as BodyStream;
+                if (unread!=null && unread.Remaining>0) {
+                    // Drop a body nobody read (a refusal), or closing would reset the connection and the client would lose the answer.
+                    try { client.ReceiveTimeout=3000; unread.Discard(); } catch { }
+                }
+                Request.InputStream.Dispose();
+            }
+            client.Close();
+        }
     }
 }
 '@

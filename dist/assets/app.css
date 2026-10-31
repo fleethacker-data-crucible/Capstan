@@ -787,6 +787,10 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
 .range-handle:hover { background: color-mix(in srgb, var(--fl-accent) 80%, var(--fl-foreground)); }
 .range-handle:focus-visible { outline: 2px solid var(--fl-brass); outline-offset: 2px; }
 
+/* Status bar line for the media library the host keeps on disk. Colour stays the foreground token (contrast); a failed copy is marked by text and an underline. */
+.library-line { white-space: nowrap; color: var(--fl-foreground); }
+.library-line.library-failed { text-decoration: underline dotted; text-underline-offset: 3px; }
+
 /* Projects and package area: the Project menu, the Projects / Templates / Library dialogs, Welcome extras. */
 
 .project-menu { position: relative; }

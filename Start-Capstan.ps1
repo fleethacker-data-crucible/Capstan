@@ -36,6 +36,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dist = Join-Path $root 'dist'
 . (Join-Path $root 'modules/LocalHttp.ps1')
 . (Join-Path $root 'modules/Lifecycle.ps1')
+. (Join-Path $root 'modules/Library.ps1')
 $CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
 # Only these compiled files are ever served. Anything else is a 404.
@@ -115,10 +116,10 @@ if ($requestedPort -ne $Port) {
 
 $ContentSecurityPolicy = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
-function Send-Response($Context, [byte[]]$Bytes, [string]$ContentType='application/json', [int]$Status=200) {
-    $response = $Context.Response
-    $response.StatusCode = $Status
-    $response.ContentType = $ContentType
+# The on-disk media library (modules/Library.ps1): created before the first request, off if its folder is unusable.
+[void](Initialize-CapstanLibrary)
+
+function Add-CapstanSecurityHeaders($response) {
     $response.Headers.Add('Cache-Control','no-store')
     $response.Headers.Add('X-Content-Type-Options','nosniff')
     $response.Headers.Add('X-Frame-Options','DENY')
@@ -126,6 +127,13 @@ function Send-Response($Context, [byte[]]$Bytes, [string]$ContentType='applicati
     $response.Headers.Add('Cross-Origin-Opener-Policy','same-origin')
     $response.Headers.Add('Permissions-Policy','camera=(self), microphone=(self), display-capture=(self), geolocation=()')
     $response.Headers.Add('Content-Security-Policy',$ContentSecurityPolicy)
+}
+
+function Send-Response($Context, [byte[]]$Bytes, [string]$ContentType='application/json', [int]$Status=200) {
+    $response = $Context.Response
+    $response.StatusCode = $Status
+    $response.ContentType = $ContentType
+    Add-CapstanSecurityHeaders $response
     $response.ContentLength64 = $Bytes.Length
     try { $response.SetBody($Bytes) }
     finally { $response.Close() }
@@ -194,8 +202,12 @@ function Invoke-CapstanRequest($Context) {
         return
     }
     if ($path -eq '/api/health' -and $method -eq 'GET') {
-        Send-Json $Context @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()};return
+        $health = @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString()}
+        foreach ($entry in (Get-CapstanLibraryInfo).GetEnumerator()) { $health[$entry.Key] = $entry.Value }
+        Send-Json $Context $health;return
     }
+    # Media library on disk: /api/files... (token, size, id and path rules live in modules/Library.ps1).
+    if (Invoke-CapstanLibraryRoute -Context $Context -SessionToken $sessionToken) { return }
     Send-Json $Context @{error='Route not found'} 404
 }
 
@@ -205,6 +217,7 @@ try {
     $runtimeFile = Write-CapstanRuntimeFile -Root $root -Port $Port -Url $base
     Write-Host "Capstan $CapstanVersion local server: $base" -ForegroundColor Yellow
     Write-Host 'Your media and projects stay in this browser profile on this computer.'
+    if (Test-CapstanLibraryEnabled) { Write-Host 'A copy of each media file is kept in %LOCALAPPDATA%\Capstan\library, so projects survive a port change or a cleared browser.' }
     if ($autoStop) {
         Write-Host 'Capstan stops by itself when its window closes. To quit now: "End session" in the window, Ctrl+C here, or Stop-Capstan.ps1.'
     } else {
@@ -225,6 +238,7 @@ try {
             $script:CapstanStopReason = 'The Capstan window was closed (set CAPSTAN_AUTO_STOP=0 or use -Stay to keep it running).'
             break
         }
+        Invoke-CapstanLibrarySweep
         $context=$null
         try {
             # Wake at least once a second for the lifecycle tick; this also lets Ctrl+C through.
@@ -245,6 +259,7 @@ try {
     if ($script:CapstanStopReason) { Write-Host ('Capstan stopped: ' + $script:CapstanStopReason) -ForegroundColor Yellow }
 } finally {
     $server.Dispose()
-    # Also runs on Ctrl+C.
+    # Also runs on Ctrl+C. An upload that was still open is not kept.
+    Clear-CapstanLibraryUploads
     Remove-CapstanRuntimeFile -Path $runtimeFile
 }

@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stopCapstan } from '../scripts/stop-capstan.mjs';
+import { CHUNK_MAX, failNextChunks, handleLibrary } from './library-mirror.mjs';
 
 // On Windows a running Capstan host holds port 8790; stop it first and say so.
 stopCapstan('serve');
@@ -63,7 +64,16 @@ const server = createServer(async (req, res) => {
     return;
   } else if (url.pathname === '/api/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ app: 'Capstan', host: 'test-server', offline: true }));
+    res.end(JSON.stringify({ app: 'Capstan', host: 'test-server', offline: true, library: true, libraryMaxBytes: 16 * 1024 ** 3, libraryChunkBytes: CHUNK_MAX }));
+    return;
+  } else if (url.pathname === '/api/files' || url.pathname.startsWith('/api/files/')) {
+    // The on-disk media library (mirror of modules/Library.ps1, files in a temp folder).
+    await handleLibrary(req, res, url, { port, token: 'test-token' });
+    return;
+  } else if (url.pathname === '/api/test/library-fail') {
+    // Test-only: the next N chunk uploads answer 500.
+    failNextChunks(Number(url.searchParams.get('count') ?? 0));
+    res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}');
     return;
   }
   if (!file || !file.startsWith(root)) {

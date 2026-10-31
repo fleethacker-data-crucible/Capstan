@@ -1,5 +1,9 @@
 // IndexedDB persistence: media bytes (as Blobs) and project documents stay in the browser
-// profile on this computer. Nothing is uploaded anywhere.
+// profile on this computer. Nothing is uploaded anywhere except to the Capstan host on this same
+// computer: when it keeps a library on disk (modules/Library.ps1), each media file is also copied there
+// in the background, and read back from there when IndexedDB does not have it (see library-mirror.ts).
+import { HostLibrary, pageSessionToken } from './library-host';
+import { LibraryMirror, type MirrorState } from './library-mirror';
 import { type MediaItem, type Project, parseProject } from './project';
 import { type ProjectSummary, summariseProject } from './projects';
 import { type ProjectTemplate, parseTemplate } from './templates';
@@ -55,17 +59,52 @@ async function tx<T>(store: string, mode: IDBTransactionMode, run: (s: IDBObject
   });
 }
 
-export function putMediaBlob(id: string, blob: Blob): Promise<IDBValidKey> {
+// The page's connection to the host's on-disk library. Only exists when the host served this page.
+const mirror = new LibraryMirror(() => (pageSessionToken() ? new HostLibrary({ token: pageSessionToken }) : null));
+
+/** Where a failed copy to the library on disk is reported (the status bar). */
+export function setLibraryReporter(fn: (text: string) => void): void {
+  mirror.setReporter(fn);
+}
+
+/** Subscribes to the library's state (active, files waiting, last failure). Calls back at once. */
+export function onLibraryState(fn: (s: MirrorState) => void): () => void {
+  void mirror.ready();
+  return mirror.subscribe(fn);
+}
+
+const labelOf = (id: string, blob: Blob) => (blob as File).name || id;
+
+function putLocal(id: string, blob: Blob): Promise<IDBValidKey> {
   return tx(MEDIA, 'readwrite', (s) => s.put(blob, id));
 }
 
+/** Stores media in IndexedDB, then (when the host has a library) copies it there without waiting for it. */
+export async function putMediaBlob(id: string, blob: Blob): Promise<IDBValidKey> {
+  const key = await putLocal(id, blob);
+  mirror.store(id, blob, labelOf(id, blob));
+  return key;
+}
+
+/** IndexedDB first; the host's library when IndexedDB does not have the media (another port, cleared data). */
 export async function getMediaBlob(id: string): Promise<Blob | null> {
   const value = await tx<Blob | undefined>(MEDIA, 'readonly', (s) => s.get(id));
-  return value instanceof Blob ? value : null;
+  if (value instanceof Blob) {
+    mirror.noteLocal(id, value, labelOf(id, value));
+    return value;
+  }
+  const remote = await mirror.fetch(id);
+  if (!remote) return null;
+  // Keep a local copy so the next open does not go through the host; best effort (quota).
+  await putLocal(id, remote).catch(() => undefined);
+  return remote;
 }
 
 export function deleteMediaBlob(id: string): Promise<undefined> {
-  return tx(MEDIA, 'readwrite', (s) => s.delete(id));
+  return tx<undefined>(MEDIA, 'readwrite', (s) => s.delete(id)).then((r) => {
+    mirror.forget(id);
+    return r;
+  });
 }
 
 /** Stores a project. `markLast: false` saves one that is not the open project (rename, duplicate). */
