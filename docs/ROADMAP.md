@@ -119,12 +119,12 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Feature | Plan | Release | Status |
 | --- | --- | --- | --- |
 | MP4 (H.264 + AAC/Opus), size and quality | WebCodecs + own muxer | 0.1 | ✅ |
-| Streaming export straight to a file | Fragmented MP4 written through the host, flat memory use | 0.2 | ⬜ |
-| Fast export (decode with WebCodecs, not seeking) | Rust → WASM MP4/WebM demuxer feeding `VideoDecoder` | 0.2 | ⬜ |
-| Export part of the timeline, single frame as PNG | Range selection | 0.4 | ⬜ |
-| Animated GIF | Port SnapShackle's GIF encoder and quantiser | 1.0 | ⬜ |
-| Audio-only (M4A / WAV) | Muxer audio-only path | 1.0 | ⬜ |
-| Presets and batch export | Saved option sets, queue | 1.0 | ⬜ |
+| Streaming export straight to a file | Fragmented MP4 written through the host, flat memory use | 0.2 | ✅ (File System Access picker; memory stays flat) |
+| Fast export (decode with WebCodecs, not seeking) | Rust → WASM MP4/WebM demuxer feeding `VideoDecoder` | 0.2 | 🟡 (H.264 in MP4 and VP8/VP9 in WebM; other sources seek) |
+| Export part of the timeline, single frame as PNG | Range selection | 0.4 | ✅ |
+| Animated GIF | Port SnapShackle's GIF encoder and quantiser | 1.0 | ✅ |
+| Audio-only (M4A / WAV) | Muxer audio-only path | 1.0 | ✅ |
+| Presets and batch export | Saved option sets, queue | 1.0 | ✅ |
 | Interactive player (quizzes, hotspots, TOC) | Static HTML player bundle | 1.x | ⬜ |
 
 ### Projects and library
@@ -133,7 +133,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | --- | --- | --- | --- |
 | Autosave and restore | IndexedDB | 0.1 | ✅ |
 | Project file (`.capstan`) | JSON | 0.1 | 🟡 (edit only; media stays in Capstan) |
-| Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\Capstan` | 0.2 | ⬜ |
-| Self-contained project package | Zip with media | 0.2 | ⬜ |
-| Templates, themes, reusable assets | Library collections | 1.0 | ⬜ |
-| Import SnapShackle captures | Read `%LOCALAPPDATA%\SnapShackle\Captures` (older installs: `CutterMk` or `Lasso`) | 0.2 | ⬜ |
+| Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\Capstan` | 0.2 | 🟡 (library in the browser store only; host endpoints still needed) |
+| Self-contained project package | Zip with media | 0.2 | ✅ (`.capstanz`) |
+| Templates, themes, reusable assets | Library collections | 1.0 | ✅ |
+| Import SnapShackle captures | Read `%LOCALAPPDATA%\SnapShackle\Captures` (older installs: `CutterMk` or `Lasso`) | 0.2 | 🟡 (through a folder picker; no host access) |
