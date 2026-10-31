@@ -65,6 +65,8 @@ Use a current **Edge or Chrome**: Capstan needs WebCodecs (video encoding) and s
 
 Press ? in the editor for every shortcut.
 
+Making a demo video? [docs/DEMO-RECIPE.md](docs/DEMO-RECIPE.md) has the exact steps, from recording to a checked MP4.
+
 ## Known limitations
 
 - **Media lives in the browser's storage for this address.** If port 8790 is taken and Capstan falls back to another port, your earlier projects will not show until it runs on 8790 again (the console says so). Use **Save package** to move a project between ports or computers. Moving the library to files on disk needs host support that is not built yet.
