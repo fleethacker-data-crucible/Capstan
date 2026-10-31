@@ -111,8 +111,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Captions track and editor | Timed text clips | 0.9 | ✅ |
 | SRT / VTT import and export | Parser/writer | 0.9 | ✅ |
 | Burned-in captions | Compositor text | 0.9 | ✅ |
-| Speech-to-text | Windows speech recognition via WinRT from PowerShell (as SnapShackle does OCR), with an optional bundled WASM model | 0.9 | ⬜ |
-
+| Speech-to-text | Windows speech recognition via WinRT from PowerShell (as SnapShackle does OCR), with an optional bundled WASM model | 0.9 | ✅ (Windows System.Speech recogniser through a host endpoint, offline; Transcribe in the Captions tab; quality depends on the installed speech pack, and a hand test with a real voice is outstanding) |
 ### Export and sharing
 
 | Feature | Plan | Release | Status |
