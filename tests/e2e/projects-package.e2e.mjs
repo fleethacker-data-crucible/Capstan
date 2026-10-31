@@ -430,7 +430,7 @@ await page.keyboard.press('Escape');
 
 // ---------- the existing project-file buttons ----------
 const jsonDl = page.waitForEvent('download');
-await page.locator('.toolbar [title="Save project file"]').click();
+await page.locator('.toolbar [title^="Save project file"]').click();
 const jf = await jsonDl;
 check('Save project file still writes a .capstan (edit only)', jf.suggestedFilename().endsWith('.capstan') && /edit only|Save package/.test(await status()), await status());
 await jf.saveAs(`${out}/pp-edit.capstan`);
