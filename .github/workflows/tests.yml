@@ -130,3 +130,15 @@ jobs:
       - name: SnapShackle captures routes (Windows PowerShell 5.1)
         shell: powershell
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Captures.Tests.ps1
+      - name: Media library on disk (Windows PowerShell 5.1)
+        shell: powershell
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Library.Tests.ps1
+      - name: Speech-to-text endpoint (Windows PowerShell 5.1, fake engine)
+        shell: powershell
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Speech.Tests.ps1
+      - name: Cursor capture (Windows PowerShell 5.1, scripted input only)
+        shell: powershell
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\CursorCapture.Tests.ps1
+      - name: Hotkeys and tray, synthetic input only (Windows PowerShell 5.1)
+        shell: powershell
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Hotkeys.Tests.ps1

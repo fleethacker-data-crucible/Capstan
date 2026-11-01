@@ -90,7 +90,7 @@ const panel = page.locator('.cursor-panel');
 await page.getByRole('tab', { name: 'Cursor' }).click();
 await panel.waitFor();
 check('the Cursor tab shows a recording with no data yet', (await page.getByTestId('cursor-summary').textContent()).startsWith('No cursor data (clip.cursor.json)'));
-check('the panel says plainly that cursor capture is not built in', (await panel.textContent()).includes('cannot read your mouse or keyboard while it records another app'));
+check('the panel says plainly where cursor data comes from', (await panel.textContent()).includes('A browser cannot read your mouse or keyboard while it records another app'));
 
 await page.setInputFiles('input[aria-label="Attach cursor data to clip.webm"]', badSidecar);
 await page.waitForSelector('.cfx-error');

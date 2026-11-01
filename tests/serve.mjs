@@ -6,6 +6,10 @@ import { lstat, readFile, readdir } from 'node:fs/promises';
 import { extname, isAbsolute, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stopCapstan } from '../scripts/stop-capstan.mjs';
+import { handleSpeech } from './helpers/speech-mirror.mjs';
+import { CHUNK_MAX, failNextChunks, handleLibrary, resetLibrary } from './library-mirror.mjs';
+import { calls as cursorCalls, handleCursor } from './helpers/cursor-host-mirror.mjs';
+import { createHotkeyMirror } from './hotkeys-mirror.mjs';
 
 // On Windows a running Capstan host holds port 8790; stop it first and say so.
 stopCapstan('serve');
@@ -26,6 +30,8 @@ export const CSP =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 const heartbeats = [];
+// Mirrors modules/Hotkeys.ps1: a simulated service when CAPSTAN_TEST_HOTKEYS=1, otherwise hotkeys are off.
+const hotkeys = createHotkeyMirror();
 
 // ---- SnapShackle captures (mirror of modules/Captures.ps1; only CAPSTAN_TEST_CAPTURES is read here) ----
 // Same paths, status codes and JSON shapes as the host. The folder comes from the test variable only;
@@ -133,7 +139,12 @@ const server = createServer(async (req, res) => {
     await handleCaptures(req, res, req.url ?? '/');
     return;
   }
+  if (await handleSpeech(req, res, url)) return; // speech-to-text mirror (fake engine)
   let file;
+  if (url.pathname.startsWith('/api/hotkeys/')) {
+    await hotkeys.handle(req, res, url);
+    return;
+  }
   if (url.pathname === '/') file = join(root, 'dist/index.html');
   else if (url.pathname.startsWith('/assets/')) file = join(root, 'dist', normalize(url.pathname));
   else if (url.pathname.startsWith('/fixtures/')) file = join(root, 'tests', normalize(url.pathname));
@@ -160,6 +171,14 @@ const server = createServer(async (req, res) => {
     // Test-only: what the page sent, so e2e tests can check the lifecycle signals.
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(heartbeats));
     return;
+  } else if (url.pathname.startsWith('/api/cursor/')) {
+    // Mirror of modules/CursorCapture.ps1 (synthetic data only, see tests/helpers/cursor-host-mirror.mjs).
+    await handleCursor(req, res, url);
+    return;
+  } else if (url.pathname === '/api/test/cursor-calls') {
+    // Test-only: every /api/cursor/* request the page made.
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(cursorCalls));
+    return;
   } else if (url.pathname === '/api/session/stop' && req.method === 'POST') {
     // The test server keeps running so later suites still work; it only records the request.
     const ok = req.headers['x-capstan-token'] === 'test-token';
@@ -168,7 +187,20 @@ const server = createServer(async (req, res) => {
     return;
   } else if (url.pathname === '/api/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ app: 'Capstan', host: 'test-server', offline: true, snapshackle: !!(await capturesRoot()) }));
+    res.end(JSON.stringify({ app: 'Capstan', host: 'test-server', offline: true, snapshackle: !!(await capturesRoot()), library: true, libraryMaxBytes: 16 * 1024 ** 3, libraryChunkBytes: CHUNK_MAX }));
+    return;
+  } else if (url.pathname === '/api/files' || url.pathname.startsWith('/api/files/')) {
+    // The on-disk media library (mirror of modules/Library.ps1, files in a temp folder).
+    await handleLibrary(req, res, url, { port, token: 'test-token' });
+    return;
+  } else if (url.pathname === '/api/test/library-reset') {
+    await resetLibrary();
+    res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}');
+    return;
+  } else if (url.pathname === '/api/test/library-fail') {
+    // Test-only: the next N chunk uploads answer 500.
+    failNextChunks(Number(url.searchParams.get('count') ?? 0));
+    res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}');
     return;
   }
   if (!file || !file.startsWith(root)) {

@@ -709,6 +709,12 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
 .crop-handle-sw { left: 0; top: 100%; }
 .crop-handle-w { left: 0; top: 50%; }
 
+/* Cursor capture: the indicator in the recording bar while the host logs the pointer (and shortcuts). */
+.rec-capture { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1px solid var(--fl-accent); border-radius: 999px; color: var(--fl-foreground); font-size: var(--fl-text-caption); }
+.rec-capture::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--fl-accent); }
+.rec-status.paused .rec-capture { border-color: var(--fl-control-border); }
+.rec-status.paused .rec-capture::before { background: var(--fl-muted-foreground); }
+
 /* Cursor effects: the Cursor tab. Uses the Fleet tokens only. */
 .cursor-panel { min-width: 0; }
 .cfx-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 16px; }
@@ -777,6 +783,33 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
 .export-item.status-done .export-item-status { color: var(--fl-success); }
 .progress.small { height: 8px; margin-top: 4px; }
 
+/* Global hotkeys: the Record dialog's Hotkeys group and the armed step. */
+
+.hotkeys-panel .hotkeys-note { margin: 4px 0 8px; }
+.hotkey-rows { display: grid; gap: 6px; margin-top: 8px; }
+.hotkey-row { display: grid; grid-template-columns: minmax(110px, 1fr) auto auto; gap: 4px 12px; align-items: center; padding: 6px 0; border-top: 1px solid var(--fl-border); }
+.hotkey-name { font-weight: 600; color: var(--fl-foreground); }
+.hotkey-mods { display: inline-flex; gap: 10px; flex-wrap: wrap; }
+.hotkey-mods .check { margin: 0; }
+.hotkey-row select {
+  height: 32px; min-width: 96px; padding: 0 8px;
+  background: var(--fl-surface); border: 1px solid var(--fl-control-border); border-radius: var(--fl-radius-control);
+  color: var(--fl-foreground);
+}
+.hotkey-state { grid-column: 1 / -1; font-size: var(--fl-text-caption); color: var(--fl-muted-foreground); }
+.hotkey-state.good { color: var(--fl-foreground); }
+.hotkey-state.good::before { content: '\2713\00a0'; color: var(--fl-success); }
+.hotkey-state.bad { color: var(--fl-foreground); padding: 4px 8px; border: 1px solid var(--fl-warning); border-radius: var(--fl-radius-control); background: color-mix(in srgb, var(--fl-warning) 16%, transparent); }
+.hotkey-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.hotkeys-help { margin-top: 8px; }
+.hotkeys-help summary { cursor: pointer; color: var(--fl-muted-foreground); font-size: var(--fl-text-caption); }
+.hotkeys-help p { margin: 6px 0 0; padding: 0; }
+
+.rec-status.armed .rec-dot { background: var(--fl-warning); }
+.record-flash { margin: 4px 0 0; padding: 0; color: var(--fl-foreground); }
+
+@media (max-width: 520px) { .hotkey-row { grid-template-columns: 1fr; } }
+
 /* Keyboard access to the timeline: visible focus on clips, and the export in and out handles. */
 .clip:focus-visible { outline: 2px solid var(--fl-brass); outline-offset: -3px; z-index: 3; }
 .range-handle {
@@ -786,6 +819,10 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
 }
 .range-handle:hover { background: color-mix(in srgb, var(--fl-accent) 80%, var(--fl-foreground)); }
 .range-handle:focus-visible { outline: 2px solid var(--fl-brass); outline-offset: 2px; }
+
+/* Status bar line for the media library the host keeps on disk. Colour stays the foreground token (contrast); a failed copy is marked by text and an underline. */
+.library-line { white-space: nowrap; color: var(--fl-foreground); }
+.library-line.library-failed { text-decoration: underline dotted; text-underline-offset: 3px; }
 
 /* Projects and package area: the Project menu, the Projects / Templates / Library dialogs, Welcome extras. */
 
@@ -937,6 +974,15 @@ kbd { font: var(--fl-text-caption) var(--fl-font-mono); padding: 2px 8px; border
 .snap-row input[type='checkbox'] { flex: none; width: 18px; height: 18px; accent-color: var(--fl-accent); }
 .snap-row .pp-thumb { width: 80px; height: 50px; }
 .snap-ocr { color: var(--fl-foreground); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Speech-to-text section of the Captions tab. Fleet tokens only. */
+.transcribe { flex: none; display: grid; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--fl-border); }
+.transcribe-title { margin: 0; font-size: var(--fl-text-secondary); font-weight: 600; }
+.transcribe .hint { margin: 0; padding: 0; }
+.transcribe-problem { color: var(--fl-foreground); border-left: 3px solid var(--fl-warning); padding-left: 8px !important; }
+.transcribe-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.transcribe .progress { margin-top: 0; }
+.transcribe .field select { width: 100%; height: 32px; }
 
 /* Visual effects: inspector section and the Effects tab. */
 .fx-fields { gap: 12px; }

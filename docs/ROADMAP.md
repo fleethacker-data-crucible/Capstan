@@ -34,11 +34,11 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Choose tab / window / screen; refuse anything else | `displaySurface` hint, screens excluded from the picker, shared surface checked before recording | 0.1 | ✅ |
 | Microphone and system audio, mixed | Web Audio mix into one track | 0.1 | ✅ |
 | Pause / resume | `MediaRecorder.pause()` | 0.1 | ✅ |
-| Global hotkeys, tray, studio not in the shot | Port SnapShackle's `RegisterHotKey` + tray (C# via `Add-Type`) | 0.3 | ⬜ |
+| Global hotkeys, tray, studio not in the shot | Port SnapShackle's `RegisterHotKey` + tray (C# via `Add-Type`) | 0.3 | 🟡 (global hotkeys and a tray icon through the host are built and tested with synthetic events; keeping Capstan out of the shot is not possible from the host, so record a tab or a window; a real desktop run is outstanding) |
 | Region and exact-window capture | SnapShackle's selection overlay drives a cropped capture | 0.3 | ✅ (region becomes a crop; window is the existing window choice) |
 | Webcam as its own track | `getUserMedia` recorded in parallel, placed as a separate clip | 0.3 | ✅ |
 | Separate mic / system audio tracks | Parallel recorders, one clip per source | 0.3 | ✅ |
-| Cursor data (position, clicks, keys) | Low-level hooks in C# log cursor/clicks/keys with timestamps alongside the video; record with `cursor: 'never'` and re-draw it | 0.3 | 🟡 (sidecar file format and import; nothing captures the cursor yet) |
+| Cursor data (position, clicks, keys) | Low-level hooks in C# log cursor/clicks/keys with timestamps alongside the video; record with `cursor: 'never'` and re-draw it | 0.3 | 🟡 (capture through the host is built and tested with scripted input; a run on a real desktop is outstanding, see #23) |
 | Countdown, recording limits, recording to disk | Chunks streamed to the host while recording | 0.3 | ✅ |
 ### Editing
 
@@ -111,8 +111,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Captions track and editor | Timed text clips | 0.9 | ✅ |
 | SRT / VTT import and export | Parser/writer | 0.9 | ✅ |
 | Burned-in captions | Compositor text | 0.9 | ✅ |
-| Speech-to-text | Windows speech recognition via WinRT from PowerShell (as SnapShackle does OCR), with an optional bundled WASM model | 0.9 | ⬜ |
-
+| Speech-to-text | Windows speech recognition via WinRT from PowerShell (as SnapShackle does OCR), with an optional bundled WASM model | 0.9 | ✅ (Windows System.Speech recogniser through a host endpoint, offline; Transcribe in the Captions tab; quality depends on the installed speech pack, and a hand test with a real voice is outstanding) |
 ### Export and sharing
 
 | Feature | Plan | Release | Status |
@@ -132,7 +131,7 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | --- | --- | --- | --- |
 | Autosave and restore | IndexedDB | 0.1 | ✅ |
 | Project file (`.capstan`) | JSON | 0.1 | ✅ (edit only by design; the portable form is the `.capstanz` package) |
-| Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\Capstan` | 0.2 | 🟡 (library in the browser store only; host endpoints still needed) |
+| Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\Capstan` | 0.2 | ✅ (media is also stored under %LOCALAPPDATA%\Capstan\library through the host, so a project opened on another port finds it; the browser store is still used first and alone when there is no host) |
 | Self-contained project package | Zip with media | 0.2 | ✅ (`.capstanz`) |
 | Templates, themes, reusable assets | Library collections | 1.0 | ✅ |
 | Import SnapShackle captures | Read `%LOCALAPPDATA%\SnapShackle\Captures` (older installs: `CutterMk` or `Lasso`) | 0.2 | 🟡 (through a folder picker; no host access) |

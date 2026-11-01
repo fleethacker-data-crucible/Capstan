@@ -1,0 +1,39 @@
+{
+  "keys": [
+    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11",
+    "F13", "F14", "F15", "F16", "F17", "F18", "F19", "F20", "F21", "F22", "F23", "F24",
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "Insert", "Delete", "Home", "End", "PageUp", "PageDown", "Pause", "PrintScreen", "ScrollLock"
+  ],
+  "cases": [
+    { "input": "Ctrl+Shift+F9", "ok": true, "normalized": "Ctrl+Shift+F9" },
+    { "input": "ctrl+shift+f10", "ok": true, "normalized": "Ctrl+Shift+F10" },
+    { "input": "  Shift + Ctrl + F11  ", "ok": true, "normalized": "Ctrl+Shift+F11" },
+    { "input": "Control+Alt+a", "ok": true, "normalized": "Ctrl+Alt+A" },
+    { "input": "Alt+1", "ok": true, "normalized": "Alt+1" },
+    { "input": "alt+shift+ctrl+pagedown", "ok": true, "normalized": "Ctrl+Alt+Shift+PageDown" },
+    { "input": "Ctrl+PrintScreen", "ok": true, "normalized": "Ctrl+PrintScreen" },
+    { "input": "Ctrl+F24", "ok": true, "normalized": "Ctrl+F24" },
+    { "input": "F9", "ok": false },
+    { "input": "Shift+F9", "ok": false },
+    { "input": "Ctrl+Shift", "ok": false },
+    { "input": "Ctrl+", "ok": false },
+    { "input": "+", "ok": false },
+    { "input": "", "ok": false },
+    { "input": "   ", "ok": false },
+    { "input": "Ctrl+F12", "ok": false },
+    { "input": "Ctrl+Win+F9", "ok": false },
+    { "input": "Ctrl+Ctrl+F9", "ok": false },
+    { "input": "Ctrl+A+B", "ok": false },
+    { "input": "Ctrl+Shift+F25", "ok": false },
+    { "input": "Ctrl+Space", "ok": false },
+    { "input": "Ctrl+Alt+Delete", "ok": false },
+    { "input": "Ctrl+Shift+F9; calc", "ok": false },
+    { "input": "Ctrl+Shift+F9\r\nX-Evil: 1", "ok": false },
+    { "input": "Ctrl+Shift+é", "ok": false },
+    { "input": "Ctrl+Shift+Enter", "ok": false },
+    { "input": "Ctrl+Shift+0x78", "ok": false },
+    { "input": "Ctrl+Alt+Shift+Ctrl+Alt+Shift+Ctrl+Alt+Shift+F9", "ok": false }
+  ]
+}

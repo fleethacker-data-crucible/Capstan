@@ -26,6 +26,7 @@ foreach ($a in @($Rest)) {
         '^--?no-browser$' { $NoBrowser = $true }
         '^--?default-browser$' { $DefaultBrowser = $true }
         '^--?diagnostics$' { $Diagnostics = $true }
+        '^--?no-hotkeys$' { $env:CAPSTAN_HOTKEYS = '0' }
         default { if ($a) { Write-Warning ('Ignoring unknown option ' + $a) } }
     }
 }
@@ -36,7 +37,19 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dist = Join-Path $root 'dist'
 . (Join-Path $root 'modules/LocalHttp.ps1')
 . (Join-Path $root 'modules/Lifecycle.ps1')
+# Cursor and shortcut capture for effects (docs/cursor-data.md). If it cannot be compiled here, the routes
+# answer 503 and recording works as before.
+$cursorHost = $null
+try {
+    . (Join-Path $root 'modules/CursorCapture.ps1')
+    $cursorHost = New-CapstanCursorRecorder
+} catch {
+    Write-Warning 'Cursor capture is not available on this computer; recording works without it.'
+}
 . (Join-Path $root 'modules/Captures.ps1')
+. (Join-Path $root 'modules/Library.ps1')
+. (Join-Path $root 'modules/Speech.ps1')
+. (Join-Path $root 'modules/Hotkeys.ps1')
 $CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
 # Only these compiled files are ever served. Anything else is a 404.
@@ -115,6 +128,9 @@ if ($requestedPort -ne $Port) {
 }
 
 $ContentSecurityPolicy = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+
+# The on-disk media library (modules/Library.ps1): created before the first request, off if its folder is unusable.
+[void](Initialize-CapstanLibrary)
 
 function Set-CapstanResponseHeaders($response, [string]$ContentType, [int]$Status) {
     $response.StatusCode = $Status
@@ -207,8 +223,22 @@ function Invoke-CapstanRequest($Context) {
         $script:CapstanStopReason = 'End session was chosen in the Capstan window.'
         return
     }
+    if ($path.StartsWith('/api/cursor/')) {
+        # The body is read as text with a hard cap; the module validates everything else.
+        $bodyText = ''
+        if ($request.ContentLength64 -gt 0) {
+            if ($request.ContentLength64 -gt 2000000) { Send-Json $Context @{error='The request is too large.';code='too-large'} 413;return }
+            $reader = New-Object System.IO.StreamReader -ArgumentList $request.InputStream, ([Text.Encoding]::UTF8)
+            try { $bodyText = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        }
+        $result = Invoke-CapstanCursorApi -Recorder $cursorHost -Method $method -Path $path -ContentType ([string]$request.Headers['Content-Type']) -BodyText $bodyText
+        Send-Response $Context ([Text.Encoding]::UTF8.GetBytes($result.Text)) 'application/json; charset=utf-8' $result.Status
+        return
+    }
     if ($path -eq '/api/health' -and $method -eq 'GET') {
-        Send-Json $Context @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString();snapshackle=[bool](Get-CapstanCapturesRoot)};return
+        $health = @{app='Capstan';version=$CapstanVersion;offline=$true;host='powershell';ps=$PSVersionTable.PSVersion.ToString();snapshackle=[bool](Get-CapstanCapturesRoot)}
+        foreach ($entry in (Get-CapstanLibraryInfo).GetEnumerator()) { $health[$entry.Key] = $entry.Value }
+        Send-Json $Context $health;return
     }
     # SnapShackle captures: read-only list and file (modules/Captures.ps1). The name is taken from the raw path.
     if ($path -eq '/api/snapshackle/captures' -or $path.StartsWith('/api/snapshackle/captures/',[StringComparison]::Ordinal)) {
@@ -217,20 +247,43 @@ function Invoke-CapstanRequest($Context) {
         Invoke-CapstanCaptureRoute $Context $method $(if ($slash -ge 0) { $raw.Substring($slash) } else { '/' })
         return
     }
+    # Media library on disk: /api/files... (token, size, id and path rules live in modules/Library.ps1).
+    if (Invoke-CapstanLibraryRoute -Context $Context -SessionToken $sessionToken) { return }
+    if ($path.StartsWith('/api/speech/', [StringComparison]::Ordinal)) {
+        # Speech-to-text (modules/Speech.ps1): status, transcribe a WAV, poll or cancel a job.
+        $speech = Invoke-CapstanSpeechRoute -Method $method -Path $path -Query $request.Url.Query -ContentType $request.Headers['Content-Type'] -ContentLength $request.ContentLength64 -Body $request.InputStream
+        Send-Json $Context $speech.Body $speech.Status;return
+    }
+    # Global hotkeys and the tray (modules/Hotkeys.ps1). A long poll is parked, not waited on, so the loop stays free.
+    if ($path.StartsWith('/api/hotkeys/')) {
+        $result = Invoke-CapstanHotkeyApi -Service $hotkeys -Request $request -SessionToken $sessionToken
+        if ($result.Park) {
+            Add-CapstanParkedPoll -Context $Context -Since $result.Since -Seconds $result.Seconds
+            $script:CapstanContextParked = $true
+            return
+        }
+        Send-Json $Context $result.Payload $result.Status;return
+    }
     Send-Json $Context @{error='Route not found'} 404
 }
 
 $base="http://127.0.0.1:$Port/"
 $runtimeFile = $null
+$hotkeys = $null
+$script:CapstanContextParked = $false
 try {
     $runtimeFile = Write-CapstanRuntimeFile -Root $root -Port $Port -Url $base
     Write-Host "Capstan $CapstanVersion local server: $base" -ForegroundColor Yellow
     Write-Host 'Your media and projects stay in this browser profile on this computer.'
+    if (Test-CapstanLibraryEnabled) { Write-Host 'A copy of each media file is kept in %LOCALAPPDATA%\Capstan\library, so projects survive a port change or a cleared browser.' }
     if ($autoStop) {
         Write-Host 'Capstan stops by itself when its window closes. To quit now: "End session" in the window, Ctrl+C here, or Stop-Capstan.ps1.'
     } else {
         Write-Host 'Auto-stop is off (-Stay or CAPSTAN_AUTO_STOP=0). To quit: "End session" in the window, Ctrl+C here, or Stop-Capstan.ps1.'
     }
+    # Global hotkeys and the tray icon run on their own background thread; they never keep the host alive.
+    $hotkeys = New-CapstanHotkeyService -OpenUrl $base
+    Write-CapstanHotkeySummary -Service $hotkeys
     if (-not $NoBrowser) {
         try {
             $edge = if ($DefaultBrowser) { $null } else { Find-CapstanEdge }
@@ -246,10 +299,14 @@ try {
             $script:CapstanStopReason = 'The Capstan window was closed (set CAPSTAN_AUTO_STOP=0 or use -Stay to keep it running).'
             break
         }
+        Invoke-CapstanLibrarySweep
         $context=$null
+        $script:CapstanContextParked = $false
+        # Answer long polls that have an event or ran out of time (a parked poll wants a faster tick).
+        Complete-CapstanParkedPolls -Service $hotkeys
         try {
             # Wake at least once a second for the lifecycle tick; this also lets Ctrl+C through.
-            $context=$server.TryAccept(1000)
+            $context=$server.TryAccept($(if ($script:CapstanParkedPolls.Count -gt 0) { 100 } else { 1000 }))
             if ($null -eq $context) { continue }
             Invoke-CapstanRequest $context
         } catch [System.IO.InvalidDataException] {
@@ -260,12 +317,18 @@ try {
                 try { if ($context.Response.OutputStream.CanWrite) { Send-Json $context @{error='Request failed'} 500 } } catch {}
             }
         } finally {
-            if ($null -ne $context) { $context.Dispose() }
+            if ($null -ne $context -and -not $script:CapstanContextParked) { $context.Dispose() }
         }
     }
     if ($script:CapstanStopReason) { Write-Host ('Capstan stopped: ' + $script:CapstanStopReason) -ForegroundColor Yellow }
 } finally {
+    # Unregisters every hotkey and removes the tray icon (also on Ctrl+C).
+    Stop-CapstanHotkeyService -Service $hotkeys
+    # A cursor session that is still running is finished and written, then the sampler thread ends.
+    if ($null -ne $cursorHost) { try { $cursorHost.Shutdown() } catch {} }
     $server.Dispose()
-    # Also runs on Ctrl+C.
+    Stop-CapstanSpeech
+    # Also runs on Ctrl+C. An upload that was still open is not kept.
+    Clear-CapstanLibraryUploads
     Remove-CapstanRuntimeFile -Path $runtimeFile
 }

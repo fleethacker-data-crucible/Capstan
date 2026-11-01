@@ -2,9 +2,9 @@
 // click rings, key callouts. Owned by the cursor area. Positions are fractions of the recorded frame.
 //
 // Where the data comes from: a browser cannot read the OS cursor or the keyboard while another app
-// is being recorded, so Capstan does not capture it itself. The data is loaded from a sidecar file
-// (`<name>.cursor.json`, see docs/cursor-data.md) written by a low-level hook host. Until that host
-// exists the file can be produced by any tool that follows the format. Nothing here invents data.
+// is being recorded, so the PowerShell host captures it (modules/CursorCapture.ps1, started by the Record
+// dialog through engine/cursor-capture.ts) and writes a sidecar (`<name>.cursor.json`, docs/cursor-data.md).
+// Any other tool that follows the format works too. Nothing here invents data.
 import { type KeyCallout, drawKeyCallouts, keyCallouts } from './cursorkeys';
 import { drawCursorShape } from './cursorshapes';
 

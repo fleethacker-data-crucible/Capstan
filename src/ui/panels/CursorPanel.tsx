@@ -69,7 +69,7 @@ export function CursorPanel({ editor, onSeek }: ToolboxProps): ReactElement {
       </header>
       <div className="cfx-body">
         <p className="hint">
-          Capstan cannot read your mouse or keyboard while it records another app yet. Cursor data comes from a <code>.cursor.json</code> file made for a recording (format in docs/cursor-data.md). Attach one, then turn on the effects you want.
+          A browser cannot read your mouse or keyboard while it records another app, so the Capstan host does it when you turn on "Capture cursor and keys for effects" in the Record dialog. Data can also come from a <code>.cursor.json</code> file (format in docs/cursor-data.md). Attach one, then turn on the effects you want.
         </p>
 
         <h3 className="cfx-h">Cursor data</h3>
