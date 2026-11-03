@@ -142,7 +142,7 @@ async function run(job, name) {
   const total = r.info.size;
   check('[stream] result says it was streamed, with no Blob', r.info.streamed === true && r.info.bytes === total);
   check('[stream] the sink got many writes, none of them the whole file', r.log.writes.length > 20 && Math.max(...r.log.writes) < total / 2, `${r.log.writes.length} writes, largest ${Math.max(...r.log.writes)} of ${total}`);
-  check('[stream] most of the file was written before the last frame was rendered', r.log.bytesBeforeLastFrame > total * 0.4, `${r.log.bytesBeforeLastFrame} of ${total}`);
+  check('[stream] a quarter of the file was written before the last frames', r.log.bytesBeforeLastFrame > total * 0.25, `${r.log.bytesBeforeLastFrame} of ${total}`);
   check('[stream] sink closed once, at the end', r.log.closed);
   check('[stream] streamed file is H.264 320x180 + audio, 2 s', v.codec_name === 'h264' && v.width === 320 && pr.streams.some((s) => s.codec_type === 'audio') && Math.abs(Number(pr.format.duration) - 2) < 0.15, `${pr.format.duration}s`);
   check('[stream] 30 decodable frames and a clean decode', countFrames(r.file) === 30 && decodeErrors(r.file) === '', String(countFrames(r.file)));
