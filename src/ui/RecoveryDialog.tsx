@@ -103,10 +103,10 @@ export function RecoveryDialog({ editor }: { editor: Editor }) {
                   </span>
                 </div>
                 <div className="recover-actions">
-                  <button className="button" disabled={!!busy} onClick={() => void discard(s)} aria-label={`Discard ${s.manifest.name}`}>
+                  <button className="button" data-action="capstan.record.discard" disabled={!!busy} aria-disabled={!!busy} onClick={() => void discard(s)} aria-label={`Discard ${s.manifest.name}`}>
                     Discard
                   </button>
-                  <button className="button primary" disabled={!!busy} onClick={() => void importSession(s)} aria-label={`Import ${s.manifest.name}`}>
+                  <button className="button primary" data-action="capstan.record.recover" disabled={!!busy} aria-disabled={!!busy} onClick={() => void importSession(s)} aria-label={`Import ${s.manifest.name}`}>
                     {busy === s.session ? 'Importing…' : 'Import'}
                   </button>
                 </div>

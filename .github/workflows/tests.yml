@@ -142,3 +142,13 @@ jobs:
       - name: Hotkeys and tray, synthetic input only (Windows PowerShell 5.1)
         shell: powershell
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\Hotkeys.Tests.ps1
+      - name: Fleet actions (Pester 5, Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\vendor\Pester\Restore.ps1
+          Import-Module .\vendor\Pester\Pester.psd1
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'tests\ps\FleetAction.Tests.ps1'
+          $cfg.Run.Exit = $true
+          Invoke-Pester -Configuration $cfg

@@ -27,20 +27,20 @@ export function Welcome({ onRecord, onImport, onOpen, onEditor }: { onRecord: ()
           <Icon name="record" />
           Record screen
         </button>
-        <button className="button fl-btn fl-btn--secondary fl-btn--lg" onClick={onImport}>
+        <button className="button fl-btn fl-btn--secondary fl-btn--lg" data-action="capstan.media.import" onClick={onImport}>
           <Icon name="import" />
           Import media
         </button>
-        <button className="button fl-btn fl-btn--secondary fl-btn--lg" onClick={onOpen}>
+        <button className="button fl-btn fl-btn--secondary fl-btn--lg" data-action="capstan.project.open" onClick={onOpen}>
           <Icon name="open" />
           Open project
         </button>
       </div>
       <div className="welcome-more">
-        <button className="button fl-btn fl-btn--secondary" onClick={() => openProjectDialog('projects')}>
+        <button className="button fl-btn fl-btn--secondary" data-action="capstan.projects.list" onClick={() => openProjectDialog('projects')}>
           Projects
         </button>
-        <button className="button fl-btn fl-btn--secondary" onClick={() => openProjectDialog('templates-new')}>
+        <button className="button fl-btn fl-btn--secondary" data-action="capstan.project.from-template" onClick={() => openProjectDialog('templates-new')}>
           New from template
         </button>
       </div>

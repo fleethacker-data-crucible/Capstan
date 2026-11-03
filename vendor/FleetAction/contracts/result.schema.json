@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/fleethacker-data-crucible/fleet-action-baseline/contracts/result.schema.json",
+  "title": "FleetAction result envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "ok"],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "result": {},
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": ["E_ARGS", "E_NOT_FOUND", "E_CONFIRM", "E_AUTH", "E_INTERNAL"]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stepId": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+        },
+        "completed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "ok", "result"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "ok": {
+                "const": true
+              },
+              "result": {}
+            }
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "required": ["result"],
+      "properties": {
+        "ok": { "const": true }
+      },
+      "not": { "required": ["error"] }
+    },
+    {
+      "required": ["error"],
+      "properties": {
+        "ok": { "const": false }
+      },
+      "not": { "required": ["result"] }
+    }
+  ]
+}

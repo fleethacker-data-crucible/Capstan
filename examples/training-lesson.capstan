@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "id": "prj_training_lesson",
+  "name": "Training lesson",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "background": "#000000",
+  "tracks": [
+    { "id": "trk_1", "name": "Video", "muted": false, "hidden": false, "locked": false, "magnetic": false }
+  ],
+  "clips": [
+    {
+      "id": "clp_1",
+      "trackId": "trk_1",
+      "mediaId": "med_1",
+      "start": 0,
+      "in": 0,
+      "duration": 48,
+      "props": { "x": 960, "y": 540, "scale": 1, "rotation": 0, "opacity": 1, "volume": 1 }
+    }
+  ],
+  "media": [
+    {
+      "id": "med_1",
+      "name": "snapshackle-capture.mp4",
+      "kind": "video",
+      "mime": "video/mp4",
+      "bytes": 0,
+      "duration": 48,
+      "width": 1920,
+      "height": 1080,
+      "hasAudio": true,
+      "createdAt": 0,
+      "description": "A SnapShackle capture brought into Capstan for a Scrimshaw course."
+    }
+  ],
+  "redactions": [],
+  "captions": [
+    { "id": "cap_1", "start": 0, "end": 4, "text": "Welcome to the lesson." },
+    { "id": "cap_2", "start": 12.5, "end": 18, "text": "This capture came from SnapShackle." }
+  ],
+  "annotations": [],
+  "zooms": [],
+  "markers": [
+    { "id": "mrk_1", "time": 0, "name": "Open", "chapter": true },
+    { "id": "mrk_2", "time": 12.5, "name": "Show the capture", "chapter": true },
+    { "id": "mrk_3", "time": 30, "name": "Editor note", "chapter": false }
+  ],
+  "updatedAt": 0
+}

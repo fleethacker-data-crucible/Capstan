@@ -50,6 +50,10 @@ try {
 . (Join-Path $root 'modules/Library.ps1')
 . (Join-Path $root 'modules/Speech.ps1')
 . (Join-Path $root 'modules/Hotkeys.ps1')
+Import-Module (Join-Path $root 'vendor/FleetAction/FleetAction.psm1') -Force
+Import-Module (Join-Path $root 'actions/Capstan.Actions.psm1') -Force
+. (Join-Path $root 'modules/FleetRoutes.ps1')
+Register-CapstanActions
 $CapstanVersion = ([IO.File]::ReadAllText((Join-Path $root 'VERSION'))).Trim()
 
 # Only these compiled files are ever served. Anything else is a 404.
@@ -264,6 +268,8 @@ function Invoke-CapstanRequest($Context) {
         }
         Send-Json $Context $result.Payload $result.Status;return
     }
+    # Fleet actions: GET /api/commands, GET /api/help, POST /api/actions/<app.noun.verb>, POST /api/jobs.
+    if (Invoke-CapstanFleetRoute -Context $Context -Method $method -Path $path) { return }
     Send-Json $Context @{error='Route not found'} 404
 }
 

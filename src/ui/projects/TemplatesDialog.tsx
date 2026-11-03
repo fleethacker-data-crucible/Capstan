@@ -94,11 +94,11 @@ export function TemplatesDialog({ editor, mode, onClose }: { editor: Editor; mod
         {t.description && <span className="pp-sub">{t.description}</span>}
       </div>
       <div className="pp-actions">
-        <button className="button primary" disabled={busy} aria-label={`New project from ${t.name}`} onClick={() => void useTemplate(t)}>
+        <button className="button primary" data-action={t.id.startsWith('builtin-') ? 'capstan.project.from-template' : 'capstan.template.use'} disabled={busy} aria-disabled={busy} aria-label={`New project from ${t.name}`} onClick={() => void useTemplate(t)}>
           New project
         </button>
         {!t.builtin && (
-          <button className="button" aria-label={`Delete template ${t.name}`} onClick={() => void removeTemplate(t)}>
+          <button className="button" data-action="capstan.template.remove" aria-label={`Delete template ${t.name}`} onClick={() => void removeTemplate(t)}>
             Delete
           </button>
         )}
@@ -124,7 +124,7 @@ export function TemplatesDialog({ editor, mode, onClose }: { editor: Editor; mod
           <input id="tpl-name" ref={saveRef} type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
           <label htmlFor="tpl-desc">Description (optional)</label>
           <input id="tpl-desc" type="text" value={description} maxLength={200} onChange={(e) => setDescription(e.target.value)} />
-          <button className="button primary" disabled={!name.trim()} onClick={() => void saveTemplate()}>
+          <button className="button primary" data-action="capstan.template.save" disabled={!name.trim()} aria-disabled={!name.trim()} onClick={() => void saveTemplate()}>
             Save as template
           </button>
         </div>
@@ -141,7 +141,7 @@ export function TemplatesDialog({ editor, mode, onClose }: { editor: Editor; mod
         <ul className="pp-themes" aria-label="Themes">
           {THEMES.map((theme) => (
             <li key={theme.id}>
-              <button className="pp-theme" aria-label={`Apply the ${theme.name} theme`} onClick={() => applyTheme(theme)} data-theme-id={theme.id}>
+              <button className="pp-theme" data-action="capstan.project.theme" aria-label={`Apply the ${theme.name} theme`} onClick={() => applyTheme(theme)} data-theme-id={theme.id}>
                 <Swatches theme={theme} />
                 <span className="pp-name">{theme.name}</span>
                 <span className="pp-sub" style={{ fontFamily: themeFontStack(theme, 'heading') }}>

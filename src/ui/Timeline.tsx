@@ -320,7 +320,7 @@ export function Timeline({ editor, player, time, playing, zoom, setZoom, snappin
       >
         <div className="timeline-grid" style={{ width: HEADER_WIDTH + contentWidth }}>
           <div className="ruler-corner">
-            <button className="icon-button" title="Add track" onClick={() => editor.commit(addTrack(editor.project))}>
+            <button className="icon-button" title="Add track" data-action="capstan.track.add" onClick={() => editor.commit(addTrack(editor.project))}>
               <Icon name="plus" size={16} />
               <span>Track</span>
             </button>
@@ -580,6 +580,7 @@ function TrackRow({
             className={`icon-button small track-tool${track.magnetic ? ' on' : ''}`}
             title={track.magnetic ? 'Magnetic: clips close up on this track. Click to turn off' : 'Make this track magnetic: clips close up, no gaps'}
             aria-label="Magnetic track"
+            data-action="capstan.track.update"
             aria-pressed={!!track.magnetic}
             disabled={track.locked}
             onClick={() => editor.commit(setTrackMagnetic(editor.getProject(), track.id, !track.magnetic))}

@@ -53,9 +53,13 @@ await other.close({ runBeforeUnload: false });
 all = fresh(await waitFor((a) => fresh(a).filter((b) => b.leaving).length >= 2));
 check('closing a window sends its leaving beacon', all.filter((b) => b.leaving).length >= 2);
 
-// End session in the toolbar.
-page.once('dialog', (d) => void d.accept());
+// End session opens the action confirm dialog. Cancel is the default; confirming ends the session.
 await page.getByRole('button', { name: 'End session' }).click();
+const confirm = page.getByRole('dialog', { name: 'Confirm' });
+await confirm.waitFor();
+await page.waitForFunction(() => document.activeElement && document.activeElement.id === 'fleet-confirm-cancel');
+check('End session asks before it stops, and Cancel is the focused button', true);
+await confirm.getByRole('button', { name: 'End session' }).click();
 await page.waitForSelector('text=Session ended', { timeout: 5000 });
 all = fresh(await beats());
 check('End session asks the host to stop', all.some((b) => b.stop));

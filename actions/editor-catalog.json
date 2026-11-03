@@ -1,0 +1,3855 @@
+{
+  "schema": "capstan.commands/1",
+  "app": "capstan",
+  "commands": [
+    {
+      "name": "annotation add",
+      "summary": "Add a text, callout, shape, arrow, line, highlight or spotlight at a time.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "kind",
+          "type": "enum",
+          "required": true,
+          "description": "What to add.",
+          "values": [
+            "text",
+            "callout",
+            "rect",
+            "ellipse",
+            "arrow",
+            "line",
+            "highlight",
+            "spotlight"
+          ]
+        },
+        {
+          "name": "start",
+          "type": "number",
+          "required": true,
+          "description": "Timeline start in seconds.",
+          "min": 0
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "required": false,
+          "description": "Length in seconds.",
+          "min": 0.03333333333333333,
+          "max": 3600
+        },
+        {
+          "name": "x",
+          "type": "number",
+          "required": false,
+          "description": "Left edge of the box, canvas pixels."
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "required": false,
+          "description": "Top edge of the box, canvas pixels."
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "required": false,
+          "description": "Box width, canvas pixels.",
+          "min": 1
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "required": false,
+          "description": "Box height, canvas pixels.",
+          "min": 1
+        },
+        {
+          "name": "rotation",
+          "type": "number",
+          "required": false,
+          "description": "Degrees about the box centre.",
+          "min": -360,
+          "max": 360
+        },
+        {
+          "name": "opacity",
+          "type": "number",
+          "required": false,
+          "description": "0 to 1.",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": false,
+          "description": "Text of a text item or callout (up to 1000 characters)."
+        },
+        {
+          "name": "sketch",
+          "type": "number",
+          "required": false,
+          "description": "Seconds an arrow, line, rectangle or ellipse takes to draw itself on (0 = off).",
+          "min": 0,
+          "max": 60
+        },
+        {
+          "name": "style",
+          "type": "json",
+          "required": false,
+          "description": "Style fields to change: fill, fillAlpha, stroke, strokeWidth, color, font, size, bold, italic, align, radius, shadow, dim, feather."
+        }
+      ],
+      "result": "Object with the new annotation id."
+    },
+    {
+      "name": "annotation duplicate",
+      "summary": "Copy an annotation just above the original, nudged down and right.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "annotation",
+          "type": "id",
+          "required": true,
+          "description": "Annotation id."
+        }
+      ],
+      "result": "Object with the new annotation id."
+    },
+    {
+      "name": "annotation move",
+      "summary": "Move an annotation’s box by a distance in canvas pixels; x and y keyframes move with it.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "annotation",
+          "type": "id",
+          "required": true,
+          "description": "Annotation id."
+        },
+        {
+          "name": "dx",
+          "type": "number",
+          "required": true,
+          "description": "Pixels to the right (negative: left)."
+        },
+        {
+          "name": "dy",
+          "type": "number",
+          "required": true,
+          "description": "Pixels down (negative: up)."
+        }
+      ],
+      "result": "Object with the new left and top."
+    },
+    {
+      "name": "annotation preset",
+      "summary": "Apply a ready-made style (title, lower third, code, note, warning ...) to an annotation.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "annotation",
+          "type": "id",
+          "required": true,
+          "description": "Annotation id."
+        },
+        {
+          "name": "preset",
+          "type": "enum",
+          "required": true,
+          "description": "Style preset id.",
+          "values": [
+            "title",
+            "lower-third",
+            "code",
+            "note",
+            "warning",
+            "accent",
+            "marker",
+            "marker-green",
+            "serif-quote"
+          ]
+        }
+      ],
+      "result": "Object with the annotation id and the preset used."
+    },
+    {
+      "name": "annotation remove",
+      "summary": "Remove an annotation.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "annotation",
+          "type": "id",
+          "required": true,
+          "description": "Annotation id."
+        }
+      ],
+      "result": "Object with the annotation id."
+    },
+    {
+      "name": "annotation reorder",
+      "summary": "Change the drawing order: later annotations draw on top.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "annotation",
+          "type": "id",
+          "required": true,
+          "description": "Annotation id."
+        },
+        {
+          "name": "order",
+          "type": "enum",
+          "required": true,
+          "description": "Where to move it.",
+          "values": [
+            "front",
+            "back",
+            "forward",
+            "backward"
+          ]
+        }
+      ],
+      "result": "Object with the annotation’s position in the order (0 = bottom)."
+    },
+    {
+      "name": "annotation update",
+      "summary": "Change an annotation’s text, timing, box, opacity or style. Keyframes and behavior are kept.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "annotation",
+          "type": "id",
+          "required": true,
+          "description": "Annotation id."
+        },
+        {
+          "name": "start",
+          "type": "number",
+          "required": false,
+          "description": "Timeline start in seconds.",
+          "min": 0
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "required": false,
+          "description": "Length in seconds.",
+          "min": 0.03333333333333333,
+          "max": 3600
+        },
+        {
+          "name": "x",
+          "type": "number",
+          "required": false,
+          "description": "Left edge of the box, canvas pixels."
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "required": false,
+          "description": "Top edge of the box, canvas pixels."
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "required": false,
+          "description": "Box width, canvas pixels.",
+          "min": 1
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "required": false,
+          "description": "Box height, canvas pixels.",
+          "min": 1
+        },
+        {
+          "name": "rotation",
+          "type": "number",
+          "required": false,
+          "description": "Degrees about the box centre.",
+          "min": -360,
+          "max": 360
+        },
+        {
+          "name": "opacity",
+          "type": "number",
+          "required": false,
+          "description": "0 to 1.",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": false,
+          "description": "Text of a text item or callout (up to 1000 characters)."
+        },
+        {
+          "name": "sketch",
+          "type": "number",
+          "required": false,
+          "description": "Seconds an arrow, line, rectangle or ellipse takes to draw itself on (0 = off).",
+          "min": 0,
+          "max": 60
+        },
+        {
+          "name": "style",
+          "type": "json",
+          "required": false,
+          "description": "Style fields to change: fill, fillAlpha, stroke, strokeWidth, color, font, size, bold, italic, align, radius, shadow, dim, feather."
+        }
+      ],
+      "atLeastOne": [
+        "start",
+        "duration",
+        "x",
+        "y",
+        "width",
+        "height",
+        "rotation",
+        "opacity",
+        "text",
+        "sketch",
+        "style"
+      ],
+      "result": "Object with the annotation as it is now."
+    },
+    {
+      "name": "audio denoise",
+      "summary": "Remove steady background noise from a clip. Decodes the sound, makes a new audio file in the bin and switches the clip to it.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "strength",
+          "type": "number",
+          "required": false,
+          "description": "Noise removal strength, 0 to 100 percent (default 60).",
+          "min": 0,
+          "max": 100
+        },
+        {
+          "name": "sampleStart",
+          "type": "number",
+          "required": false,
+          "description": "Start (seconds into the clip) of a stretch that holds only noise.",
+          "min": 0
+        },
+        {
+          "name": "sampleEnd",
+          "type": "number",
+          "required": false,
+          "description": "End (seconds into the clip) of that stretch.",
+          "min": 0
+        }
+      ],
+      "result": "Object with the summary line and the id of the processed audio clip."
+    },
+    {
+      "name": "audio duck",
+      "summary": "Make a narration clip pull the audio on the other tracks down while it speaks (or turn that off).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Narration clip id."
+        },
+        {
+          "name": "on",
+          "type": "boolean",
+          "required": false,
+          "description": "Ducking on (default true); false removes it."
+        },
+        {
+          "name": "thresholdDb",
+          "type": "number",
+          "required": false,
+          "description": "Speaking counts above this level, dBFS (default -40).",
+          "min": -90,
+          "max": 0
+        },
+        {
+          "name": "reductionDb",
+          "type": "number",
+          "required": false,
+          "description": "How far the others are pulled down, dB (default 12).",
+          "min": 0,
+          "max": 60
+        },
+        {
+          "name": "attack",
+          "type": "number",
+          "required": false,
+          "description": "Seconds to pull down (default 0.05).",
+          "min": 0.005,
+          "max": 5
+        },
+        {
+          "name": "release",
+          "type": "number",
+          "required": false,
+          "description": "Seconds to come back (default 0.5).",
+          "min": 0.02,
+          "max": 10
+        },
+        {
+          "name": "hold",
+          "type": "number",
+          "required": false,
+          "description": "Seconds to stay down across short pauses (default 0.2).",
+          "min": 0,
+          "max": 5
+        }
+      ],
+      "result": "Object with the clip’s ducking settings after the change (null when off)."
+    },
+    {
+      "name": "audio fade",
+      "summary": "Set the fade in and fade out of a clip’s sound, in seconds (0 removes a fade).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "fadeIn",
+          "type": "number",
+          "required": false,
+          "description": "Seconds of fade in at the start.",
+          "min": 0,
+          "max": 600
+        },
+        {
+          "name": "fadeOut",
+          "type": "number",
+          "required": false,
+          "description": "Seconds of fade out at the end.",
+          "min": 0,
+          "max": 600
+        },
+        {
+          "name": "curve",
+          "type": "enum",
+          "required": false,
+          "description": "Fade shape (default linear).",
+          "values": [
+            "linear",
+            "smooth"
+          ]
+        }
+      ],
+      "atLeastOne": [
+        "fadeIn",
+        "fadeOut",
+        "curve"
+      ],
+      "result": "Object with the clip’s audio settings after the change."
+    },
+    {
+      "name": "audio level",
+      "summary": "Even out loud and quiet parts and bring a clip to a target loudness. Decodes the sound, makes a new audio file in the bin and switches the clip to it.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "target",
+          "type": "number",
+          "required": false,
+          "description": "Target loudness in dBFS (default -18).",
+          "min": -30,
+          "max": -10
+        },
+        {
+          "name": "amount",
+          "type": "number",
+          "required": false,
+          "description": "Compression, 0 to 100 percent (default 50).",
+          "min": 0,
+          "max": 100
+        }
+      ],
+      "result": "Object with the summary line and the id of the processed audio clip."
+    },
+    {
+      "name": "audio point-remove",
+      "summary": "Remove the volume point at a time.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position of the point, in seconds.",
+          "min": 0
+        }
+      ],
+      "result": "Object with the volume points left."
+    },
+    {
+      "name": "audio point-set",
+      "summary": "Set a volume point on a clip at a time (replaces a point at the same time). Between points the volume ramps.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position in seconds (clamped into the clip).",
+          "min": 0
+        },
+        {
+          "name": "value",
+          "type": "number",
+          "required": true,
+          "description": "Volume, 0 to 2 (1 = unchanged).",
+          "min": 0,
+          "max": 2
+        }
+      ],
+      "result": "Object with the volume points after the change."
+    },
+    {
+      "name": "audio points-clear",
+      "summary": "Remove every volume point of a clip.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        }
+      ],
+      "result": "Object with changed: true when points were removed."
+    },
+    {
+      "name": "batch add",
+      "summary": "Queue an export (a preset, or the current export settings) for the batch.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "preset",
+          "type": "string",
+          "required": false,
+          "description": "Name of a built-in or saved export preset; the other inputs are applied on top of it."
+        },
+        {
+          "name": "format",
+          "type": "enum",
+          "required": false,
+          "description": "Export format when no preset is given.",
+          "values": [
+            "mp4",
+            "gif",
+            "wav",
+            "m4a",
+            "png"
+          ]
+        }
+      ],
+      "result": "Object with the queue item id and label."
+    },
+    {
+      "name": "batch cancel",
+      "summary": "Cancel a queued or running batch item.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "item",
+          "type": "id",
+          "required": true,
+          "description": "Queue item id."
+        }
+      ],
+      "result": "Object with the item id."
+    },
+    {
+      "name": "batch clear",
+      "summary": "Remove the finished items from the batch queue.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [],
+      "result": "Object with how many items were removed."
+    },
+    {
+      "name": "batch remove",
+      "summary": "Remove one item from the batch queue.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "item",
+          "type": "id",
+          "required": true,
+          "description": "Queue item id."
+        }
+      ],
+      "result": "Object with the item id."
+    },
+    {
+      "name": "batch retry",
+      "summary": "Queue a failed or cancelled batch item again.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "item",
+          "type": "id",
+          "required": true,
+          "description": "Queue item id."
+        }
+      ],
+      "result": "Object with the item id."
+    },
+    {
+      "name": "batch run",
+      "summary": "Run every queued export in order.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "folder",
+          "type": "string",
+          "required": false,
+          "description": "Folder to write the files to (a path the host can reach)."
+        }
+      ],
+      "result": "Object with counts of done, failed and cancelled items and the file names."
+    },
+    {
+      "name": "behavior clear",
+      "summary": "Remove a clip’s entrance, emphasis or exit animation.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "stage",
+          "type": "enum",
+          "required": true,
+          "description": "enter, emphasis or exit.",
+          "values": [
+            "enter",
+            "emphasis",
+            "exit"
+          ]
+        }
+      ],
+      "result": "Object with the clip’s behavior after the change."
+    },
+    {
+      "name": "behavior set",
+      "summary": "Give a clip an entrance, emphasis or exit animation.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "stage",
+          "type": "enum",
+          "required": true,
+          "description": "enter, emphasis or exit.",
+          "values": [
+            "enter",
+            "emphasis",
+            "exit"
+          ]
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "required": true,
+          "description": "Preset: fade, slide-*, pop, spin for enter and exit; pulse or wobble for emphasis.",
+          "values": [
+            "fade",
+            "slide-left",
+            "slide-right",
+            "slide-up",
+            "slide-down",
+            "pop",
+            "spin",
+            "pulse",
+            "wobble"
+          ]
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "required": false,
+          "description": "Seconds (default 0.5; emphasis 1).",
+          "min": 0.05,
+          "max": 10
+        }
+      ],
+      "result": "Object with the clip’s behavior after the change."
+    },
+    {
+      "name": "caption add",
+      "summary": "Add a caption at a time (after a caption already showing there, and ending before the next one).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position in seconds.",
+          "min": 0
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": false,
+          "description": "Caption text (up to 500 characters; default \"New caption\")."
+        },
+        {
+          "name": "seconds",
+          "type": "number",
+          "required": false,
+          "description": "Length in seconds (default 2).",
+          "min": 0.05,
+          "max": 600
+        }
+      ],
+      "result": "Object with the new caption id."
+    },
+    {
+      "name": "caption clear",
+      "summary": "Remove every caption.",
+      "needs": "project",
+      "destructive": true,
+      "inputs": [],
+      "result": "Object with how many captions were removed."
+    },
+    {
+      "name": "caption export-srt",
+      "summary": "Return the captions as SubRip (.srt) text.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [],
+      "result": "Object with fileName, count and text."
+    },
+    {
+      "name": "caption export-vtt",
+      "summary": "Return the captions as WebVTT (.vtt) text.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [],
+      "result": "Object with fileName, count and text."
+    },
+    {
+      "name": "caption merge",
+      "summary": "Join a caption with the one after it: text on separate lines, time from the first start to the last end.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "caption",
+          "type": "id",
+          "required": true,
+          "description": "Caption id (it is merged with the next one)."
+        }
+      ],
+      "result": "Object with the merged caption id."
+    },
+    {
+      "name": "caption remove",
+      "summary": "Remove a caption.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "caption",
+          "type": "id",
+          "required": true,
+          "description": "Caption id."
+        }
+      ],
+      "result": "Object with the caption id."
+    },
+    {
+      "name": "caption set",
+      "summary": "Replace all captions with the cues in SRT or WebVTT text.",
+      "needs": "project",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "string",
+          "required": true,
+          "description": "The text of an .srt or .vtt file."
+        }
+      ],
+      "result": "Object with how many captions were read and how many they replaced."
+    },
+    {
+      "name": "caption shift",
+      "summary": "Move captions earlier or later by some seconds (never before 0).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "delta",
+          "type": "number",
+          "required": true,
+          "description": "Seconds; negative moves earlier.",
+          "min": -86400,
+          "max": 86400
+        },
+        {
+          "name": "captions",
+          "type": "id",
+          "required": false,
+          "description": "Only these captions (default: all).",
+          "many": true
+        }
+      ],
+      "result": "Object with how many captions were shifted."
+    },
+    {
+      "name": "caption split",
+      "summary": "Cut the caption showing at a time in two, splitting the text in proportion.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position in seconds, inside a caption.",
+          "min": 0
+        },
+        {
+          "name": "caption",
+          "type": "id",
+          "required": false,
+          "description": "Only this caption."
+        }
+      ],
+      "result": "Object with the ids of the two new captions."
+    },
+    {
+      "name": "caption update",
+      "summary": "Change a caption’s text or timing.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "caption",
+          "type": "id",
+          "required": true,
+          "description": "Caption id."
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": false,
+          "description": "New text."
+        },
+        {
+          "name": "start",
+          "type": "number",
+          "required": false,
+          "description": "New start in seconds.",
+          "min": 0
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "required": false,
+          "description": "New end in seconds (kept at least 0.05 s after the start).",
+          "min": 0
+        }
+      ],
+      "atLeastOne": [
+        "text",
+        "start",
+        "end"
+      ],
+      "result": "Object with the caption as it is now."
+    },
+    {
+      "name": "clip add",
+      "summary": "Put a media item on the timeline at a time, on a track with room (a new track is added when none has).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "media",
+          "type": "id",
+          "required": true,
+          "description": "Media id."
+        },
+        {
+          "name": "start",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position in seconds.",
+          "min": 0
+        },
+        {
+          "name": "track",
+          "type": "id",
+          "required": false,
+          "description": "Track to prefer."
+        }
+      ],
+      "result": "Object with the new clip id and the track it landed on."
+    },
+    {
+      "name": "clip close-gaps",
+      "summary": "Close every gap on a track, from the start.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "track",
+          "type": "id",
+          "required": true,
+          "description": "Track id."
+        }
+      ],
+      "result": "Object with changed: true when something moved."
+    },
+    {
+      "name": "clip crop",
+      "summary": "Show only part of the source picture. Fractions of the source frame; or an aspect ratio, or clear.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "x",
+          "type": "number",
+          "required": false,
+          "description": "Left edge, 0 to 1.",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "required": false,
+          "description": "Top edge, 0 to 1.",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "required": false,
+          "description": "Width, 0.02 to 1.",
+          "min": 0.02,
+          "max": 1
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "required": false,
+          "description": "Height, 0.02 to 1.",
+          "min": 0.02,
+          "max": 1
+        },
+        {
+          "name": "aspect",
+          "type": "number",
+          "required": false,
+          "description": "Crop to this width/height ratio, centred on the current crop (for example 1.7778).",
+          "min": 0.1,
+          "max": 10
+        },
+        {
+          "name": "clear",
+          "type": "boolean",
+          "required": false,
+          "description": "Remove the crop."
+        }
+      ],
+      "atLeastOne": [
+        "x",
+        "y",
+        "width",
+        "height",
+        "aspect",
+        "clear"
+      ],
+      "result": "Object with the crop after the change (null when there is none)."
+    },
+    {
+      "name": "clip delete",
+      "summary": "Delete clips together with the clips linked or grouped with them.",
+      "needs": "project",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "clips",
+          "type": "id",
+          "required": true,
+          "description": "Clip ids.",
+          "many": true
+        },
+        {
+          "name": "ripple",
+          "type": "boolean",
+          "required": false,
+          "description": "Later clips on the same tracks close the gap (default: false)."
+        }
+      ],
+      "result": "Object with the ids removed."
+    },
+    {
+      "name": "clip detach-audio",
+      "summary": "Split the sound off a video clip onto its own linked audio clip.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Video clip id."
+        }
+      ],
+      "result": "Object with the new audio clip id."
+    },
+    {
+      "name": "clip duplicate",
+      "summary": "Copy clips (with their groups and links) to just after the selection, or to a given time (copy and paste).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clips",
+          "type": "id",
+          "required": true,
+          "description": "Clip ids.",
+          "many": true
+        },
+        {
+          "name": "at",
+          "type": "number",
+          "required": false,
+          "description": "Paste so the earliest clip starts here (default: right after the last clip).",
+          "min": 0
+        }
+      ],
+      "result": "Object with the new clip ids."
+    },
+    {
+      "name": "clip extend",
+      "summary": "Hold a clip’s last picture for some seconds after it ends.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "seconds",
+          "type": "number",
+          "required": false,
+          "description": "How long to hold (default 2).",
+          "min": 0.1,
+          "max": 60
+        },
+        {
+          "name": "ripple",
+          "type": "boolean",
+          "required": false,
+          "description": "Later clips move to make room (default: false)."
+        }
+      ],
+      "result": "Object with the id of the clip that holds the picture."
+    },
+    {
+      "name": "clip freeze",
+      "summary": "Hold the picture at a time for some seconds (a freeze frame).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position inside the clip, in seconds.",
+          "min": 0
+        },
+        {
+          "name": "seconds",
+          "type": "number",
+          "required": false,
+          "description": "How long to hold (default 2).",
+          "min": 0.1,
+          "max": 60
+        },
+        {
+          "name": "ripple",
+          "type": "boolean",
+          "required": false,
+          "description": "Later clips move to make room; otherwise the hold overwrites (default: false)."
+        }
+      ],
+      "result": "Object with the id of the still clip."
+    },
+    {
+      "name": "clip group",
+      "summary": "Put two or more clips in a group that selects, moves, trims and deletes together.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clips",
+          "type": "id",
+          "required": true,
+          "description": "Clip ids (two or more).",
+          "many": true
+        }
+      ],
+      "result": "Object with the group id."
+    },
+    {
+      "name": "clip move",
+      "summary": "Move a clip (with its group or linked audio) to a start time, optionally on another track. It settles in the nearest free gap.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "start",
+          "type": "number",
+          "required": true,
+          "description": "New timeline position in seconds.",
+          "min": 0
+        },
+        {
+          "name": "track",
+          "type": "id",
+          "required": false,
+          "description": "Track to move to (default: the same track)."
+        }
+      ],
+      "result": "Object with the clips moved and where the clip landed."
+    },
+    {
+      "name": "clip props",
+      "summary": "Set a clip’s position, size, rotation, opacity or volume.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "x",
+          "type": "number",
+          "required": false,
+          "description": "Centre of the clip on the canvas, in pixels."
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "required": false,
+          "description": "Centre of the clip on the canvas, in pixels."
+        },
+        {
+          "name": "scale",
+          "type": "number",
+          "required": false,
+          "description": "1 fits the clip inside the canvas.",
+          "min": 0.01,
+          "max": 20
+        },
+        {
+          "name": "rotation",
+          "type": "number",
+          "required": false,
+          "description": "Degrees.",
+          "min": -360,
+          "max": 360
+        },
+        {
+          "name": "opacity",
+          "type": "number",
+          "required": false,
+          "description": "0 to 1.",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "volume",
+          "type": "number",
+          "required": false,
+          "description": "0 to 2 (1 = unchanged).",
+          "min": 0,
+          "max": 2
+        }
+      ],
+      "atLeastOne": [
+        "x",
+        "y",
+        "scale",
+        "rotation",
+        "opacity",
+        "volume"
+      ],
+      "result": "Object with the clip properties after the change."
+    },
+    {
+      "name": "clip remove-gap",
+      "summary": "Close the gap at a time on a track: later clips move earlier by the gap’s length.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "track",
+          "type": "id",
+          "required": true,
+          "description": "Track id."
+        },
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "A time inside the gap, in seconds.",
+          "min": 0
+        }
+      ],
+      "result": "Object with the track and the clips that moved."
+    },
+    {
+      "name": "clip speed",
+      "summary": "Change playback speed. The clip keeps showing the same stretch of source, so its length on the timeline changes.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "speed",
+          "type": "number",
+          "required": true,
+          "description": "Playback speed (1 = normal).",
+          "min": 0.1,
+          "max": 8
+        },
+        {
+          "name": "ripple",
+          "type": "boolean",
+          "required": false,
+          "description": "Later clips on the track move to make room or close up (default: false)."
+        }
+      ],
+      "result": "Object with the clip duration and speed after the change."
+    },
+    {
+      "name": "clip split",
+      "summary": "Cut clips in two at a time: the given clips under it, otherwise every clip under it. Linked and grouped clips split too.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position in seconds.",
+          "min": 0
+        },
+        {
+          "name": "clips",
+          "type": "id",
+          "required": false,
+          "description": "Clips to split (default: every clip under the time).",
+          "many": true
+        }
+      ],
+      "result": "Object with the ids of the new right-hand halves."
+    },
+    {
+      "name": "clip trim",
+      "summary": "Move one edge of a clip. Linked and grouped clips with the same edge follow.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "edge",
+          "type": "enum",
+          "required": true,
+          "description": "Which edge.",
+          "values": [
+            "start",
+            "end"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "New edge position on the timeline, in seconds.",
+          "min": 0
+        }
+      ],
+      "result": "Object with the clip start and duration after the trim."
+    },
+    {
+      "name": "clip ungroup",
+      "summary": "Dissolve the groups the given clips belong to.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clips",
+          "type": "id",
+          "required": true,
+          "description": "Clip ids.",
+          "many": true
+        }
+      ],
+      "result": "Object with the clips that were in a group."
+    },
+    {
+      "name": "clip unlink",
+      "summary": "Break the link between a video clip and the audio detached from it, so they move separately.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clips",
+          "type": "id",
+          "required": true,
+          "description": "Clip ids.",
+          "many": true
+        }
+      ],
+      "result": "Object with the clips that were linked."
+    },
+    {
+      "name": "cursor attach",
+      "summary": "Attach recorded cursor, click and key data (the text of a .cursor.json file) to a media item.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "media",
+          "type": "id",
+          "required": true,
+          "description": "Media id."
+        },
+        {
+          "name": "sidecar",
+          "type": "string",
+          "required": true,
+          "description": "The text of the .cursor.json file."
+        }
+      ],
+      "result": "Object with the counts of positions, clicks and key events attached."
+    },
+    {
+      "name": "cursor detach",
+      "summary": "Remove the cursor data from a media item.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "media",
+          "type": "id",
+          "required": true,
+          "description": "Media id."
+        }
+      ],
+      "result": "Object with the media id."
+    },
+    {
+      "name": "cursor reset",
+      "summary": "Remove every cursor effect setting from the project.",
+      "needs": "project",
+      "destructive": false,
+      "cliOnly": true,
+      "inputs": [],
+      "result": "Object with changed: true when there were settings."
+    },
+    {
+      "name": "cursor settings",
+      "summary": "Change how the recorded cursor is drawn: shape, size, smoothing, highlight, magnify, spotlight, click rings and sounds, keystroke callouts.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Cursor effect setting \"enabled\" (default true)."
+        },
+        {
+          "name": "showCursor",
+          "type": "boolean",
+          "required": false,
+          "description": "Cursor effect setting \"showCursor\" (default false)."
+        },
+        {
+          "name": "shape",
+          "type": "enum",
+          "required": false,
+          "description": "Cursor effect setting \"shape\" (default \"arrow\").",
+          "values": [
+            "arrow",
+            "hand",
+            "pointer"
+          ]
+        },
+        {
+          "name": "size",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"size\" (default 1).",
+          "min": 0.5,
+          "max": 4
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "required": false,
+          "description": "Cursor effect setting \"color\" (default \"#ffffff\"). A colour as #rrggbb."
+        },
+        {
+          "name": "smoothing",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"smoothing\" (default 0.35).",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "imageHotX",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"imageHotX\" (default 0).",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "imageHotY",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"imageHotY\" (default 0).",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "highlight",
+          "type": "boolean",
+          "required": false,
+          "description": "Cursor effect setting \"highlight\" (default false)."
+        },
+        {
+          "name": "highlightSize",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"highlightSize\" (default 0.07).",
+          "min": 0.02,
+          "max": 0.25
+        },
+        {
+          "name": "highlightColor",
+          "type": "string",
+          "required": false,
+          "description": "Cursor effect setting \"highlightColor\" (default \"#ffd400\"). A colour as #rrggbb."
+        },
+        {
+          "name": "highlightOpacity",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"highlightOpacity\" (default 0.35).",
+          "min": 0.05,
+          "max": 1
+        },
+        {
+          "name": "magnify",
+          "type": "boolean",
+          "required": false,
+          "description": "Cursor effect setting \"magnify\" (default false)."
+        },
+        {
+          "name": "magnifyZoom",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"magnifyZoom\" (default 2).",
+          "min": 1.25,
+          "max": 6
+        },
+        {
+          "name": "magnifySize",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"magnifySize\" (default 0.12).",
+          "min": 0.05,
+          "max": 0.3
+        },
+        {
+          "name": "spotlight",
+          "type": "boolean",
+          "required": false,
+          "description": "Cursor effect setting \"spotlight\" (default false)."
+        },
+        {
+          "name": "spotlightSize",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"spotlightSize\" (default 0.2).",
+          "min": 0.05,
+          "max": 0.6
+        },
+        {
+          "name": "spotlightDim",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"spotlightDim\" (default 0.6).",
+          "min": 0,
+          "max": 0.95
+        },
+        {
+          "name": "clickRings",
+          "type": "boolean",
+          "required": false,
+          "description": "Cursor effect setting \"clickRings\" (default false)."
+        },
+        {
+          "name": "clickColor",
+          "type": "string",
+          "required": false,
+          "description": "Cursor effect setting \"clickColor\" (default \"#3ea6ff\"). A colour as #rrggbb."
+        },
+        {
+          "name": "clickSize",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"clickSize\" (default 0.06).",
+          "min": 0.02,
+          "max": 0.2
+        },
+        {
+          "name": "clickDuration",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"clickDuration\" (default 0.6).",
+          "min": 0.2,
+          "max": 2
+        },
+        {
+          "name": "clickSound",
+          "type": "boolean",
+          "required": false,
+          "description": "Cursor effect setting \"clickSound\" (default false)."
+        },
+        {
+          "name": "clickVolume",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"clickVolume\" (default 0.5).",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "keys",
+          "type": "boolean",
+          "required": false,
+          "description": "Cursor effect setting \"keys\" (default false)."
+        },
+        {
+          "name": "keysHold",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"keysHold\" (default 1.5).",
+          "min": 0.3,
+          "max": 6
+        },
+        {
+          "name": "keysSize",
+          "type": "number",
+          "required": false,
+          "description": "Cursor effect setting \"keysSize\" (default 1).",
+          "min": 0.5,
+          "max": 2
+        },
+        {
+          "name": "image",
+          "type": "string",
+          "required": false,
+          "description": "Replacement cursor picture as a data URL (PNG, SVG, WebP or JPEG, up to about 256 KB)."
+        },
+        {
+          "name": "clearImage",
+          "type": "boolean",
+          "required": false,
+          "description": "Go back to the built-in cursor shapes."
+        }
+      ],
+      "atLeastOne": [
+        "enabled",
+        "showCursor",
+        "shape",
+        "size",
+        "color",
+        "smoothing",
+        "imageHotX",
+        "imageHotY",
+        "highlight",
+        "highlightSize",
+        "highlightColor",
+        "highlightOpacity",
+        "magnify",
+        "magnifyZoom",
+        "magnifySize",
+        "spotlight",
+        "spotlightSize",
+        "spotlightDim",
+        "clickRings",
+        "clickColor",
+        "clickSize",
+        "clickDuration",
+        "clickSound",
+        "clickVolume",
+        "keys",
+        "keysHold",
+        "keysSize",
+        "image",
+        "clearImage"
+      ],
+      "result": "Object with the cursor settings after the change."
+    },
+    {
+      "name": "effects clear",
+      "summary": "Remove every effect from clips.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clips",
+          "type": "id",
+          "required": true,
+          "description": "Clip ids.",
+          "many": true
+        }
+      ],
+      "result": "Object with the clips that were cleared."
+    },
+    {
+      "name": "effects preset",
+      "summary": "Apply a one-click look (green screen, rounded card, device frames, colour looks, blend modes) on top of the current effects.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clips",
+          "type": "id",
+          "required": true,
+          "description": "Clip ids.",
+          "many": true
+        },
+        {
+          "name": "preset",
+          "type": "enum",
+          "required": true,
+          "description": "Preset id.",
+          "values": [
+            "green-screen",
+            "card",
+            "circle",
+            "laptop",
+            "browser",
+            "phone",
+            "tablet",
+            "monitor",
+            "bw",
+            "sepia",
+            "vivid",
+            "faded",
+            "multiply",
+            "screen"
+          ]
+        }
+      ],
+      "result": "Object with the clips that changed and the preset used."
+    },
+    {
+      "name": "effects set",
+      "summary": "Apply effects to clips. Each group you give (colour, chroma, shadow, border, radius, mask, blend, frame) replaces that group; the others stay.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clips",
+          "type": "id",
+          "required": true,
+          "description": "Clip ids.",
+          "many": true
+        },
+        {
+          "name": "effects",
+          "type": "json",
+          "required": true,
+          "description": "Object with any of: colour, chroma, shadow, border, radius, mask, blend, frame."
+        }
+      ],
+      "result": "Object with the clips that changed."
+    },
+    {
+      "name": "export cancel",
+      "summary": "Cancel the export that is running, or the whole batch.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [],
+      "result": "Object with cancelled: true."
+    },
+    {
+      "name": "export gif",
+      "summary": "Render the timeline to an animated GIF.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "preset",
+          "type": "string",
+          "required": false,
+          "description": "Name of a built-in or saved export preset; the other inputs are applied on top of it."
+        },
+        {
+          "name": "range",
+          "type": "enum",
+          "required": false,
+          "description": "whole: the entire timeline (default); marks: the in to out marks.",
+          "values": [
+            "whole",
+            "marks"
+          ]
+        },
+        {
+          "name": "size",
+          "type": "number",
+          "required": false,
+          "description": "Short side of the picture in pixels (default: the project size).",
+          "min": 64,
+          "max": 4320,
+          "integer": true
+        },
+        {
+          "name": "fps",
+          "type": "number",
+          "required": false,
+          "description": "Frames per second (default: the project rate).",
+          "min": 1,
+          "max": 60,
+          "integer": true
+        },
+        {
+          "name": "colors",
+          "type": "number",
+          "required": false,
+          "description": "Palette size, 2 to 256 (default 256).",
+          "min": 2,
+          "max": 256,
+          "integer": true
+        },
+        {
+          "name": "dither",
+          "type": "boolean",
+          "required": false,
+          "description": "Dither the palette (default false)."
+        },
+        {
+          "name": "optimize",
+          "type": "boolean",
+          "required": false,
+          "description": "Store only the changed part of each frame (default true)."
+        },
+        {
+          "name": "loop",
+          "type": "boolean",
+          "required": false,
+          "description": "Loop forever (default true)."
+        },
+        {
+          "name": "captions",
+          "type": "boolean",
+          "required": false,
+          "description": "Burn the captions into the picture (default true)."
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "required": false,
+          "description": "Where to write the file (a path the host can reach). Without it the result carries a download."
+        }
+      ],
+      "result": "Object with the file name or path, byte size, format and a one-line summary."
+    },
+    {
+      "name": "export m4a",
+      "summary": "Mix the timeline’s sound to an AAC M4A file.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "preset",
+          "type": "string",
+          "required": false,
+          "description": "Name of a built-in or saved export preset; the other inputs are applied on top of it."
+        },
+        {
+          "name": "range",
+          "type": "enum",
+          "required": false,
+          "description": "whole: the entire timeline (default); marks: the in to out marks.",
+          "values": [
+            "whole",
+            "marks"
+          ]
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "required": false,
+          "description": "Where to write the file (a path the host can reach). Without it the result carries a download."
+        }
+      ],
+      "result": "Object with the file name or path, byte size and format."
+    },
+    {
+      "name": "export mp4",
+      "summary": "Render the timeline to an H.264 MP4 with AAC (or Opus) sound.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "preset",
+          "type": "string",
+          "required": false,
+          "description": "Name of a built-in or saved export preset; the other inputs are applied on top of it."
+        },
+        {
+          "name": "range",
+          "type": "enum",
+          "required": false,
+          "description": "whole: the entire timeline (default); marks: the in to out marks.",
+          "values": [
+            "whole",
+            "marks"
+          ]
+        },
+        {
+          "name": "size",
+          "type": "number",
+          "required": false,
+          "description": "Short side of the picture in pixels (default: the project size).",
+          "min": 64,
+          "max": 4320,
+          "integer": true
+        },
+        {
+          "name": "quality",
+          "type": "enum",
+          "required": false,
+          "description": "Quality (default standard).",
+          "values": [
+            "small",
+            "standard",
+            "high"
+          ]
+        },
+        {
+          "name": "fps",
+          "type": "number",
+          "required": false,
+          "description": "Frames per second (default: the project rate).",
+          "min": 1,
+          "max": 60,
+          "integer": true
+        },
+        {
+          "name": "includeAudio",
+          "type": "boolean",
+          "required": false,
+          "description": "Mix the sound into the file (default true)."
+        },
+        {
+          "name": "captions",
+          "type": "boolean",
+          "required": false,
+          "description": "Burn the captions into the picture (default true)."
+        },
+        {
+          "name": "fast",
+          "type": "boolean",
+          "required": false,
+          "description": "Decode source video in order with WebCodecs (default true; falls back to seeking by itself)."
+        },
+        {
+          "name": "chapters",
+          "type": "boolean",
+          "required": false,
+          "description": "Also write sidecar chapter files when chapter markers exist (default false)."
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "required": false,
+          "description": "Where to write the file (a path the host can reach). Without it the result carries a download."
+        }
+      ],
+      "result": "Object with the file name or path, byte size, format and a one-line summary."
+    },
+    {
+      "name": "export png",
+      "summary": "Save one frame of the timeline as a PNG.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "time",
+          "type": "number",
+          "required": false,
+          "description": "Timeline position of the frame in seconds (default 0).",
+          "min": 0
+        },
+        {
+          "name": "preset",
+          "type": "string",
+          "required": false,
+          "description": "Name of a built-in or saved export preset; the other inputs are applied on top of it."
+        },
+        {
+          "name": "size",
+          "type": "number",
+          "required": false,
+          "description": "Short side of the picture in pixels (default: the project size).",
+          "min": 64,
+          "max": 4320,
+          "integer": true
+        },
+        {
+          "name": "captions",
+          "type": "boolean",
+          "required": false,
+          "description": "Draw the captions (default true)."
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "required": false,
+          "description": "Where to write the file (a path the host can reach). Without it the result carries a download."
+        }
+      ],
+      "result": "Object with the file name or path, byte size and format."
+    },
+    {
+      "name": "export wav",
+      "summary": "Mix the timeline’s sound to an uncompressed WAV file.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "preset",
+          "type": "string",
+          "required": false,
+          "description": "Name of a built-in or saved export preset; the other inputs are applied on top of it."
+        },
+        {
+          "name": "range",
+          "type": "enum",
+          "required": false,
+          "description": "whole: the entire timeline (default); marks: the in to out marks.",
+          "values": [
+            "whole",
+            "marks"
+          ]
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "required": false,
+          "description": "Where to write the file (a path the host can reach). Without it the result carries a download."
+        }
+      ],
+      "result": "Object with the file name or path, byte size and format."
+    },
+    {
+      "name": "history redo",
+      "summary": "Redo an undone edit in the open editor.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "steps",
+          "type": "number",
+          "required": false,
+          "description": "How many edits to redo (default 1).",
+          "min": 1,
+          "max": 200,
+          "integer": true
+        }
+      ],
+      "result": "Object with how many edits were redone."
+    },
+    {
+      "name": "history undo",
+      "summary": "Undo the last edit in the open editor.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "steps",
+          "type": "number",
+          "required": false,
+          "description": "How many edits to undo (default 1).",
+          "min": 1,
+          "max": 200,
+          "integer": true
+        }
+      ],
+      "result": "Object with how many edits were undone."
+    },
+    {
+      "name": "keyframe clear",
+      "summary": "Remove every keyframe on a clip, or on one property.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "prop",
+          "type": "enum",
+          "required": false,
+          "description": "Only this property (default: all).",
+          "values": [
+            "x",
+            "y",
+            "scale",
+            "rotation",
+            "opacity"
+          ]
+        }
+      ],
+      "result": "Object with changed: true when keys were removed."
+    },
+    {
+      "name": "keyframe ease",
+      "summary": "Change the easing used from a keyframe to the next one.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "prop",
+          "type": "enum",
+          "required": true,
+          "description": "Which property.",
+          "values": [
+            "x",
+            "y",
+            "scale",
+            "rotation",
+            "opacity"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position of the key, in seconds.",
+          "min": 0
+        },
+        {
+          "name": "ease",
+          "type": "enum",
+          "required": true,
+          "description": "Easing curve.",
+          "values": [
+            "linear",
+            "in",
+            "out",
+            "inOut",
+            "hold",
+            "back",
+            "bounce"
+          ]
+        }
+      ],
+      "result": "Object with the keys on that property."
+    },
+    {
+      "name": "keyframe remove",
+      "summary": "Remove the keyframe on a clip property at a time.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "prop",
+          "type": "enum",
+          "required": true,
+          "description": "Which property.",
+          "values": [
+            "x",
+            "y",
+            "scale",
+            "rotation",
+            "opacity"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position of the key, in seconds.",
+          "min": 0
+        }
+      ],
+      "result": "Object with the keys left on that property."
+    },
+    {
+      "name": "keyframe set",
+      "summary": "Set a keyframe on a clip property at a time (replaces a key at the same time). Without a value, the property’s current value is keyed.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "prop",
+          "type": "enum",
+          "required": true,
+          "description": "Which property.",
+          "values": [
+            "x",
+            "y",
+            "scale",
+            "rotation",
+            "opacity"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position in seconds (clamped into the clip).",
+          "min": 0
+        },
+        {
+          "name": "value",
+          "type": "number",
+          "required": false,
+          "description": "Value to key (default: the value at that time)."
+        },
+        {
+          "name": "ease",
+          "type": "enum",
+          "required": false,
+          "description": "Easing curve.",
+          "values": [
+            "linear",
+            "in",
+            "out",
+            "inOut",
+            "hold",
+            "back",
+            "bounce"
+          ]
+        }
+      ],
+      "result": "Object with the keys on that property after the change."
+    },
+    {
+      "name": "library add",
+      "summary": "Add a file (logo, music, sting, short clip) to the library, which belongs to no project.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "file",
+          "type": "string",
+          "required": true,
+          "description": "Path of the file the host can read."
+        }
+      ],
+      "result": "Object with the library asset id and name."
+    },
+    {
+      "name": "library remove",
+      "summary": "Remove an asset from the library. Projects that already use it keep their own copy.",
+      "needs": "browser",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "asset",
+          "type": "id",
+          "required": true,
+          "description": "Library asset id."
+        }
+      ],
+      "result": "Object with the asset id."
+    },
+    {
+      "name": "library save",
+      "summary": "Save a media item from this project to the library.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "media",
+          "type": "id",
+          "required": true,
+          "description": "Media id."
+        }
+      ],
+      "result": "Object with the library asset id and name."
+    },
+    {
+      "name": "library use",
+      "summary": "Add a library asset to this project’s media bin.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "asset",
+          "type": "id",
+          "required": true,
+          "description": "Library asset id."
+        }
+      ],
+      "result": "Object with the new media id."
+    },
+    {
+      "name": "marker add",
+      "summary": "Add a marker on the timeline; a chapter marker is written to the exported video.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position in seconds.",
+          "min": 0
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "Marker name (up to 80 characters; default \"Marker N\")."
+        },
+        {
+          "name": "chapter",
+          "type": "boolean",
+          "required": false,
+          "description": "Make it a chapter (default false)."
+        }
+      ],
+      "result": "Object with the new marker id."
+    },
+    {
+      "name": "marker chapter",
+      "summary": "Make a marker a chapter, or an ordinary marker again.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "marker",
+          "type": "id",
+          "required": true,
+          "description": "Marker id."
+        },
+        {
+          "name": "chapter",
+          "type": "boolean",
+          "required": true,
+          "description": "true: a chapter; false: an ordinary marker."
+        }
+      ],
+      "result": "Object with the marker as it is now."
+    },
+    {
+      "name": "marker export-chapters",
+      "summary": "Return the chapter markers as a YouTube-style list or a WebVTT chapters track.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "format",
+          "type": "enum",
+          "required": true,
+          "description": "text: \"0:00 Title\" lines; vtt: a chapters track.",
+          "values": [
+            "text",
+            "vtt"
+          ]
+        }
+      ],
+      "result": "Object with fileName, count and text."
+    },
+    {
+      "name": "marker move",
+      "summary": "Move a marker to a time.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "marker",
+          "type": "id",
+          "required": true,
+          "description": "Marker id."
+        },
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "New timeline position in seconds.",
+          "min": 0
+        }
+      ],
+      "result": "Object with the marker as it is now."
+    },
+    {
+      "name": "marker remove",
+      "summary": "Remove a marker.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "marker",
+          "type": "id",
+          "required": true,
+          "description": "Marker id."
+        }
+      ],
+      "result": "Object with the marker id."
+    },
+    {
+      "name": "marker rename",
+      "summary": "Rename a marker.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "marker",
+          "type": "id",
+          "required": true,
+          "description": "Marker id."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "New name."
+        }
+      ],
+      "result": "Object with the marker as it is now."
+    },
+    {
+      "name": "media add",
+      "summary": "Add a media item to the project by its metadata. The bytes come from a media import; this registers a description of a file.",
+      "needs": "project",
+      "destructive": false,
+      "cliOnly": true,
+      "inputs": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "File name shown in the media bin."
+        },
+        {
+          "name": "kind",
+          "type": "enum",
+          "required": true,
+          "description": "What the media is.",
+          "values": [
+            "video",
+            "audio",
+            "image"
+          ]
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "required": true,
+          "description": "Length in seconds (0 for an image).",
+          "min": 0,
+          "max": 86400
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "required": true,
+          "description": "Width in pixels (0 for audio).",
+          "min": 0,
+          "max": 16384,
+          "integer": true
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "required": true,
+          "description": "Height in pixels (0 for audio).",
+          "min": 0,
+          "max": 16384,
+          "integer": true
+        },
+        {
+          "name": "hasAudio",
+          "type": "boolean",
+          "required": false,
+          "description": "The media has a sound track (default: true for video, false for an image; audio always has)."
+        },
+        {
+          "name": "mime",
+          "type": "string",
+          "required": false,
+          "description": "MIME type."
+        },
+        {
+          "name": "bytes",
+          "type": "number",
+          "required": false,
+          "description": "Size in bytes.",
+          "min": 0,
+          "integer": true
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": false,
+          "description": "Media id to use (default: a new one)."
+        }
+      ],
+      "result": "Object with the media id."
+    },
+    {
+      "name": "media import",
+      "summary": "Import media files (video, audio, images) into the project’s media bin.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "file",
+          "type": "string",
+          "required": true,
+          "description": "Path of a media file the host can read."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "Name to show in the bin (default: the file name)."
+        },
+        {
+          "name": "cursorData",
+          "type": "string",
+          "required": false,
+          "description": "Path of a .cursor.json file to attach (default: the file next to it, if any)."
+        }
+      ],
+      "result": "Object with the new media item (id, name, kind, duration, size)."
+    },
+    {
+      "name": "media import-captures",
+      "summary": "Import the images and videos from a SnapShackle Captures folder.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "folder",
+          "type": "string",
+          "required": true,
+          "description": "Path of the Captures folder."
+        }
+      ],
+      "result": "Object with the media items added and how many older captures were left out."
+    },
+    {
+      "name": "media remove",
+      "summary": "Remove a media item and every clip that uses it.",
+      "needs": "project",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "media",
+          "type": "id",
+          "required": true,
+          "description": "Media id."
+        }
+      ],
+      "result": "Object with the media id and how many clips went with it."
+    },
+    {
+      "name": "package open",
+      "summary": "Open a .capstanz package: verify it, store its media, then open the project. A project already here opens as a copy.",
+      "needs": "browser",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "file",
+          "type": "string",
+          "required": true,
+          "description": "Path of the package file the host can read."
+        }
+      ],
+      "result": "Object with the opened project summary."
+    },
+    {
+      "name": "package save",
+      "summary": "Save the project and all its media as one .capstanz package file.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "out",
+          "type": "string",
+          "required": false,
+          "description": "Where to write the package (a path the host can reach). Without it the browser asks."
+        }
+      ],
+      "result": "Object with the file name or path, byte size and how many media files it holds."
+    },
+    {
+      "name": "preset remove",
+      "summary": "Delete a saved export preset.",
+      "needs": "browser",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Preset name."
+        }
+      ],
+      "result": "Object with the preset name."
+    },
+    {
+      "name": "preset save",
+      "summary": "Save export settings as a named preset in this browser.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Preset name."
+        },
+        {
+          "name": "format",
+          "type": "enum",
+          "required": true,
+          "description": "Export format.",
+          "values": [
+            "mp4",
+            "gif",
+            "wav",
+            "m4a",
+            "png"
+          ]
+        },
+        {
+          "name": "range",
+          "type": "enum",
+          "required": false,
+          "description": "whole: the entire timeline (default); marks: the in to out marks.",
+          "values": [
+            "whole",
+            "marks"
+          ]
+        },
+        {
+          "name": "size",
+          "type": "number",
+          "required": false,
+          "description": "Short side of the picture in pixels (default: the project size).",
+          "min": 64,
+          "max": 4320,
+          "integer": true
+        },
+        {
+          "name": "quality",
+          "type": "enum",
+          "required": false,
+          "description": "Quality (default standard).",
+          "values": [
+            "small",
+            "standard",
+            "high"
+          ]
+        },
+        {
+          "name": "fps",
+          "type": "number",
+          "required": false,
+          "description": "Frames per second (default: the project rate).",
+          "min": 1,
+          "max": 60,
+          "integer": true
+        },
+        {
+          "name": "includeAudio",
+          "type": "boolean",
+          "required": false,
+          "description": "Mix the sound in (default true)."
+        },
+        {
+          "name": "captions",
+          "type": "boolean",
+          "required": false,
+          "description": "Burn the captions in (default true)."
+        }
+      ],
+      "result": "Object with the preset id and name."
+    },
+    {
+      "name": "project from-template",
+      "summary": "Replace the project with an empty one laid out like a built-in template.",
+      "needs": "project",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "template",
+          "type": "enum",
+          "required": true,
+          "description": "Built-in template id.",
+          "values": [
+            "builtin-tutorial-16x9",
+            "builtin-vertical-9x16",
+            "builtin-square-1x1",
+            "builtin-quick-720p"
+          ]
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "Project name (default: the template name)."
+        }
+      ],
+      "result": "The new project summary."
+    },
+    {
+      "name": "project new",
+      "summary": "Replace the project with a new, empty one.",
+      "needs": "project",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "Project name."
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "required": false,
+          "description": "Canvas width in pixels.",
+          "min": 16,
+          "max": 7680,
+          "integer": true
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "required": false,
+          "description": "Canvas height in pixels.",
+          "min": 16,
+          "max": 4320,
+          "integer": true
+        },
+        {
+          "name": "fps",
+          "type": "number",
+          "required": false,
+          "description": "Frame rate.",
+          "min": 1,
+          "max": 60,
+          "integer": true
+        }
+      ],
+      "result": "The new project summary."
+    },
+    {
+      "name": "project open",
+      "summary": "Replace the project with one read from a .capstan file (the edit only; media bytes are not in it).",
+      "needs": "project",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "project",
+          "type": "json",
+          "required": true,
+          "description": "The project: an object, or the text of a .capstan file."
+        }
+      ],
+      "result": "The opened project summary."
+    },
+    {
+      "name": "project resize",
+      "summary": "Change the canvas size; clips, annotations, zooms and blur regions keep their relative place.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "width",
+          "type": "number",
+          "required": true,
+          "description": "Canvas width in pixels.",
+          "min": 16,
+          "max": 7680,
+          "integer": true
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "required": true,
+          "description": "Canvas height in pixels.",
+          "min": 16,
+          "max": 4320,
+          "integer": true
+        }
+      ],
+      "result": "The project summary."
+    },
+    {
+      "name": "project save",
+      "summary": "Write the project as .capstan file text (the edit only). The caller stores the text.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [],
+      "result": "Object with fileName and text (the JSON of the project)."
+    },
+    {
+      "name": "project set",
+      "summary": "Change the project name, frame rate or background colour.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "Project name (up to 120 characters)."
+        },
+        {
+          "name": "fps",
+          "type": "number",
+          "required": false,
+          "description": "Frame rate.",
+          "min": 1,
+          "max": 60,
+          "integer": true
+        },
+        {
+          "name": "background",
+          "type": "string",
+          "required": false,
+          "description": "Canvas background as #rrggbb."
+        }
+      ],
+      "atLeastOne": [
+        "name",
+        "fps",
+        "background"
+      ],
+      "result": "The project summary."
+    },
+    {
+      "name": "project show",
+      "summary": "Show the project: size, frame rate, length and how many of each item it holds.",
+      "needs": "project",
+      "destructive": false,
+      "cliOnly": true,
+      "inputs": [],
+      "result": "Object with id, name, width, height, fps, background, duration (seconds) and counts per kind of item."
+    },
+    {
+      "name": "project theme",
+      "summary": "Apply a theme to the project (today: the canvas background).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "theme",
+          "type": "enum",
+          "required": true,
+          "description": "Theme id.",
+          "values": [
+            "night-watch",
+            "chart-room",
+            "clean-white",
+            "slate",
+            "sunset"
+          ]
+        }
+      ],
+      "result": "Object with the theme id and the background now in use."
+    },
+    {
+      "name": "projects delete",
+      "summary": "Delete a stored project and its media from this browser.",
+      "needs": "browser",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "project",
+          "type": "id",
+          "required": true,
+          "description": "Stored project id."
+        }
+      ],
+      "result": "Object with the deleted project id."
+    },
+    {
+      "name": "projects duplicate",
+      "summary": "Copy a stored project, with its own copy of the media.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "project",
+          "type": "id",
+          "required": true,
+          "description": "Stored project id."
+        }
+      ],
+      "result": "Object with the new project id."
+    },
+    {
+      "name": "projects list",
+      "summary": "List the projects stored in this browser.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [],
+      "result": "Array of project summaries (id, name, size, clips, updated)."
+    },
+    {
+      "name": "projects open",
+      "summary": "Open a project stored in this browser.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "project",
+          "type": "id",
+          "required": true,
+          "description": "Stored project id."
+        }
+      ],
+      "result": "The opened project summary and the names of any media missing from this browser."
+    },
+    {
+      "name": "projects rename",
+      "summary": "Rename a stored project.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "project",
+          "type": "id",
+          "required": true,
+          "description": "Stored project id."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "New name."
+        }
+      ],
+      "result": "Object with the project id and its new name."
+    },
+    {
+      "name": "range clear",
+      "summary": "Clear the in and out marks.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [],
+      "result": "Object with changed: true when there was a range."
+    },
+    {
+      "name": "range mark-in",
+      "summary": "Mark the start of the part to export (the out mark moves to the end if it would fall before it).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position in seconds.",
+          "min": 0
+        }
+      ],
+      "result": "Object with the range now set."
+    },
+    {
+      "name": "range mark-out",
+      "summary": "Mark the end of the part to export (the in mark moves to 0 if it would fall after it).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "time",
+          "type": "number",
+          "required": true,
+          "description": "Timeline position in seconds.",
+          "min": 0
+        }
+      ],
+      "result": "Object with the range now set."
+    },
+    {
+      "name": "range set",
+      "summary": "Set the in and out marks: the part of the timeline an \"In to out\" export covers.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "start",
+          "type": "number",
+          "required": true,
+          "description": "In mark in seconds.",
+          "min": 0
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "required": true,
+          "description": "Out mark in seconds.",
+          "min": 0
+        }
+      ],
+      "result": "Object with the range now set."
+    },
+    {
+      "name": "record cancel",
+      "summary": "Abandon the recording without keeping it.",
+      "needs": "browser",
+      "destructive": true,
+      "inputs": [],
+      "result": "Object with cancelled: true."
+    },
+    {
+      "name": "record discard",
+      "summary": "Throw away a recording left behind by a crash or a closed window.",
+      "needs": "browser",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "id",
+          "required": true,
+          "description": "Recoverable session id."
+        }
+      ],
+      "result": "Object with the session id."
+    },
+    {
+      "name": "record pause",
+      "summary": "Pause the running recording; the pause is left out of the footage.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [],
+      "result": "Object with the seconds recorded so far."
+    },
+    {
+      "name": "record recover",
+      "summary": "Import a recording left behind by a crash or a closed window.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "id",
+          "required": true,
+          "description": "Recoverable session id."
+        }
+      ],
+      "result": "Object with the media ids added."
+    },
+    {
+      "name": "record resume",
+      "summary": "Carry on a paused recording.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [],
+      "result": "Object with the seconds recorded so far."
+    },
+    {
+      "name": "record start",
+      "summary": "Start a screen recording (and optionally webcam and microphone). The browser asks the person which screen, window or tab to share.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "surface",
+          "type": "enum",
+          "required": false,
+          "description": "What to share: a browser tab, a window or the entire screen (default window).",
+          "values": [
+            "browser",
+            "window",
+            "monitor"
+          ]
+        },
+        {
+          "name": "region",
+          "type": "boolean",
+          "required": false,
+          "description": "Pick a region of the shared surface to record."
+        },
+        {
+          "name": "hideCursor",
+          "type": "boolean",
+          "required": false,
+          "description": "Leave the mouse cursor out of the recording."
+        },
+        {
+          "name": "microphone",
+          "type": "boolean",
+          "required": false,
+          "description": "Record the microphone (default true)."
+        },
+        {
+          "name": "systemAudio",
+          "type": "boolean",
+          "required": false,
+          "description": "Record the sound the computer plays (default true)."
+        },
+        {
+          "name": "separateAudio",
+          "type": "boolean",
+          "required": false,
+          "description": "Keep microphone and system sound as separate tracks."
+        },
+        {
+          "name": "webcam",
+          "type": "boolean",
+          "required": false,
+          "description": "Record the camera as its own track."
+        },
+        {
+          "name": "cameraId",
+          "type": "string",
+          "required": false,
+          "description": "Camera device id (default: the browser’s default camera)."
+        },
+        {
+          "name": "webcamResolution",
+          "type": "enum",
+          "required": false,
+          "description": "Camera resolution (default 720).",
+          "values": [
+            "480",
+            "720",
+            "1080"
+          ]
+        },
+        {
+          "name": "webcamPip",
+          "type": "boolean",
+          "required": false,
+          "description": "Place the camera as a picture-in-picture on the timeline (default true)."
+        },
+        {
+          "name": "countdown",
+          "type": "enum",
+          "required": false,
+          "description": "Seconds of countdown before recording starts (default 3).",
+          "values": [
+            "0",
+            "3",
+            "5"
+          ]
+        },
+        {
+          "name": "maxMinutes",
+          "type": "number",
+          "required": false,
+          "description": "Stop by itself after this many minutes (0 = no limit).",
+          "min": 0,
+          "max": 1440
+        },
+        {
+          "name": "toDisk",
+          "type": "boolean",
+          "required": false,
+          "description": "Write the recording to the browser’s private disk space as it goes, so a crash loses nothing (default true)."
+        },
+        {
+          "name": "addToTimeline",
+          "type": "boolean",
+          "required": false,
+          "description": "Put the recording on the timeline when it stops (default true)."
+        }
+      ],
+      "result": "Object with the recording session id and the surface that was shared."
+    },
+    {
+      "name": "record stop",
+      "summary": "Stop the recording and add it to the media bin (and the timeline).",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [],
+      "result": "Object with the media ids added and the recorded seconds."
+    },
+    {
+      "name": "redaction add",
+      "summary": "Add a region that blurs or pixelates every layer beneath it for a stretch of the timeline.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "start",
+          "type": "number",
+          "required": true,
+          "description": "Timeline start in seconds.",
+          "min": 0
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "required": false,
+          "description": "Length in seconds (default 3).",
+          "min": 0.03333333333333333,
+          "max": 86400
+        },
+        {
+          "name": "mode",
+          "type": "enum",
+          "required": false,
+          "description": "Effect (default blur).",
+          "values": [
+            "blur",
+            "pixelate"
+          ]
+        },
+        {
+          "name": "strength",
+          "type": "number",
+          "required": false,
+          "description": "1 to 100 (default 60).",
+          "min": 1,
+          "max": 100
+        },
+        {
+          "name": "x",
+          "type": "number",
+          "required": false,
+          "description": "Left edge, canvas pixels (default: centred)."
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "required": false,
+          "description": "Top edge, canvas pixels (default: centred)."
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "required": false,
+          "description": "Width, canvas pixels (default: a quarter of the canvas).",
+          "min": 8
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "required": false,
+          "description": "Height, canvas pixels (default: an eighth of the canvas).",
+          "min": 8
+        }
+      ],
+      "result": "Object with the new region id."
+    },
+    {
+      "name": "redaction remove",
+      "summary": "Remove a blur or pixelate region.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "redaction",
+          "type": "id",
+          "required": true,
+          "description": "Region id."
+        }
+      ],
+      "result": "Object with the region id."
+    },
+    {
+      "name": "redaction update",
+      "summary": "Change a blur or pixelate region.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "redaction",
+          "type": "id",
+          "required": true,
+          "description": "Region id."
+        },
+        {
+          "name": "start",
+          "type": "number",
+          "required": false,
+          "description": "Timeline start in seconds.",
+          "min": 0
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "required": false,
+          "description": "Length in seconds.",
+          "min": 0.03333333333333333,
+          "max": 86400
+        },
+        {
+          "name": "mode",
+          "type": "enum",
+          "required": false,
+          "description": "Effect.",
+          "values": [
+            "blur",
+            "pixelate"
+          ]
+        },
+        {
+          "name": "strength",
+          "type": "number",
+          "required": false,
+          "description": "1 to 100.",
+          "min": 1,
+          "max": 100
+        },
+        {
+          "name": "x",
+          "type": "number",
+          "required": false,
+          "description": "Left edge, canvas pixels."
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "required": false,
+          "description": "Top edge, canvas pixels."
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "required": false,
+          "description": "Width, canvas pixels.",
+          "min": 8
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "required": false,
+          "description": "Height, canvas pixels.",
+          "min": 8
+        }
+      ],
+      "atLeastOne": [
+        "start",
+        "duration",
+        "mode",
+        "strength",
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "result": "Object with the region as it is now."
+    },
+    {
+      "name": "session end",
+      "summary": "End the Capstan session: the local server stops once the window closes.",
+      "needs": "browser",
+      "destructive": true,
+      "inputs": [],
+      "result": "Object with ended: true."
+    },
+    {
+      "name": "template remove",
+      "summary": "Delete a template saved in this browser.",
+      "needs": "browser",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "template",
+          "type": "id",
+          "required": true,
+          "description": "Template id."
+        }
+      ],
+      "result": "Object with the template id."
+    },
+    {
+      "name": "template save",
+      "summary": "Save the project’s layout (size, tracks, annotations, zooms, markers, cursor settings) as a template in this browser.",
+      "needs": "browser",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Template name."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "description": "A line about it."
+        }
+      ],
+      "result": "Object with the template id and name."
+    },
+    {
+      "name": "template use",
+      "summary": "Start a new project from a template saved in this browser.",
+      "needs": "browser",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "template",
+          "type": "id",
+          "required": true,
+          "description": "Template id."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "Project name (default: the template name)."
+        }
+      ],
+      "result": "Object with the new project summary."
+    },
+    {
+      "name": "track add",
+      "summary": "Add a track on top of the others.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "Track name (default \"Track N\")."
+        }
+      ],
+      "result": "Object with the new track id."
+    },
+    {
+      "name": "track remove",
+      "summary": "Remove a track and every clip on it. The last track cannot be removed.",
+      "needs": "project",
+      "destructive": true,
+      "inputs": [
+        {
+          "name": "track",
+          "type": "id",
+          "required": true,
+          "description": "Track id."
+        }
+      ],
+      "result": "Object with the track id and how many clips went with it."
+    },
+    {
+      "name": "track update",
+      "summary": "Rename a track, mute, hide or lock it, or make it magnetic (clips close up, no gaps).",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "track",
+          "type": "id",
+          "required": true,
+          "description": "Track id."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "Track name."
+        },
+        {
+          "name": "muted",
+          "type": "boolean",
+          "required": false,
+          "description": "Silence the track."
+        },
+        {
+          "name": "hidden",
+          "type": "boolean",
+          "required": false,
+          "description": "Hide the track from the picture."
+        },
+        {
+          "name": "locked",
+          "type": "boolean",
+          "required": false,
+          "description": "Lock the track against edits."
+        },
+        {
+          "name": "magnetic",
+          "type": "boolean",
+          "required": false,
+          "description": "Keep the track free of gaps; turning it on closes its gaps now."
+        }
+      ],
+      "atLeastOne": [
+        "name",
+        "muted",
+        "hidden",
+        "locked",
+        "magnetic"
+      ],
+      "result": "Object with the track as it is now."
+    },
+    {
+      "name": "transition clear",
+      "summary": "Remove a clip’s transition at its start, its end or both.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "edge",
+          "type": "enum",
+          "required": true,
+          "description": "Where: in (start), out (end) or both.",
+          "values": [
+            "in",
+            "out",
+            "both"
+          ]
+        }
+      ],
+      "result": "Object with the clip’s transitions after the change."
+    },
+    {
+      "name": "transition set",
+      "summary": "Give a clip a transition at its start, its end or both.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "id",
+          "required": true,
+          "description": "Clip id."
+        },
+        {
+          "name": "edge",
+          "type": "enum",
+          "required": true,
+          "description": "Where: in (start), out (end) or both.",
+          "values": [
+            "in",
+            "out",
+            "both"
+          ]
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "required": true,
+          "description": "Transition preset.",
+          "values": [
+            "fade",
+            "slide-left",
+            "slide-right",
+            "slide-up",
+            "slide-down",
+            "wipe-left",
+            "wipe-right",
+            "wipe-up",
+            "wipe-down",
+            "zoom",
+            "pop"
+          ]
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "required": false,
+          "description": "Seconds (default 0.5; never more than half the clip).",
+          "min": 0.05,
+          "max": 10
+        }
+      ],
+      "result": "Object with the clip’s transitions after the change."
+    },
+    {
+      "name": "zoom accept",
+      "summary": "Add zoom regions, for example ones returned by zoom suggest.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "regions",
+          "type": "json",
+          "required": true,
+          "description": "Array of zoom regions (start, duration, x, y, width, height, and optionally easeIn, easeOut, ease)."
+        }
+      ],
+      "result": "Object with the ids added."
+    },
+    {
+      "name": "zoom add",
+      "summary": "Add a zoom-n-pan region: the camera zooms in on part of the canvas for a stretch of the timeline.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "start",
+          "type": "number",
+          "required": true,
+          "description": "Timeline start in seconds.",
+          "min": 0
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "required": false,
+          "description": "Length in seconds (default 3).",
+          "min": 0.03333333333333333,
+          "max": 86400
+        },
+        {
+          "name": "level",
+          "type": "number",
+          "required": false,
+          "description": "Magnification, 1.1 to 20 (default 2).",
+          "min": 1.1,
+          "max": 20
+        },
+        {
+          "name": "focusX",
+          "type": "number",
+          "required": false,
+          "description": "Canvas pixel the zoom is centred on (default: the middle)."
+        },
+        {
+          "name": "focusY",
+          "type": "number",
+          "required": false,
+          "description": "Canvas pixel the zoom is centred on (default: the middle)."
+        },
+        {
+          "name": "easeIn",
+          "type": "number",
+          "required": false,
+          "description": "Seconds to zoom in (default 0.5).",
+          "min": 0,
+          "max": 600
+        },
+        {
+          "name": "easeOut",
+          "type": "number",
+          "required": false,
+          "description": "Seconds to zoom back out (default 0.5).",
+          "min": 0,
+          "max": 600
+        },
+        {
+          "name": "ease",
+          "type": "enum",
+          "required": false,
+          "description": "Easing curve.",
+          "values": [
+            "linear",
+            "in",
+            "out",
+            "inOut",
+            "hold",
+            "back",
+            "bounce"
+          ]
+        }
+      ],
+      "result": "Object with the new zoom region id."
+    },
+    {
+      "name": "zoom duplicate",
+      "summary": "Copy a zoom region to start right after the original.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "zoom",
+          "type": "id",
+          "required": true,
+          "description": "Zoom region id."
+        }
+      ],
+      "result": "Object with the new zoom region id."
+    },
+    {
+      "name": "zoom remove",
+      "summary": "Remove a zoom region.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "zoom",
+          "type": "id",
+          "required": true,
+          "description": "Zoom region id."
+        }
+      ],
+      "result": "Object with the zoom region id."
+    },
+    {
+      "name": "zoom suggest",
+      "summary": "Suggest zoom regions from recorded cursor activity (clicks, clusters, dwells). Nothing is added.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "level",
+          "type": "number",
+          "required": false,
+          "description": "Magnification of the suggestions (default 2).",
+          "min": 1.1,
+          "max": 20
+        },
+        {
+          "name": "max",
+          "type": "number",
+          "required": false,
+          "description": "Most suggestions to return (default 40).",
+          "min": 1,
+          "max": 200,
+          "integer": true
+        }
+      ],
+      "result": "Object with regions: the suggested zoom regions, each with its own id."
+    },
+    {
+      "name": "zoom update",
+      "summary": "Change a zoom region’s timing, rectangle, magnification or easing.",
+      "needs": "project",
+      "destructive": false,
+      "inputs": [
+        {
+          "name": "zoom",
+          "type": "id",
+          "required": true,
+          "description": "Zoom region id."
+        },
+        {
+          "name": "start",
+          "type": "number",
+          "required": false,
+          "description": "Timeline start in seconds.",
+          "min": 0
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "required": false,
+          "description": "Length in seconds.",
+          "min": 0.03333333333333333,
+          "max": 86400
+        },
+        {
+          "name": "level",
+          "type": "number",
+          "required": false,
+          "description": "Magnification, 1.1 to 20; resizes the rectangle about its centre.",
+          "min": 1.1,
+          "max": 20
+        },
+        {
+          "name": "x",
+          "type": "number",
+          "required": false,
+          "description": "Left edge of the rectangle, canvas pixels."
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "required": false,
+          "description": "Top edge of the rectangle, canvas pixels."
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "required": false,
+          "description": "Rectangle width, canvas pixels.",
+          "min": 1
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "required": false,
+          "description": "Rectangle height, canvas pixels.",
+          "min": 1
+        },
+        {
+          "name": "easeIn",
+          "type": "number",
+          "required": false,
+          "description": "Seconds to zoom in.",
+          "min": 0,
+          "max": 600
+        },
+        {
+          "name": "easeOut",
+          "type": "number",
+          "required": false,
+          "description": "Seconds to zoom back out.",
+          "min": 0,
+          "max": 600
+        },
+        {
+          "name": "ease",
+          "type": "enum",
+          "required": false,
+          "description": "Easing curve.",
+          "values": [
+            "linear",
+            "in",
+            "out",
+            "inOut",
+            "hold",
+            "back",
+            "bounce"
+          ]
+        }
+      ],
+      "atLeastOne": [
+        "start",
+        "duration",
+        "level",
+        "x",
+        "y",
+        "width",
+        "height",
+        "easeIn",
+        "easeOut",
+        "ease"
+      ],
+      "result": "Object with the zoom region as it is now."
+    }
+  ]
+}

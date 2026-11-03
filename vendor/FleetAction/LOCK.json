@@ -1,0 +1,11 @@
+{
+  "name": "FleetAction",
+  "version": "v1.0.1",
+  "sha256": "8154C70544CFF424BB1BCEF3BF194EDC17C29A58AB0F37A29E751BEFD4B657C1",
+  "source": {
+    "repository": "fleethacker-data-crucible/fleet-action-baseline",
+    "path": "src/FleetAction",
+    "commit": "07f147613c03fa571ed916d64d7e8929937d00f6"
+  },
+  "note": "Pinned to the fleet-action-baseline v1.0.1 release zip. sha256 is of FleetAction.zip. The module files in this directory are the contents of that zip."
+}

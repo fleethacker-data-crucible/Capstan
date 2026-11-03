@@ -145,17 +145,17 @@ export function ProjectsDialog({ editor, onClose }: { editor: Editor; onClose():
                 </div>
                 <div className="pp-actions">
                   {!row.current && (
-                    <button className="button" disabled={busy} onClick={() => void open(row)} aria-label={`Open ${row.project.name}`}>
+                    <button className="button" data-action="capstan.projects.open" disabled={busy} aria-disabled={busy} onClick={() => void open(row)} aria-label={`Open ${row.project.name}`}>
                       Open
                     </button>
                   )}
-                  <button className="button" disabled={busy} aria-label={`Rename ${row.project.name}`} onClick={() => setRenaming({ id: row.project.id, text: row.project.name })}>
+                  <button className="button" data-action="capstan.projects.rename" disabled={busy} aria-disabled={busy} aria-label={`Rename ${row.project.name}`} onClick={() => setRenaming({ id: row.project.id, text: row.project.name })}>
                     Rename
                   </button>
-                  <button className="button" disabled={busy} aria-label={`Duplicate ${row.project.name}`} onClick={() => void duplicate(row)}>
+                  <button className="button" data-action="capstan.projects.duplicate" disabled={busy} aria-disabled={busy} aria-label={`Duplicate ${row.project.name}`} onClick={() => void duplicate(row)}>
                     Duplicate
                   </button>
-                  <button className="button" disabled={busy} aria-label={`Delete ${row.project.name}`} onClick={() => remove(row)}>
+                  <button className="button" data-action="capstan.projects.delete" disabled={busy} aria-disabled={busy} aria-label={`Delete ${row.project.name}`} onClick={() => remove(row)}>
                     <Icon name="trash" />
                     Delete
                   </button>

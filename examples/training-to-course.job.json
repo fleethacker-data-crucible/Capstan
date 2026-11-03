@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "steps": [
+    {
+      "id": "captures",
+      "app": "capstan",
+      "noun": "captures",
+      "verb": "list",
+      "args": {}
+    },
+    {
+      "id": "project",
+      "app": "capstan",
+      "noun": "file",
+      "verb": "show",
+      "args": { "path": "examples/training-lesson.capstan" }
+    },
+    {
+      "id": "chapters",
+      "app": "capstan",
+      "noun": "handoff",
+      "verb": "chapters",
+      "args": { "path": "examples/training-lesson.capstan", "format": "text" }
+    },
+    {
+      "id": "captions",
+      "app": "capstan",
+      "noun": "handoff",
+      "verb": "captions",
+      "args": { "path": "examples/training-lesson.capstan", "format": "vtt" }
+    }
+  ]
+}

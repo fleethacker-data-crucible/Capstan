@@ -98,15 +98,17 @@ export function CaptionsPanel({ editor, time, onSeek }: ToolboxProps): ReactElem
           />
         </label>
         <div className="caption-actions">
-          <button className="button" disabled={!captions.length} onClick={() => save('srt')}>
+          <button className="button" data-action="capstan.caption.export-srt" disabled={!captions.length} aria-disabled={!captions.length} onClick={() => save('srt')}>
             Export .srt
           </button>
-          <button className="button" disabled={!captions.length} onClick={() => save('vtt')}>
+          <button className="button" data-action="capstan.caption.export-vtt" disabled={!captions.length} aria-disabled={!captions.length} onClick={() => save('vtt')}>
             Export .vtt
           </button>
           <button
             className="button"
+            data-action="capstan.caption.clear"
             disabled={!captions.length}
+            aria-disabled={!captions.length}
             onClick={() => {
               editor.commit(setCaptions(editor.getProject(), []));
               editor.setSelection([]);
@@ -121,10 +123,10 @@ export function CaptionsPanel({ editor, time, onSeek }: ToolboxProps): ReactElem
             <label htmlFor="caption-shift">Shift all by</label>
             <input id="caption-shift" type="number" min={0} step={0.1} value={shift} onChange={(e) => setShift(e.target.value)} />
             <span>s</span>
-            <button className="button" disabled={!validShift} onClick={() => editor.commit(nudgeCaptions(editor.getProject(), -delta))}>
+            <button className="button" data-action="capstan.caption.shift" disabled={!validShift} aria-disabled={!validShift} onClick={() => editor.commit(nudgeCaptions(editor.getProject(), -delta))}>
               Earlier
             </button>
-            <button className="button" disabled={!validShift} onClick={() => editor.commit(nudgeCaptions(editor.getProject(), delta))}>
+            <button className="button" data-action="capstan.caption.shift" disabled={!validShift} aria-disabled={!validShift} onClick={() => editor.commit(nudgeCaptions(editor.getProject(), delta))}>
               Later
             </button>
           </div>

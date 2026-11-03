@@ -6,6 +6,10 @@ Thumbs.db
 *.log
 logs/
 
+# Pester's binary is rebuilt from the committed base64 by vendor/Pester/Restore.ps1.
+vendor/Pester/bin/net452/Pester.dll
+vendor/Pester/bin/netstandard2.0/Pester.dll
+
 # Local environment files (secrets)
 .env
 .env.*

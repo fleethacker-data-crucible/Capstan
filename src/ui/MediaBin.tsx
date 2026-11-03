@@ -41,7 +41,7 @@ export function MediaBin({ editor, time, onRecord }: { editor: Editor; time: num
           <Icon name="record" size={16} />
           Record screen
         </button>
-        <button className="button" onClick={() => input.current?.click()}>
+        <button className="button" data-action="capstan.media.import" onClick={() => input.current?.click()}>
           <Icon name="import" size={16} />
           Import media
         </button>
@@ -116,7 +116,7 @@ export function MediaBin({ editor, time, onRecord }: { editor: Editor; time: num
                       <Icon name="keyboard" />
                     </button>
                   )}
-                  <button className="icon-button small" title="Add at playhead" onClick={() => addToTimeline(m)}>
+                  <button className="icon-button small" title="Add at playhead" data-action="capstan.clip.add" onClick={() => addToTimeline(m)}>
                     <Icon name="plus" />
                   </button>
                   <button
