@@ -124,7 +124,7 @@ test('built UI sends the heartbeat and the leaving beacon', () => {
 });
 
 test('PowerShell files are ASCII (Windows PowerShell 5.1 reads BOM-less files as ANSI)', () => {
-  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'modules/Library.ps1', 'modules/CursorCapture.ps1', 'modules/Hotkeys.ps1', 'tests/ps/Lifecycle.Tests.ps1', 'tests/ps/Library.Tests.ps1', 'tests/ps/CursorCapture.Tests.ps1', 'tests/ps/Hotkeys.Tests.ps1']) {
+  for (const f of ['Start-Capstan.ps1', 'Stop-Capstan.ps1', 'capstan.ps1', 'modules/Lifecycle.ps1', 'modules/LocalHttp.ps1', 'modules/Library.ps1', 'modules/CursorCapture.ps1', 'modules/Hotkeys.ps1', 'modules/FleetRoutes.ps1', 'vendor/FleetAction/FleetAction.psm1', 'actions/Capstan.Actions.psm1', 'tests/ps/Lifecycle.Tests.ps1', 'tests/ps/Library.Tests.ps1', 'tests/ps/CursorCapture.Tests.ps1', 'tests/ps/Hotkeys.Tests.ps1', 'tests/ps/FleetAction.Tests.ps1']) {
     expect(/[^\x00-\x7f]/.test(read(f))).toBe(false);
   }
 });

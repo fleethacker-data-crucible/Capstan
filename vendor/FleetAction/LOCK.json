@@ -1,0 +1,12 @@
+{
+  "name": "FleetAction",
+  "version": "0.0.0-vendored",
+  "sha256": "94e13fbae1cc4670896a1f824f2deb58c2f6a976354a5bb399233339b24e6a6b",
+  "source": {
+    "repository": "fleethacker-data-crucible/fleet-action-baseline",
+    "path": "src/FleetAction",
+    "commit": null,
+    "fallback": "fleethacker-data-crucible/edge-ops tools/fleet-action/FleetAction.psm1 (PR 50)"
+  },
+  "note": "This run could read only fleethacker-data-crucible/Capstan. fleet-action-baseline and edge-ops both returned 404, so there is no upstream commit to pin. sha256 is of the vendored FleetAction.psm1 in this repo. Replace this copy with the baseline v1.0.0 module and set commit when that repository is readable. The contract implemented here is commands --json, help --json as an alias, action ids app.noun.verb, -Confirmed, JSON-only job files, PSObject.Properties (never ContainsKey) for ConvertFrom-Json, ConvertTo-Json -Depth, and no secrets in logs."
+}

@@ -1,0 +1,22 @@
+{
+  "schema": "fleet.job/1",
+  "name": "training-to-course",
+  "actions": [
+    {
+      "action": "capstan.captures.list",
+      "args": {}
+    },
+    {
+      "action": "capstan.file.show",
+      "args": { "file": "examples/training-lesson.capstan" }
+    },
+    {
+      "action": "capstan.handoff.chapters",
+      "args": { "file": "examples/training-lesson.capstan", "format": "text" }
+    },
+    {
+      "action": "capstan.handoff.captions",
+      "args": { "file": "examples/training-lesson.capstan", "format": "vtt" }
+    }
+  ]
+}

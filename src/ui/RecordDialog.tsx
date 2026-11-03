@@ -639,7 +639,7 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
               <button className="button" onClick={onClose}>
                 Cancel
               </button>
-              <button className="button primary" data-autofocus disabled={starting} onClick={() => void start()}>
+              <button className="button primary" data-action="capstan.record.start" data-autofocus disabled={starting} aria-disabled={starting} onClick={() => void start()}>
                 <Icon name="record" size={16} />
                 {starting ? 'Starting…' : 'Start recording'}
               </button>
@@ -739,6 +739,7 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
               {phase === 'recording' && (
                 <button
                   className="button"
+                  data-action="capstan.record.pause"
                   onClick={() => {
                     recorder.current?.pause();
                     void capture.current?.client.pause();
@@ -751,6 +752,7 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
               {phase === 'paused' && (
                 <button
                   className="button"
+                  data-action="capstan.record.resume"
                   onClick={() => {
                     recorder.current?.resume();
                     void capture.current?.client.resume();
@@ -760,7 +762,7 @@ export function RecordDialog({ editor, onClose, autostart = false }: { editor: E
                   Resume
                 </button>
               )}
-              <button className="button primary" disabled={phase === 'saving'} onClick={() => void finish()}>
+              <button className="button primary" data-action="capstan.record.stop" disabled={phase === 'saving'} aria-disabled={phase === 'saving'} onClick={() => void finish()}>
                 Stop and save
               </button>
             </div>

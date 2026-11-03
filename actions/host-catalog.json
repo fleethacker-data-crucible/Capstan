@@ -1,0 +1,161 @@
+{
+  "schema": "capstan.host-actions/1",
+  "actions": [
+    {
+      "id": "capstan.host.show",
+      "noun": "host",
+      "verb": "show",
+      "summary": "Show the local Capstan host: name, version, and that it stays on this computer.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": {},
+      "schema": { "type": "object", "additionalProperties": false, "required": [], "properties": {} }
+    },
+    {
+      "id": "capstan.session.show",
+      "noun": "session",
+      "verb": "show",
+      "summary": "Show whether a Capstan host is running (process id, port, and address). The session token is never included.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": {},
+      "schema": { "type": "object", "additionalProperties": false, "required": [], "properties": {} }
+    },
+    {
+      "id": "capstan.session.end",
+      "noun": "session",
+      "verb": "end",
+      "summary": "Stop the local Capstan server. Projects and media already saved in the browser stay saved.",
+      "destructive": true,
+      "needs": "host",
+      "exampleArgs": {},
+      "schema": { "type": "object", "additionalProperties": false, "required": [], "properties": {} }
+    },
+    {
+      "id": "capstan.diagnostics.run",
+      "noun": "diagnostics",
+      "verb": "run",
+      "summary": "Report the PowerShell host and that Capstan binds to 127.0.0.1 only. Does not start a server.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": {},
+      "schema": { "type": "object", "additionalProperties": false, "required": [], "properties": {} }
+    },
+    {
+      "id": "capstan.captures.list",
+      "noun": "captures",
+      "verb": "list",
+      "summary": "List SnapShackle captures the host can read (name, size, kind, and whether OCR text is stored). The newest 500.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": {},
+      "schema": { "type": "object", "additionalProperties": false, "required": [], "properties": {} }
+    },
+    {
+      "id": "capstan.library.list",
+      "noun": "library",
+      "verb": "list",
+      "summary": "List media files kept on disk by the local library (id and size only, never the folder path).",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": {},
+      "schema": { "type": "object", "additionalProperties": false, "required": [], "properties": {} }
+    },
+    {
+      "id": "capstan.speech.show",
+      "noun": "speech",
+      "verb": "show",
+      "summary": "Show whether offline speech-to-text is available on this computer.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": {},
+      "schema": { "type": "object", "additionalProperties": false, "required": [], "properties": {} }
+    },
+    {
+      "id": "capstan.hotkeys.show",
+      "noun": "hotkeys",
+      "verb": "show",
+      "summary": "Show whether global hotkeys and the tray icon are available.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": {},
+      "schema": { "type": "object", "additionalProperties": false, "required": [], "properties": {} }
+    },
+    {
+      "id": "capstan.cursor.show",
+      "noun": "cursor",
+      "verb": "show",
+      "summary": "Show whether the host can record cursor and key data while a capture is running.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": {},
+      "schema": { "type": "object", "additionalProperties": false, "required": [], "properties": {} }
+    },
+    {
+      "id": "capstan.file.show",
+      "noun": "file",
+      "verb": "show",
+      "summary": "Read a .capstan project file and report its size, counts, chapters, and captions. Does not open the editor.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": { "file": "examples/training-lesson.capstan" },
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file"],
+        "properties": { "file": { "type": "string", "minLength": 1, "description": "Path to a .capstan project file." } }
+      }
+    },
+    {
+      "id": "capstan.handoff.chapters",
+      "noun": "handoff",
+      "verb": "chapters",
+      "summary": "Write the chapter list from a .capstan file as text or WebVTT for Scrimshaw or a player. Headless.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": { "file": "examples/training-lesson.capstan", "format": "text" },
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file"],
+        "properties": {
+          "file": { "type": "string", "minLength": 1, "description": "Path to a .capstan project file." },
+          "format": { "type": "string", "enum": ["text", "vtt"], "description": "text (YouTube-style) or vtt. Default text." }
+        }
+      }
+    },
+    {
+      "id": "capstan.handoff.captions",
+      "noun": "handoff",
+      "verb": "captions",
+      "summary": "Write the captions from a .capstan file as SRT or WebVTT for Scrimshaw. Headless.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": { "file": "examples/training-lesson.capstan", "format": "vtt" },
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file"],
+        "properties": {
+          "file": { "type": "string", "minLength": 1, "description": "Path to a .capstan project file." },
+          "format": { "type": "string", "enum": ["srt", "vtt"], "description": "srt or vtt. Default vtt." }
+        }
+      }
+    },
+    {
+      "id": "capstan.job.run",
+      "noun": "job",
+      "verb": "run",
+      "summary": "Run a JSON job file. Each step is an action. The file must be .json.",
+      "destructive": false,
+      "needs": "host",
+      "exampleArgs": { "file": "examples/training-to-course.job.json" },
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file"],
+        "properties": { "file": { "type": "string", "minLength": 1, "description": "Path to a .json job file." } }
+      }
+    }
+  ]
+}

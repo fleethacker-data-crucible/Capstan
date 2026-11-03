@@ -103,7 +103,7 @@ export function LibraryDialog({ editor, onClose }: { editor: Editor; onClose(): 
     <DialogFrame title="Library" titleId="library-title" onClose={onClose}>
       <p className="modal-text">Logos, music, stings and short clips you reuse. The library belongs to no project, so it is still here after New project, and any asset can be added to any project.</p>
       <div className="pp-bar">
-        <button className="button" disabled={busy} onClick={() => input.current?.click()}>
+        <button className="button" data-action="capstan.library.add" disabled={busy} aria-disabled={busy} onClick={() => input.current?.click()}>
           <Icon name="import" />
           Add files…
         </button>
@@ -140,10 +140,10 @@ export function LibraryDialog({ editor, onClose }: { editor: Editor; onClose(): 
                 </span>
               </div>
               <div className="pp-actions">
-                <button className="button primary" disabled={busy} aria-label={`Add ${a.meta.name} to this project`} onClick={() => void addToProject(a)}>
+                <button className="button primary" data-action="capstan.library.use" disabled={busy} aria-disabled={busy} aria-label={`Add ${a.meta.name} to this project`} onClick={() => void addToProject(a)}>
                   Add to project
                 </button>
-                <button className="button" disabled={busy} aria-label={`Remove ${a.meta.name} from the library`} onClick={() => remove(a)}>
+                <button className="button" data-action="capstan.library.remove" disabled={busy} aria-disabled={busy} aria-label={`Remove ${a.meta.name} from the library`} onClick={() => remove(a)}>
                   Remove
                 </button>
               </div>
@@ -167,7 +167,7 @@ export function LibraryDialog({ editor, onClose }: { editor: Editor; onClose(): 
                   <span className="pp-sub">{bytes(m.bytes)}</span>
                 </div>
                 <div className="pp-actions">
-                  <button className="button" disabled={busy || inLibrary.has(m)} aria-label={`Save ${m.name} to the library`} onClick={() => void saveFromProject(m.id)}>
+                  <button className="button" data-action="capstan.library.save" disabled={busy || inLibrary.has(m)} aria-disabled={busy || inLibrary.has(m)} aria-label={`Save ${m.name} to the library`} onClick={() => void saveFromProject(m.id)}>
                     {inLibrary.has(m) ? 'In library' : 'Save to library'}
                   </button>
                 </div>

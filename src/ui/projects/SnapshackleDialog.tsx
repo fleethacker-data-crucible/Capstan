@@ -296,7 +296,7 @@ export function SnapshackleDialog({ editor, onClose, onPickFolder }: { editor: E
         <button className="button" onClick={onClose}>
           Cancel
         </button>
-        <button className="button primary" disabled={!picked.size || !!busy} onClick={() => void importPicked()}>
+        <button className="button primary" data-action="capstan.media.import-captures" disabled={!picked.size || !!busy} aria-disabled={!picked.size || !!busy} onClick={() => void importPicked()}>
           {picked.size ? `Import ${picked.size} capture${picked.size === 1 ? '' : 's'}` : 'Import'}
         </button>
       </div>

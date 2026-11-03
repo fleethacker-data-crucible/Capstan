@@ -16,6 +16,7 @@ import { Emblem, Welcome } from './Welcome';
 import { RecoveryDialog } from './RecoveryDialog';
 import { Inspector } from './Inspector';
 import { onHotkey, startHotkeys } from './hotkeys';
+import { FleetActionChrome, fleetAlert, fleetConfirm, fleetStatus, invokeFleetAction } from './fleetAction';
 import { endSession, isBusy, onEngineState, sessionToken, startHeartbeat, type EngineState } from './lifecycle';
 import { onLibraryState } from '../engine/storage';
 import type { MirrorState } from '../engine/library-mirror';
@@ -177,16 +178,51 @@ export function App() {
     [],
   );
 
-  const quit = async () => {
-    const busyNote = isBusy() ? ' An export or recording is still running and will be lost.' : '';
-    if (!window.confirm(`End this Capstan session? The local server stops; your projects and media stay saved in this browser.${busyNote}`)) return;
+  const showHost = async (e: { preventDefault(): void; currentTarget: HTMLAnchorElement }) => {
+    e.preventDefault();
+    const link = e.currentTarget;
+    link.setAttribute('aria-busy', 'true');
     try {
-      await endSession();
+      const call = await invokeFleetAction('capstan.host.show', {});
+      if (!call.ok) {
+        fleetAlert(call.httpStatus === 404 ? 'Host status is available from capstan.ps1 host show.' : call.message);
+        return;
+      }
+      fleetStatus('Capstan is running on this computer. Nothing is sent over the network.');
+      editor.setStatus('Capstan is running on this computer. Nothing is sent over the network.');
+    } finally {
+      link.removeAttribute('aria-busy');
+    }
+  };
+
+  const quit = async (button: HTMLButtonElement) => {
+    const busyNote = isBusy() ? ' An export or recording is still running and will be lost.' : '';
+    const yes = await fleetConfirm(
+      `End this Capstan session? The local server stops; your projects and media stay saved in this browser.${busyNote}`,
+      'End session',
+    );
+    if (!yes) return;
+    button.setAttribute('aria-busy', 'true');
+    button.setAttribute('aria-disabled', 'true');
+    try {
+      const call = await invokeFleetAction('capstan.session.end', {}, { confirmed: true });
+      if (!call.ok && call.httpStatus === 404) {
+        await endSession();
+      } else if (!call.ok) {
+        fleetAlert(call.message);
+        editor.setStatus(call.message);
+        return;
+      }
+      fleetStatus('Session ended. Your projects stay in this browser.');
       stopHeartbeat.current();
       player?.pause();
       setEnded(true);
     } catch (e) {
-      editor.setStatus((e as Error).message);
+      const message = (e as Error).message || 'Capstan could not end the session.';
+      fleetAlert(message);
+      editor.setStatus(message);
+    } finally {
+      button.removeAttribute('aria-busy');
     }
   };
 
@@ -354,7 +390,7 @@ export function App() {
             <Icon name="record" size={20} />
             <span>Record screen</span>
           </button>
-          <button title="Import media" onClick={() => importInput.current?.click()}>
+          <button title="Import media" data-action="capstan.media.import" onClick={() => importInput.current?.click()}>
             <Icon name="import" size={20} />
             <span>Import media</span>
           </button>
@@ -385,7 +421,7 @@ export function App() {
             <span>{themeName(theme)}</span>
           </button>
           {sessionToken() && (
-            <button className="end-session" title="End session: stop Capstan's local server" onClick={() => void quit()}>
+            <button className="end-session" title="End session: stop Capstan's local server" data-action="capstan.session.end" onClick={(e) => void quit(e.currentTarget)}>
               <Icon name="power" size={20} />
               <span>End session</span>
             </button>
@@ -405,16 +441,16 @@ export function App() {
           {project.name}
         </h1>
         <div className="tool-group">
-          <button className="icon-button" title="New project" onClick={() => {
+          <button className="icon-button" title="New project" data-action="capstan.project.new" onClick={() => {
             if (project.clips.length && !window.confirm('Start a new project? The current project stays in Project > Projects.')) return;
             editor.newProject();
           }}>
             <Icon name="newDoc" />
           </button>
-          <button className="icon-button" title="Open project file (.capstan edit, or a .capstanz package with its media)" onClick={() => openInput.current?.click()}>
+          <button className="icon-button" title="Open project file (.capstan edit, or a .capstanz package with its media)" data-action="capstan.project.open" onClick={() => openInput.current?.click()}>
             <Icon name="open" />
           </button>
-          <button className="icon-button" title="Save project file (.capstan: the edit only, no media). To move a project to another computer use Project, Save package." onClick={saveProjectFile}>
+          <button className="icon-button" title="Save project file (.capstan: the edit only, no media). To move a project to another computer use Project, Save package." data-action="capstan.project.save" onClick={saveProjectFile}>
             <Icon name="save" />
           </button>
           <input
@@ -431,19 +467,19 @@ export function App() {
         </div>
         <ProjectMenu editor={editor} />
         <div className="tool-group">
-          <button className="icon-button" title="Undo (Ctrl+Z)" disabled={!editor.canUndo} onClick={editor.undo}>
+          <button className="icon-button" title="Undo (Ctrl+Z)" data-action="capstan.history.undo" disabled={!editor.canUndo} aria-disabled={!editor.canUndo} onClick={editor.undo}>
             <Icon name="undo" />
           </button>
-          <button className="icon-button" title="Redo (Ctrl+Y)" disabled={!editor.canRedo} onClick={editor.redo}>
+          <button className="icon-button" title="Redo (Ctrl+Y)" data-action="capstan.history.redo" disabled={!editor.canRedo} aria-disabled={!editor.canRedo} onClick={editor.redo}>
             <Icon name="redo" />
           </button>
         </div>
         <div className="tool-group">
-          <button className="icon-button labelled" title="Split at playhead (S)" onClick={split}>
+          <button className="icon-button labelled" title="Split at playhead (S)" data-action="capstan.clip.split" onClick={split}>
             <Icon name="split" />
             <span>Split</span>
           </button>
-          <button className="icon-button labelled" title="Delete (Del)" disabled={!selection.length} onClick={() => remove(false)}>
+          <button className="icon-button labelled" title="Delete (Del)" data-action="capstan.clip.delete" disabled={!selection.length} aria-disabled={!selection.length} onClick={() => remove(false)}>
             <Icon name="trash" />
             <span>Delete</span>
           </button>
@@ -537,12 +573,16 @@ export function App() {
         <span className="address" title="The address this Capstan is served from">
           {window.location.host || 'file'}
         </span>
+        <a className="host-status-link" href="#capstan-host-status" data-action="capstan.host.show" onClick={(e) => void showHost(e)}>
+          Host status
+        </a>
         <span className="message" role="status">
           {editor.status}
         </span>
         <span className="version">Capstan {__CAPSTAN_VERSION__}</span>
       </footer>
 
+      <FleetActionChrome />
       {dragging && (
         <div className="drop-overlay" aria-hidden>
           <p>Drop to import</p>

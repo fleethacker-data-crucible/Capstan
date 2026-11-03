@@ -295,6 +295,10 @@ h2 { font-size: var(--fl-text-section); font-weight: 600; }
 .engine-disconnected .engine-dot, .engine-stopped .engine-dot { background: var(--fl-danger); }
 .address { font-family: var(--fl-font-mono); white-space: nowrap; }
 .statusbar .message { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fleet-live { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.fleet-confirm { width: min(440px, calc(100vw - 32px)); }
+.fleet-confirm .modal-text { margin: 0 0 16px; }
+.host-status-link { color: var(--fl-foreground); text-decoration: underline; text-underline-offset: 2px; }
 .version { white-space: nowrap; }
 
 /* ---------- dialogs (section 6: .fl-dialog) ---------- */

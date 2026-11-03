@@ -566,6 +566,7 @@ export function ExportDialog({ editor, onClose, time = 0 }: { editor: Editor; on
               {busy ? (
                 <button
                   className="button"
+                  data-action="capstan.export.cancel"
                   onClick={() => {
                     if (single) abort.current?.abort();
                     else queue.current.cancelAll();
@@ -579,11 +580,11 @@ export function ExportDialog({ editor, onClose, time = 0 }: { editor: Editor; on
                     {result || finished ? 'Done' : 'Cancel'}
                   </button>
                   {queued > 0 && (
-                    <button className="button" onClick={() => void runBatch()}>
+                    <button className="button" data-action="capstan.batch.run" onClick={() => void runBatch()}>
                       Run batch ({queued})
                     </button>
                   )}
-                  <button className="button primary" onClick={() => void run()}>
+                  <button className="button primary" data-action={f === 'gif' || f === 'png' || f === 'wav' || f === 'm4a' ? `capstan.export.${f}` : 'capstan.export.mp4'} onClick={() => void run()}>
                     <Icon name="export" size={16} />
                     {result ? 'Export again' : f === 'png' ? 'Export picture' : isAudio(f) ? 'Export audio' : f === 'gif' ? 'Export GIF' : 'Export video'}
                   </button>
