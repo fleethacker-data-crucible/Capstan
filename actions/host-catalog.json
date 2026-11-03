@@ -98,12 +98,12 @@
       "summary": "Read a .capstan project file and report its size, counts, chapters, and captions. Does not open the editor.",
       "destructive": false,
       "needs": "host",
-      "exampleArgs": { "file": "examples/training-lesson.capstan" },
+      "exampleArgs": { "path": "examples/training-lesson.capstan" },
       "schema": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["file"],
-        "properties": { "file": { "type": "string", "minLength": 1, "description": "Path to a .capstan project file." } }
+        "required": ["path"],
+        "properties": { "path": { "type": "string", "minLength": 1, "description": "Path to a .capstan project file." } }
       }
     },
     {
@@ -113,13 +113,13 @@
       "summary": "Write the chapter list from a .capstan file as text or WebVTT for Scrimshaw or a player. Headless.",
       "destructive": false,
       "needs": "host",
-      "exampleArgs": { "file": "examples/training-lesson.capstan", "format": "text" },
+      "exampleArgs": { "path": "examples/training-lesson.capstan", "format": "text" },
       "schema": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["file"],
+        "required": ["path"],
         "properties": {
-          "file": { "type": "string", "minLength": 1, "description": "Path to a .capstan project file." },
+          "path": { "type": "string", "minLength": 1, "description": "Path to a .capstan project file." },
           "format": { "type": "string", "enum": ["text", "vtt"], "description": "text (YouTube-style) or vtt. Default text." }
         }
       }
@@ -131,30 +131,15 @@
       "summary": "Write the captions from a .capstan file as SRT or WebVTT for Scrimshaw. Headless.",
       "destructive": false,
       "needs": "host",
-      "exampleArgs": { "file": "examples/training-lesson.capstan", "format": "vtt" },
+      "exampleArgs": { "path": "examples/training-lesson.capstan", "format": "vtt" },
       "schema": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["file"],
+        "required": ["path"],
         "properties": {
-          "file": { "type": "string", "minLength": 1, "description": "Path to a .capstan project file." },
+          "path": { "type": "string", "minLength": 1, "description": "Path to a .capstan project file." },
           "format": { "type": "string", "enum": ["srt", "vtt"], "description": "srt or vtt. Default vtt." }
         }
-      }
-    },
-    {
-      "id": "capstan.job.run",
-      "noun": "job",
-      "verb": "run",
-      "summary": "Run a JSON job file. Each step is an action. The file must be .json.",
-      "destructive": false,
-      "needs": "host",
-      "exampleArgs": { "file": "examples/training-to-course.job.json" },
-      "schema": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["file"],
-        "properties": { "file": { "type": "string", "minLength": 1, "description": "Path to a .json job file." } }
       }
     }
   ]

@@ -15,60 +15,43 @@ if (-not (Get-Module Pester)) {
 
 # Discovery reads this list when it builds one test per action. BeforeAll registers again for the run.
 Register-CapstanActions
-$script:actions = @((Get-FleetCommandsDocument).actions)
+$script:actions = @(Get-FleetAction -App 'capstan')
+$script:hostIds = @()
+$hostDoc = [IO.File]::ReadAllText((Join-Path $root 'actions/host-catalog.json')) | ConvertFrom-Json
+foreach ($row in @($hostDoc.actions)) {
+    if ([string]$row.id -ne 'capstan.job.run') { $script:hostIds += [string]$row.id }
+}
 
 Describe 'Fleet action registry' {
     BeforeAll {
         Register-CapstanActions
         $script:root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $script:doc = Get-FleetCommandsDocument
-        $script:actions = @($script:doc.actions)
-        function script:New-SampleArgs($Schema) {
-            $props = Get-FleetProp $Schema 'properties'
-            $names = @()
-            $required = Get-FleetProp $Schema 'required'
-            if ($null -ne $required) { $names = @($required) }
-            $atLeast = Get-FleetProp $Schema 'atLeastOne'
-            if ($null -ne $atLeast) {
-                foreach ($name in @($atLeast)) {
-                    $seen = $false
-                    foreach ($have in $names) { if ($have -eq $name) { $seen = $true } }
-                    if (-not $seen) { $names += $name }
-                }
-            }
+        $script:actions = @(Get-FleetAction -App 'capstan')
+        function script:New-SampleArgs($Action) {
             $sample = @{}
-            foreach ($name in $names) {
-                if ([string]::IsNullOrEmpty([string]$name)) { continue }
-                $spec = Get-FleetProp $props ([string]$name)
-                $type = [string](Get-FleetProp $spec 'type')
-                if ($type -eq 'number' -or $type -eq 'integer') {
-                    $min = Get-FleetProp $spec 'minimum'
-                    $max = Get-FleetProp $spec 'maximum'
-                    $n = 1.0
-                    if ($null -ne $min) { $n = [double]$min }
-                    if ($null -ne $max -and $n -gt [double]$max) { $n = [double]$max }
-                    if ($null -ne $min -and $n -lt [double]$min) { $n = [double]$min }
-                    if ($type -eq 'integer') { $sample[[string]$name] = [int][Math]::Round($n) } else { $sample[[string]$name] = $n }
-                } elseif ($type -eq 'boolean') {
-                    $sample[[string]$name] = $true
-                } elseif ($type -eq 'array') {
-                    $sample[[string]$name] = @('id_example')
-                } elseif ($type -eq 'object') {
-                    $sample[[string]$name] = '{}'
-                } elseif ($null -ne (Get-FleetProp $spec 'enum')) {
-                    $sample[[string]$name] = [string](@(Get-FleetProp $spec 'enum')[0])
-                } else {
-                    $sample[[string]$name] = 'id_example'
-                }
+            foreach ($parameter in @($Action.parameters)) {
+                if (-not [bool]$parameter.required) { continue }
+                if ([string]$parameter.type -eq 'number') { $sample[[string]$parameter.name] = 1 }
+                elseif ([string]$parameter.type -eq 'boolean') { $sample[[string]$parameter.name] = $true }
+                else { $sample[[string]$parameter.name] = 'id_example' }
             }
             return $sample
+        }
+        function script:Get-CapstanExitCode($Envelope) {
+            if ($Envelope.ok) { return 0 }
+            switch ([string]$Envelope.error.code) {
+                'E_ARGS' { return 2 }
+                'E_NOT_FOUND' { return 3 }
+                'E_CONFIRM' { return 4 }
+                'E_AUTH' { return 5 }
+                default { return 1 }
+            }
         }
     }
 
     It 'uses the fleet commands document' {
-        $script:doc.schema | Should -Be 'fleet.commands/1'
-        $script:doc.app | Should -Be 'capstan'
         $script:actions.Count | Should -BeGreaterThan 100
+        $script:actions[0].app | Should -Be 'capstan'
     }
 
     It 'gives every action an app.noun.verb id' {
@@ -86,41 +69,43 @@ Describe 'Fleet action registry' {
         $LASTEXITCODE | Should -Be 0
         $fromCommands = $commands | ConvertFrom-Json
         $fromHelp = $help | ConvertFrom-Json
-        @($fromCommands.actions).Count | Should -Be $script:actions.Count
-        @($fromHelp.actions).Count | Should -Be $script:actions.Count
+        $fromCommands.v | Should -Be 1
+        @($fromCommands.result.actions).Count | Should -Be $script:actions.Count
+        @($fromHelp.result.actions).Count | Should -Be $script:actions.Count
         $listed = @{}
-        foreach ($row in @($fromHelp.actions)) { $listed[[string]$row.id] = $true }
+        foreach ($row in @($fromHelp.result.actions)) { $listed[[string]$row.id] = $true }
         foreach ($row in $script:actions) { $listed.Contains([string]$row.id) | Should -BeTrue }
     }
 
     It 'rejects an unknown argument for <id>' -ForEach $script:actions {
-        $env = Invoke-FleetAction -Id $_.id -Arguments @{ definitelyNotAField = 1 }
+        $env = Invoke-FleetAction -App 'capstan' -Noun $_.noun -Verb $_.verb -Arguments @{ definitelyNotAField = 1 }
         $env.ok | Should -BeFalse
-        $env.errorType | Should -Be 'usage'
-        (Get-FleetExitCode $env) | Should -Be 2
+        $env.error.code | Should -Be 'E_ARGS'
+        (Get-CapstanExitCode $env) | Should -Be 2
     }
 
     It 'asks before a destructive action <id>' -ForEach @($script:actions | Where-Object { $_.destructive }) {
-        $sample = New-SampleArgs $_.schema
-        $env = Invoke-FleetAction -Id $_.id -Arguments $sample
+        $sample = New-SampleArgs $_
+        $env = Invoke-FleetAction -App 'capstan' -Noun $_.noun -Verb $_.verb -Arguments $sample
         $env.ok | Should -BeFalse
-        $env.errorType | Should -Be 'needs-confirm'
-        (Get-FleetExitCode $env) | Should -Be 2
+        $env.error.code | Should -Be 'E_CONFIRM'
+        (Get-CapstanExitCode $env) | Should -Be 4
     }
 
-    It 'dry-runs a page action <id> without changing anything' -ForEach @($script:actions | Where-Object { $_.needs -eq 'page' }) {
-        $sample = New-SampleArgs $_.schema
-        $env = Invoke-FleetAction -Id $_.id -Arguments $sample -DryRun
+    It 'dry-runs <id> without calling the handler' -ForEach $script:actions {
+        $sample = New-SampleArgs $_
+        $env = Invoke-FleetAction -App 'capstan' -Noun $_.noun -Verb $_.verb -Arguments $sample -DryRun
         $env.ok | Should -BeTrue
-        $env.dryRun | Should -BeTrue
+        $env.result.dryRun | Should -BeTrue
+        $env.result.actionId | Should -Be $_.id
     }
 
-    It 'tells the truth when a page action <id> is run headless' -ForEach @($script:actions | Where-Object { $_.needs -eq 'page' }) {
-        $sample = New-SampleArgs $_.schema
-        $env = Invoke-FleetAction -Id $_.id -Arguments $sample -Confirmed
+    It 'tells the truth when a page action <id> is run headless' -ForEach @($script:actions | Where-Object { $script:hostIds -notcontains $_.id }) {
+        $sample = New-SampleArgs $_
+        $env = Invoke-FleetAction -App 'capstan' -Noun $_.noun -Verb $_.verb -Arguments $sample -Confirmed
         $env.ok | Should -BeFalse
-        $env.errorType | Should -Be 'needs-browser'
-        (Get-FleetExitCode $env) | Should -Be 1
+        $env.error.code | Should -Be 'E_ARGS'
+        $env.error.message | Should -Match 'Capstan page'
     }
 }
 
@@ -133,36 +118,37 @@ Describe 'Headless actions for the training chain' {
     }
 
     It 'reads a project file' {
-        $env = Invoke-FleetAction -Id 'capstan.file.show' -Arguments @{ file = $script:lesson }
+        $env = Invoke-FleetAction -App 'capstan' -Noun 'file' -Verb 'show' -Arguments @{ path = $script:lesson }
         $env.ok | Should -BeTrue
         $env.result.name | Should -Be 'Training lesson'
         $env.result.counts.chapters | Should -Be 2
     }
 
     It 'exports chapters and captions' {
-        $chapters = Invoke-FleetAction -Id 'capstan.handoff.chapters' -Arguments @{ file = $script:lesson; format = 'text' }
+        $chapters = Invoke-FleetAction -App 'capstan' -Noun 'handoff' -Verb 'chapters' -Arguments @{ path = $script:lesson; format = 'text' }
         $chapters.ok | Should -BeTrue
         $chapters.result.text | Should -Be "0:00 Open`n0:12 Show the capture`n"
-        $captions = Invoke-FleetAction -Id 'capstan.handoff.captions' -Arguments @{ file = $script:lesson; format = 'srt' }
+        $captions = Invoke-FleetAction -App 'capstan' -Noun 'handoff' -Verb 'captions' -Arguments @{ path = $script:lesson; format = 'srt' }
         $captions.result.text | Should -Match 'Welcome to the lesson'
     }
 
     It 'runs the training-to-course job' {
-        $env = Invoke-FleetAction -Id 'capstan.job.run' -Arguments @{ file = $script:job }
+        $env = Invoke-FleetJob -Path $script:job
         $env.ok | Should -BeTrue
         @($env.result.steps).Count | Should -Be 4
     }
 
-    It 'refuses a job that is not JSON' {
-        $env = Invoke-FleetAction -Id 'capstan.job.run' -Arguments @{ file = $script:lesson }
+    It 'refuses a job that is not a version 1 job' {
+        $env = Invoke-FleetJob -Path $script:lesson
         $env.ok | Should -BeFalse
-        $env.errorType | Should -Be 'usage'
+        $env.error.code | Should -Be 'E_ARGS'
     }
 
     It 'does not stop the server on a dry run' {
-        $env = Invoke-FleetAction -Id 'capstan.session.end' -DryRun
+        $env = Invoke-FleetAction -App 'capstan' -Noun 'session' -Verb 'end' -DryRun
         $env.ok | Should -BeTrue
-        $env.result.would | Should -Match 'stop'
+        $env.result.dryRun | Should -BeTrue
+        $env.result.confirmationRequired | Should -BeTrue
     }
 }
 
@@ -187,8 +173,11 @@ Describe 'GUI parity' {
         }
         $ids.Count | Should -BeGreaterThan 10
         foreach ($id in $ids) {
-            $action = Get-FleetAction -Id $id
-            $action | Should -Not -BeNullOrEmpty -Because $id
+            $found = $false
+            foreach ($action in @(Get-FleetAction -App 'capstan')) {
+                if ([string]$action.id -eq $id) { $found = $true }
+            }
+            $found | Should -BeTrue -Because $id
         }
     }
 
@@ -202,7 +191,8 @@ Describe 'GUI parity' {
             $bytes[0] | Should -Not -Be 0xEF
             $text = [IO.File]::ReadAllText($out)
             $doc = $text | ConvertFrom-Json
-            $doc.schema | Should -Be 'fleet.commands/1'
+            $doc.v | Should -Be 1
+            $doc.result.app | Should -Be 'capstan'
         } finally {
             Remove-Item -LiteralPath $out -Force -ErrorAction SilentlyContinue
         }

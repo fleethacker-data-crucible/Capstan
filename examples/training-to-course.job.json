@@ -1,22 +1,33 @@
 {
-  "schema": "fleet.job/1",
-  "name": "training-to-course",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.captures.list",
+      "id": "captures",
+      "app": "capstan",
+      "noun": "captures",
+      "verb": "list",
       "args": {}
     },
     {
-      "action": "capstan.file.show",
-      "args": { "file": "examples/training-lesson.capstan" }
+      "id": "project",
+      "app": "capstan",
+      "noun": "file",
+      "verb": "show",
+      "args": { "path": "examples/training-lesson.capstan" }
     },
     {
-      "action": "capstan.handoff.chapters",
-      "args": { "file": "examples/training-lesson.capstan", "format": "text" }
+      "id": "chapters",
+      "app": "capstan",
+      "noun": "handoff",
+      "verb": "chapters",
+      "args": { "path": "examples/training-lesson.capstan", "format": "text" }
     },
     {
-      "action": "capstan.handoff.captions",
-      "args": { "file": "examples/training-lesson.capstan", "format": "vtt" }
+      "id": "captions",
+      "app": "capstan",
+      "noun": "handoff",
+      "verb": "captions",
+      "args": { "path": "examples/training-lesson.capstan", "format": "vtt" }
     }
   ]
 }

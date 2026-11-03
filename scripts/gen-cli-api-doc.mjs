@@ -57,7 +57,7 @@ const page = editor.commands
     };
   });
 
-const hostRows = host.actions.map((a) => ({
+const hostRows = host.actions.filter((a) => a.id !== 'capstan.job.run').map((a) => ({
   id: a.id,
   noun: a.noun,
   verb: a.verb,
@@ -71,7 +71,11 @@ const hostRows = host.actions.map((a) => ({
 const actions = [...hostRows, ...page].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
 function job(action) {
-  return JSON.stringify({ schema: 'fleet.job/1', actions: [{ action: action.id, args: action.exampleArgs }] }, null, 2);
+  const [app, noun, verb] = action.id.split('.');
+  return JSON.stringify({
+    version: 1,
+    steps: [{ id: 'step', app, noun, verb, args: action.exampleArgs }],
+  }, null, 2);
 }
 
 function curl(action) {
@@ -84,7 +88,7 @@ lines.push('# Capstan CLI and API');
 lines.push('');
 lines.push('Capstan actions follow the Fleet action framework. An action id is `capstan.<noun>.<verb>`. The CLI, the local API, and the buttons marked `data-action` name the same action. Host actions run in Windows PowerShell 5.1. Editor actions run in the open Capstan page, because they need the project, the media bytes, or a browser encoder.');
 lines.push('');
-lines.push('Discovery is `capstan.ps1 commands --json`. `capstan.ps1 help --json` prints the same document (`fleet.commands/1`).');
+lines.push('Discovery is `capstan.ps1 commands --json`. `capstan.ps1 help --json` prints the same FleetAction envelope (`v` 1, `result.actions`). `--yes` maps to `-Confirmed`.');
 lines.push('');
 lines.push('```powershell');
 lines.push('capstan.ps1 commands --json');
@@ -95,9 +99,9 @@ lines.push('```');
 lines.push('');
 lines.push('`--yes` maps to the parameter `-Confirmed`. A destructive action does nothing without it. `--dry-run` does not change anything and does not need `--yes`. `--out FILE` writes the JSON document as UTF-8 without a BOM. `--json` prints one JSON object on standard output.');
 lines.push('');
-lines.push('Exit codes: `0` the action ran, `1` it could not do the work or it needs the open page (`needs-browser`), `2` the options were wrong or a destructive action had no `--yes` (`needs-confirm`).');
+lines.push('Exit codes: `0` success, `2` `E_ARGS`, `3` `E_NOT_FOUND`, `4` `E_CONFIRM` (destructive without `--yes`), `1` `E_INTERNAL`.');
 lines.push('');
-lines.push('Job files are JSON only (`fleet.job/1`, extension `.json`).');
+lines.push('Job files are JSON only, version 1, with a `steps` array (`app`, `noun`, `verb`, `args`). The noun `job` is reserved for `capstan.ps1 job run`.');
 lines.push('');
 lines.push('The API is on the same loopback listener as the editor, `http://127.0.0.1:<port>/` (8790 unless that port is taken). Send the session token in the `X-Capstan-Token` header. Do not put it in the URL, the command line, a job file, or HTML. The examples below use `$CAPSTAN_TOKEN` for that header.');
 lines.push('');

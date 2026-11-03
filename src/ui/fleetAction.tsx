@@ -65,13 +65,11 @@ function readable(body: unknown, status: number): string {
     if (status === 404) return 'That action is not available on this server.';
     return 'Capstan could not run that action.';
   }
-  const rec = body as { errorType?: unknown; error?: unknown };
-  const err = typeof rec.error === 'string' ? rec.error : '';
-  if (rec.errorType === 'needs-confirm') return 'This action discards or replaces data. Confirm it to continue.';
-  if (rec.errorType === 'needs-browser') return err || 'This action needs the open Capstan editor.';
-  if (rec.errorType === 'usage') return err || 'Those options are not valid for this action.';
-  if (rec.errorType === 'failed') return err || 'Capstan could not do that.';
-  if (err) return err;
+  const rec = body as { error?: { code?: unknown; message?: unknown } | string };
+  const message = rec.error && typeof rec.error === 'object' && typeof rec.error.message === 'string' ? rec.error.message : '';
+  const code = rec.error && typeof rec.error === 'object' ? rec.error.code : '';
+  if (code === 'E_CONFIRM') return message || 'This action discards or replaces data. Confirm it to continue.';
+  if (message) return message;
   return 'Capstan could not run that action.';
 }
 

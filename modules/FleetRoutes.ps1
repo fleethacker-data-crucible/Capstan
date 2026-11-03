@@ -1,18 +1,27 @@
 <#
-  Fleet action routes on the existing loopback listener. The session token is checked by
-  Start-Capstan.ps1 before this runs. The token is never written to the response or the log.
+  Fleet action routes on Capstan's existing loopback listener.
+  The editor session token is checked by Start-Capstan.ps1 before this runs.
+  Bodies use the FleetAction 1.0.1 fields args, confirmed, and dryRun.
 #>
+
+function Get-CapstanFleetProp {
+    param($Object, [string]$Name)
+    if ($null -eq $Object -or [string]::IsNullOrEmpty($Name)) { return $null }
+    $prop = $Object.PSObject.Properties[$Name]
+    if ($null -eq $prop) { return $null }
+    return $prop.Value
+}
 
 function Get-CapstanFleetStatus {
     param($Envelope)
-    if ((Get-FleetProp $Envelope 'ok') -eq $true) { return 200 }
-    $kind = [string](Get-FleetProp $Envelope 'errorType')
-    $message = [string](Get-FleetProp $Envelope 'error')
-    if ($kind -eq 'usage' -and $message.StartsWith('Unknown action')) { return 404 }
-    if ($kind -eq 'usage') { return 400 }
-    if ($kind -eq 'needs-confirm') { return 409 }
-    if ($kind -eq 'needs-browser') { return 422 }
-    return 422
+    if ($Envelope.ok -eq $true) { return 200 }
+    $code = ''
+    if ($null -ne $Envelope.error) { $code = [string]$Envelope.error.code }
+    if ($code -eq 'E_ARGS') { return 400 }
+    if ($code -eq 'E_NOT_FOUND') { return 404 }
+    if ($code -eq 'E_CONFIRM') { return 409 }
+    if ($code -eq 'E_AUTH') { return 401 }
+    return 500
 }
 
 function Read-CapstanFleetBody {
@@ -26,65 +35,73 @@ function Read-CapstanFleetBody {
     try { return ($text | ConvertFrom-Json) } catch { return 'BAD' }
 }
 
+function Send-CapstanFleetEnvelope {
+    param($Context, $Envelope)
+    $text = ConvertTo-Json -InputObject $Envelope -Depth 40 -Compress
+    Send-Response $Context ([Text.Encoding]::UTF8.GetBytes($text)) 'application/json; charset=utf-8' (Get-CapstanFleetStatus $Envelope)
+}
+
 function Invoke-CapstanFleetRoute {
     param($Context, [string]$Method, [string]$Path)
-    $handled = $false
     $document = $false
-    if ($Method -eq 'GET' -and ($Path -eq '/api/commands' -or $Path -eq '/api/help')) {
-        $handled = $true
-        $document = $true
-    }
     $actionId = $null
-    if ($Path.StartsWith('/api/actions/')) {
-        $actionId = $Path.Substring('/api/actions/'.Length)
-        $handled = $true
-    }
     $job = $false
-    if ($Path -eq '/api/jobs') { $handled = $true; $job = $true }
-    if (-not $handled) { return $false }
+    if ($Method -eq 'GET' -and ($Path -eq '/api/commands' -or $Path -eq '/api/help')) { $document = $true }
+    elseif ($Path.StartsWith('/api/actions/')) { $actionId = $Path.Substring('/api/actions/'.Length) }
+    elseif ($Path -eq '/api/jobs') { $job = $true }
+    else { return $false }
 
     if ($document) {
-        if ($Method -ne 'GET') { Send-Json $Context @{ schema = 'fleet.result/1'; action = 'capstan.commands.list'; ok = $false; errorType = 'usage'; error = 'Use GET.' } 405; return $true }
-        Send-Json $Context (Get-FleetCommandsDocument) 200
+        if ($Method -ne 'GET') {
+            Send-CapstanFleetEnvelope $Context @{ v = 1; ok = $false; error = @{ code = 'E_ARGS'; message = 'Use GET.' } }
+            return $true
+        }
+        $actions = @(Get-FleetAction -App 'capstan')
+        $result = New-Object System.Management.Automation.PSObject
+        $result | Add-Member -MemberType NoteProperty -Name 'app' -Value 'capstan'
+        $result | Add-Member -MemberType NoteProperty -Name 'actions' -Value $actions
+        $envelope = New-Object System.Management.Automation.PSObject
+        $envelope | Add-Member -MemberType NoteProperty -Name 'v' -Value 1
+        $envelope | Add-Member -MemberType NoteProperty -Name 'ok' -Value $true
+        $envelope | Add-Member -MemberType NoteProperty -Name 'result' -Value $result
+        Send-CapstanFleetEnvelope $Context $envelope
         return $true
     }
-    if ($Method -ne 'POST') { Send-Json $Context @{ schema = 'fleet.result/1'; action = 'capstan.commands.list'; ok = $false; errorType = 'usage'; error = 'Use POST.' } 405; return $true }
-
+    if ($Method -ne 'POST') {
+        Send-CapstanFleetEnvelope $Context @{ v = 1; ok = $false; error = @{ code = 'E_ARGS'; message = 'Use POST.' } }
+        return $true
+    }
     $body = Read-CapstanFleetBody $Context.Request
-    if ($body -eq 'TOO_LARGE') { Send-Json $Context @{ schema = 'fleet.result/1'; ok = $false; errorType = 'usage'; error = 'The request body is too large.' } 413; return $true }
-    if ($body -eq 'BAD') { Send-Json $Context @{ schema = 'fleet.result/1'; ok = $false; errorType = 'usage'; error = 'The request body is not JSON.' } 400; return $true }
-
-    $confirmed = (Get-FleetProp $body 'confirmed') -eq $true
-    $dry = (Get-FleetProp $body 'dryRun') -eq $true
-    Set-FleetHostMode -Enabled $true
+    if ($body -eq 'TOO_LARGE') {
+        Send-CapstanFleetEnvelope $Context @{ v = 1; ok = $false; error = @{ code = 'E_ARGS'; message = 'The request body is too large.' } }
+        return $true
+    }
+    if ($body -eq 'BAD') {
+        Send-CapstanFleetEnvelope $Context @{ v = 1; ok = $false; error = @{ code = 'E_ARGS'; message = 'The request body is not JSON.' } }
+        return $true
+    }
+    $confirmed = (Get-CapstanFleetProp $body 'confirmed') -eq $true
+    $dry = (Get-CapstanFleetProp $body 'dryRun') -eq $true
+    Set-CapstanInListener -Enabled $true
     try {
         if ($job) {
-            $schema = [string](Get-FleetProp $body 'schema')
-            if ($schema -ne 'fleet.job/1') {
-                Send-Json $Context @{ schema = 'fleet.result/1'; action = 'capstan.job.run'; ok = $false; errorType = 'usage'; error = 'A job needs "schema": "fleet.job/1".' } 400
-                return $true
-            }
-            $temp = Join-Path ([IO.Path]::GetTempPath()) ('capstan-job-' + [guid]::NewGuid().ToString('N') + '.json')
-            $utf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false
-            [IO.File]::WriteAllText($temp, (ConvertTo-FleetJson $body), $utf8)
-            try { $envelope = Invoke-FleetJob -Path $temp -Confirmed:$confirmed -DryRun:$dry }
-            finally { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
+            $envelope = Invoke-FleetJob -Job $body -Confirmed:$confirmed -DryRun:$dry
         } else {
-            if ($actionId -notmatch '^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*){2}$') {
-                Send-Json $Context @{ schema = 'fleet.result/1'; action = [string]$actionId; ok = $false; errorType = 'usage'; error = 'That action id is not app.noun.verb.' } 400
+            $parts = $actionId.Split('.')
+            if ($parts.Length -ne 3) {
+                Send-CapstanFleetEnvelope $Context @{ v = 1; ok = $false; error = @{ code = 'E_ARGS'; message = 'That action id is not app.noun.verb.' } }
                 return $true
             }
-            $argsObj = Get-FleetProp $body 'args'
-            if ($null -eq $argsObj) { $argsObj = @{} }
-            $envelope = Invoke-FleetAction -Id $actionId -Arguments $argsObj -Confirmed:$confirmed -DryRun:$dry
+            $argsObj = Get-CapstanFleetProp $body 'args'
+            $envelope = Invoke-FleetAction -App $parts[0] -Noun $parts[1] -Verb $parts[2] -Arguments $argsObj -Confirmed:$confirmed -DryRun:$dry
         }
     } finally {
-        Set-FleetHostMode -Enabled $false
+        Set-CapstanInListener -Enabled $false
     }
-    Send-Json $Context $envelope (Get-CapstanFleetStatus $envelope)
-    if ((Get-FleetProp $envelope 'ok') -eq $true) {
-        $result = Get-FleetProp $envelope 'result'
-        if ((Get-FleetProp $result 'stopping') -eq $true) {
+    Send-CapstanFleetEnvelope $Context $envelope
+    if ($envelope.ok -eq $true -and $null -ne $envelope.result) {
+        $stopping = Get-CapstanFleetProp $envelope.result 'stopping'
+        if ($stopping -eq $true) {
             $script:CapstanStopReason = 'End session was chosen in the Capstan window.'
         }
     }

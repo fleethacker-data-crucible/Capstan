@@ -2,7 +2,7 @@
 
 Capstan actions follow the Fleet action framework. An action id is `capstan.<noun>.<verb>`. The CLI, the local API, and the buttons marked `data-action` name the same action. Host actions run in Windows PowerShell 5.1. Editor actions run in the open Capstan page, because they need the project, the media bytes, or a browser encoder.
 
-Discovery is `capstan.ps1 commands --json`. `capstan.ps1 help --json` prints the same document (`fleet.commands/1`).
+Discovery is `capstan.ps1 commands --json`. `capstan.ps1 help --json` prints the same FleetAction envelope (`v` 1, `result.actions`). `--yes` maps to `-Confirmed`.
 
 ```powershell
 capstan.ps1 commands --json
@@ -13,9 +13,9 @@ capstan.ps1 job run --file examples/training-to-course.job.json --json
 
 `--yes` maps to the parameter `-Confirmed`. A destructive action does nothing without it. `--dry-run` does not change anything and does not need `--yes`. `--out FILE` writes the JSON document as UTF-8 without a BOM. `--json` prints one JSON object on standard output.
 
-Exit codes: `0` the action ran, `1` it could not do the work or it needs the open page (`needs-browser`), `2` the options were wrong or a destructive action had no `--yes` (`needs-confirm`).
+Exit codes: `0` success, `2` `E_ARGS`, `3` `E_NOT_FOUND`, `4` `E_CONFIRM` (destructive without `--yes`), `1` `E_INTERNAL`.
 
-Job files are JSON only (`fleet.job/1`, extension `.json`).
+Job files are JSON only, version 1, with a `steps` array (`app`, `noun`, `verb`, `args`). The noun `job` is reserved for `capstan.ps1 job run`.
 
 The API is on the same loopback listener as the editor, `http://127.0.0.1:<port>/` (8790 unless that port is taken). Send the session token in the `X-Capstan-Token` header. Do not put it in the URL, the command line, a job file, or HTML. The examples below use `$CAPSTAN_TOKEN` for that header.
 
@@ -38,24 +38,35 @@ capstan.ps1 job run --file examples/training-to-course.job.json --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "name": "training-to-course",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.captures.list",
+      "id": "captures",
+      "app": "capstan",
+      "noun": "captures",
+      "verb": "list",
       "args": {}
     },
     {
-      "action": "capstan.file.show",
-      "args": { "file": "examples/training-lesson.capstan" }
+      "id": "project",
+      "app": "capstan",
+      "noun": "file",
+      "verb": "show",
+      "args": { "path": "examples/training-lesson.capstan" }
     },
     {
-      "action": "capstan.handoff.chapters",
-      "args": { "file": "examples/training-lesson.capstan", "format": "text" }
+      "id": "chapters",
+      "app": "capstan",
+      "noun": "handoff",
+      "verb": "chapters",
+      "args": { "path": "examples/training-lesson.capstan", "format": "text" }
     },
     {
-      "action": "capstan.handoff.captions",
-      "args": { "file": "examples/training-lesson.capstan", "format": "vtt" }
+      "id": "captions",
+      "app": "capstan",
+      "noun": "handoff",
+      "verb": "captions",
+      "args": { "path": "examples/training-lesson.capstan", "format": "vtt" }
     }
   ]
 }
@@ -65,7 +76,7 @@ capstan.ps1 job run --file examples/training-to-course.job.json --json
 curl -sS -X POST http://127.0.0.1:8790/api/jobs -H "Content-Type: application/json" -H "X-Capstan-Token: $CAPSTAN_TOKEN" --data @examples/training-to-course.job.json
 ```
 
-## Actions (140)
+## Actions (139)
 
 Page actions answer `needs-browser` when nothing is editing. Pass `--dry-run` to check the options. Destructive actions need `--yes`.
 
@@ -79,10 +90,13 @@ capstan.ps1 annotation add --kind text --start 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.annotation.add",
+      "id": "step",
+      "app": "capstan",
+      "noun": "annotation",
+      "verb": "add",
       "args": {
         "kind": "text",
         "start": 0
@@ -106,10 +120,13 @@ capstan.ps1 annotation duplicate --annotation id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.annotation.duplicate",
+      "id": "step",
+      "app": "capstan",
+      "noun": "annotation",
+      "verb": "duplicate",
       "args": {
         "annotation": "id_example"
       }
@@ -132,10 +149,13 @@ capstan.ps1 annotation move --annotation id_example --dx 1 --dy 1 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.annotation.move",
+      "id": "step",
+      "app": "capstan",
+      "noun": "annotation",
+      "verb": "move",
       "args": {
         "annotation": "id_example",
         "dx": 1,
@@ -160,10 +180,13 @@ capstan.ps1 annotation preset --annotation id_example --preset title --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.annotation.preset",
+      "id": "step",
+      "app": "capstan",
+      "noun": "annotation",
+      "verb": "preset",
       "args": {
         "annotation": "id_example",
         "preset": "title"
@@ -187,10 +210,13 @@ capstan.ps1 annotation remove --annotation id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.annotation.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "annotation",
+      "verb": "remove",
       "args": {
         "annotation": "id_example"
       }
@@ -213,10 +239,13 @@ capstan.ps1 annotation reorder --annotation id_example --order front --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.annotation.reorder",
+      "id": "step",
+      "app": "capstan",
+      "noun": "annotation",
+      "verb": "reorder",
       "args": {
         "annotation": "id_example",
         "order": "front"
@@ -240,10 +269,13 @@ capstan.ps1 annotation update --annotation id_example --start 0 --duration 0.033
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.annotation.update",
+      "id": "step",
+      "app": "capstan",
+      "noun": "annotation",
+      "verb": "update",
       "args": {
         "annotation": "id_example",
         "start": 0,
@@ -279,10 +311,13 @@ capstan.ps1 audio denoise --clip id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.audio.denoise",
+      "id": "step",
+      "app": "capstan",
+      "noun": "audio",
+      "verb": "denoise",
       "args": {
         "clip": "id_example"
       }
@@ -305,10 +340,13 @@ capstan.ps1 audio duck --clip id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.audio.duck",
+      "id": "step",
+      "app": "capstan",
+      "noun": "audio",
+      "verb": "duck",
       "args": {
         "clip": "id_example"
       }
@@ -331,10 +369,13 @@ capstan.ps1 audio fade --clip id_example --fade-in 0 --fade-out 0 --curve linear
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.audio.fade",
+      "id": "step",
+      "app": "capstan",
+      "noun": "audio",
+      "verb": "fade",
       "args": {
         "clip": "id_example",
         "fadeIn": 0,
@@ -360,10 +401,13 @@ capstan.ps1 audio level --clip id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.audio.level",
+      "id": "step",
+      "app": "capstan",
+      "noun": "audio",
+      "verb": "level",
       "args": {
         "clip": "id_example"
       }
@@ -386,10 +430,13 @@ capstan.ps1 audio point-remove --clip id_example --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.audio.point-remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "audio",
+      "verb": "point-remove",
       "args": {
         "clip": "id_example",
         "time": 0
@@ -413,10 +460,13 @@ capstan.ps1 audio point-set --clip id_example --time 0 --value 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.audio.point-set",
+      "id": "step",
+      "app": "capstan",
+      "noun": "audio",
+      "verb": "point-set",
       "args": {
         "clip": "id_example",
         "time": 0,
@@ -441,10 +491,13 @@ capstan.ps1 audio points-clear --clip id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.audio.points-clear",
+      "id": "step",
+      "app": "capstan",
+      "noun": "audio",
+      "verb": "points-clear",
       "args": {
         "clip": "id_example"
       }
@@ -467,10 +520,13 @@ capstan.ps1 batch add --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.batch.add",
+      "id": "step",
+      "app": "capstan",
+      "noun": "batch",
+      "verb": "add",
       "args": {}
     }
   ]
@@ -491,10 +547,13 @@ capstan.ps1 batch cancel --item id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.batch.cancel",
+      "id": "step",
+      "app": "capstan",
+      "noun": "batch",
+      "verb": "cancel",
       "args": {
         "item": "id_example"
       }
@@ -517,10 +576,13 @@ capstan.ps1 batch clear --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.batch.clear",
+      "id": "step",
+      "app": "capstan",
+      "noun": "batch",
+      "verb": "clear",
       "args": {}
     }
   ]
@@ -541,10 +603,13 @@ capstan.ps1 batch remove --item id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.batch.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "batch",
+      "verb": "remove",
       "args": {
         "item": "id_example"
       }
@@ -567,10 +632,13 @@ capstan.ps1 batch retry --item id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.batch.retry",
+      "id": "step",
+      "app": "capstan",
+      "noun": "batch",
+      "verb": "retry",
       "args": {
         "item": "id_example"
       }
@@ -593,10 +661,13 @@ capstan.ps1 batch run --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.batch.run",
+      "id": "step",
+      "app": "capstan",
+      "noun": "batch",
+      "verb": "run",
       "args": {}
     }
   ]
@@ -617,10 +688,13 @@ capstan.ps1 behavior clear --clip id_example --stage enter --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.behavior.clear",
+      "id": "step",
+      "app": "capstan",
+      "noun": "behavior",
+      "verb": "clear",
       "args": {
         "clip": "id_example",
         "stage": "enter"
@@ -644,10 +718,13 @@ capstan.ps1 behavior set --clip id_example --stage enter --type fade --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.behavior.set",
+      "id": "step",
+      "app": "capstan",
+      "noun": "behavior",
+      "verb": "set",
       "args": {
         "clip": "id_example",
         "stage": "enter",
@@ -672,10 +749,13 @@ capstan.ps1 caption add --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.caption.add",
+      "id": "step",
+      "app": "capstan",
+      "noun": "caption",
+      "verb": "add",
       "args": {
         "time": 0
       }
@@ -698,10 +778,13 @@ capstan.ps1 caption clear --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.caption.clear",
+      "id": "step",
+      "app": "capstan",
+      "noun": "caption",
+      "verb": "clear",
       "args": {}
     }
   ]
@@ -722,10 +805,13 @@ capstan.ps1 caption export-srt --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.caption.export-srt",
+      "id": "step",
+      "app": "capstan",
+      "noun": "caption",
+      "verb": "export-srt",
       "args": {}
     }
   ]
@@ -746,10 +832,13 @@ capstan.ps1 caption export-vtt --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.caption.export-vtt",
+      "id": "step",
+      "app": "capstan",
+      "noun": "caption",
+      "verb": "export-vtt",
       "args": {}
     }
   ]
@@ -770,10 +859,13 @@ capstan.ps1 caption merge --caption id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.caption.merge",
+      "id": "step",
+      "app": "capstan",
+      "noun": "caption",
+      "verb": "merge",
       "args": {
         "caption": "id_example"
       }
@@ -796,10 +888,13 @@ capstan.ps1 caption remove --caption id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.caption.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "caption",
+      "verb": "remove",
       "args": {
         "caption": "id_example"
       }
@@ -822,10 +917,13 @@ capstan.ps1 caption set --text example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.caption.set",
+      "id": "step",
+      "app": "capstan",
+      "noun": "caption",
+      "verb": "set",
       "args": {
         "text": "example"
       }
@@ -848,10 +946,13 @@ capstan.ps1 caption shift --delta -86400 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.caption.shift",
+      "id": "step",
+      "app": "capstan",
+      "noun": "caption",
+      "verb": "shift",
       "args": {
         "delta": -86400
       }
@@ -874,10 +975,13 @@ capstan.ps1 caption split --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.caption.split",
+      "id": "step",
+      "app": "capstan",
+      "noun": "caption",
+      "verb": "split",
       "args": {
         "time": 0
       }
@@ -900,10 +1004,13 @@ capstan.ps1 caption update --caption id_example --text example --start 0 --end 0
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.caption.update",
+      "id": "step",
+      "app": "capstan",
+      "noun": "caption",
+      "verb": "update",
       "args": {
         "caption": "id_example",
         "text": "example",
@@ -929,10 +1036,13 @@ capstan.ps1 captures list --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.captures.list",
+      "id": "step",
+      "app": "capstan",
+      "noun": "captures",
+      "verb": "list",
       "args": {}
     }
   ]
@@ -953,10 +1063,13 @@ capstan.ps1 clip add --media id_example --start 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.add",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "add",
       "args": {
         "media": "id_example",
         "start": 0
@@ -980,10 +1093,13 @@ capstan.ps1 clip close-gaps --track id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.close-gaps",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "close-gaps",
       "args": {
         "track": "id_example"
       }
@@ -1006,10 +1122,13 @@ capstan.ps1 clip crop --clip id_example --x 0 --y 0 --width 0.02 --height 0.02 -
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.crop",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "crop",
       "args": {
         "clip": "id_example",
         "x": 0,
@@ -1038,10 +1157,13 @@ capstan.ps1 clip delete --clips id_a,id_b --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.delete",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "delete",
       "args": {
         "clips": [
           "id_a",
@@ -1067,10 +1189,13 @@ capstan.ps1 clip detach-audio --clip id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.detach-audio",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "detach-audio",
       "args": {
         "clip": "id_example"
       }
@@ -1093,10 +1218,13 @@ capstan.ps1 clip duplicate --clips id_a,id_b --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.duplicate",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "duplicate",
       "args": {
         "clips": [
           "id_a",
@@ -1122,10 +1250,13 @@ capstan.ps1 clip extend --clip id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.extend",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "extend",
       "args": {
         "clip": "id_example"
       }
@@ -1148,10 +1279,13 @@ capstan.ps1 clip freeze --clip id_example --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.freeze",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "freeze",
       "args": {
         "clip": "id_example",
         "time": 0
@@ -1175,10 +1309,13 @@ capstan.ps1 clip group --clips id_a,id_b --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.group",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "group",
       "args": {
         "clips": [
           "id_a",
@@ -1204,10 +1341,13 @@ capstan.ps1 clip move --clip id_example --start 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.move",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "move",
       "args": {
         "clip": "id_example",
         "start": 0
@@ -1231,10 +1371,13 @@ capstan.ps1 clip props --clip id_example --x 1 --y 1 --scale 0.01 --rotation -36
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.props",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "props",
       "args": {
         "clip": "id_example",
         "x": 1,
@@ -1263,10 +1406,13 @@ capstan.ps1 clip remove-gap --track id_example --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.remove-gap",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "remove-gap",
       "args": {
         "track": "id_example",
         "time": 0
@@ -1290,10 +1436,13 @@ capstan.ps1 clip speed --clip id_example --speed 0.1 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.speed",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "speed",
       "args": {
         "clip": "id_example",
         "speed": 0.1
@@ -1317,10 +1466,13 @@ capstan.ps1 clip split --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.split",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "split",
       "args": {
         "time": 0
       }
@@ -1343,10 +1495,13 @@ capstan.ps1 clip trim --clip id_example --edge start --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.trim",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "trim",
       "args": {
         "clip": "id_example",
         "edge": "start",
@@ -1371,10 +1526,13 @@ capstan.ps1 clip ungroup --clips id_a,id_b --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.ungroup",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "ungroup",
       "args": {
         "clips": [
           "id_a",
@@ -1400,10 +1558,13 @@ capstan.ps1 clip unlink --clips id_a,id_b --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.clip.unlink",
+      "id": "step",
+      "app": "capstan",
+      "noun": "clip",
+      "verb": "unlink",
       "args": {
         "clips": [
           "id_a",
@@ -1429,10 +1590,13 @@ capstan.ps1 cursor attach --media id_example --sidecar example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.cursor.attach",
+      "id": "step",
+      "app": "capstan",
+      "noun": "cursor",
+      "verb": "attach",
       "args": {
         "media": "id_example",
         "sidecar": "example"
@@ -1456,10 +1620,13 @@ capstan.ps1 cursor detach --media id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.cursor.detach",
+      "id": "step",
+      "app": "capstan",
+      "noun": "cursor",
+      "verb": "detach",
       "args": {
         "media": "id_example"
       }
@@ -1482,10 +1649,13 @@ capstan.ps1 cursor reset --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.cursor.reset",
+      "id": "step",
+      "app": "capstan",
+      "noun": "cursor",
+      "verb": "reset",
       "args": {}
     }
   ]
@@ -1506,10 +1676,13 @@ capstan.ps1 cursor settings --enabled true --show-cursor true --shape arrow --si
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.cursor.settings",
+      "id": "step",
+      "app": "capstan",
+      "noun": "cursor",
+      "verb": "settings",
       "args": {
         "enabled": true,
         "showCursor": true,
@@ -1560,10 +1733,13 @@ capstan.ps1 cursor show --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.cursor.show",
+      "id": "step",
+      "app": "capstan",
+      "noun": "cursor",
+      "verb": "show",
       "args": {}
     }
   ]
@@ -1584,10 +1760,13 @@ capstan.ps1 diagnostics run --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.diagnostics.run",
+      "id": "step",
+      "app": "capstan",
+      "noun": "diagnostics",
+      "verb": "run",
       "args": {}
     }
   ]
@@ -1608,10 +1787,13 @@ capstan.ps1 effects clear --clips id_a,id_b --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.effects.clear",
+      "id": "step",
+      "app": "capstan",
+      "noun": "effects",
+      "verb": "clear",
       "args": {
         "clips": [
           "id_a",
@@ -1637,10 +1819,13 @@ capstan.ps1 effects preset --clips id_a,id_b --preset green-screen --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.effects.preset",
+      "id": "step",
+      "app": "capstan",
+      "noun": "effects",
+      "verb": "preset",
       "args": {
         "clips": [
           "id_a",
@@ -1667,10 +1852,13 @@ capstan.ps1 effects set --clips id_a,id_b --effects {"example":true} --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.effects.set",
+      "id": "step",
+      "app": "capstan",
+      "noun": "effects",
+      "verb": "set",
       "args": {
         "clips": [
           "id_a",
@@ -1699,10 +1887,13 @@ capstan.ps1 export cancel --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.export.cancel",
+      "id": "step",
+      "app": "capstan",
+      "noun": "export",
+      "verb": "cancel",
       "args": {}
     }
   ]
@@ -1723,10 +1914,13 @@ capstan.ps1 export gif --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.export.gif",
+      "id": "step",
+      "app": "capstan",
+      "noun": "export",
+      "verb": "gif",
       "args": {}
     }
   ]
@@ -1747,10 +1941,13 @@ capstan.ps1 export m4a --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.export.m4a",
+      "id": "step",
+      "app": "capstan",
+      "noun": "export",
+      "verb": "m4a",
       "args": {}
     }
   ]
@@ -1771,10 +1968,13 @@ capstan.ps1 export mp4 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.export.mp4",
+      "id": "step",
+      "app": "capstan",
+      "noun": "export",
+      "verb": "mp4",
       "args": {}
     }
   ]
@@ -1795,10 +1995,13 @@ capstan.ps1 export png --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.export.png",
+      "id": "step",
+      "app": "capstan",
+      "noun": "export",
+      "verb": "png",
       "args": {}
     }
   ]
@@ -1819,10 +2022,13 @@ capstan.ps1 export wav --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.export.wav",
+      "id": "step",
+      "app": "capstan",
+      "noun": "export",
+      "verb": "wav",
       "args": {}
     }
   ]
@@ -1838,17 +2044,20 @@ curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.export.wav -H "Conten
 Read a .capstan project file and report its size, counts, chapters, and captions. Does not open the editor. Runs in PowerShell.
 
 ```powershell
-capstan.ps1 file show --file examples/training-lesson.capstan --json
+capstan.ps1 file show --path examples/training-lesson.capstan --json
 ```
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.file.show",
+      "id": "step",
+      "app": "capstan",
+      "noun": "file",
+      "verb": "show",
       "args": {
-        "file": "examples/training-lesson.capstan"
+        "path": "examples/training-lesson.capstan"
       }
     }
   ]
@@ -1856,7 +2065,7 @@ capstan.ps1 file show --file examples/training-lesson.capstan --json
 ```
 
 ```bash
-curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.file.show -H "Content-Type: application/json" -H "X-Capstan-Token: $CAPSTAN_TOKEN" --data '{"args":{"file":"examples/training-lesson.capstan"},"dryRun":false,"confirmed":false}'
+curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.file.show -H "Content-Type: application/json" -H "X-Capstan-Token: $CAPSTAN_TOKEN" --data '{"args":{"path":"examples/training-lesson.capstan"},"dryRun":false,"confirmed":false}'
 ```
 
 ### capstan.handoff.captions
@@ -1864,17 +2073,20 @@ curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.file.show -H "Content
 Write the captions from a .capstan file as SRT or WebVTT for Scrimshaw. Headless. Runs in PowerShell.
 
 ```powershell
-capstan.ps1 handoff captions --file examples/training-lesson.capstan --format vtt --json
+capstan.ps1 handoff captions --path examples/training-lesson.capstan --format vtt --json
 ```
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.handoff.captions",
+      "id": "step",
+      "app": "capstan",
+      "noun": "handoff",
+      "verb": "captions",
       "args": {
-        "file": "examples/training-lesson.capstan",
+        "path": "examples/training-lesson.capstan",
         "format": "vtt"
       }
     }
@@ -1883,7 +2095,7 @@ capstan.ps1 handoff captions --file examples/training-lesson.capstan --format vt
 ```
 
 ```bash
-curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.handoff.captions -H "Content-Type: application/json" -H "X-Capstan-Token: $CAPSTAN_TOKEN" --data '{"args":{"file":"examples/training-lesson.capstan","format":"vtt"},"dryRun":false,"confirmed":false}'
+curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.handoff.captions -H "Content-Type: application/json" -H "X-Capstan-Token: $CAPSTAN_TOKEN" --data '{"args":{"path":"examples/training-lesson.capstan","format":"vtt"},"dryRun":false,"confirmed":false}'
 ```
 
 ### capstan.handoff.chapters
@@ -1891,17 +2103,20 @@ curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.handoff.captions -H "
 Write the chapter list from a .capstan file as text or WebVTT for Scrimshaw or a player. Headless. Runs in PowerShell.
 
 ```powershell
-capstan.ps1 handoff chapters --file examples/training-lesson.capstan --format text --json
+capstan.ps1 handoff chapters --path examples/training-lesson.capstan --format text --json
 ```
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.handoff.chapters",
+      "id": "step",
+      "app": "capstan",
+      "noun": "handoff",
+      "verb": "chapters",
       "args": {
-        "file": "examples/training-lesson.capstan",
+        "path": "examples/training-lesson.capstan",
         "format": "text"
       }
     }
@@ -1910,7 +2125,7 @@ capstan.ps1 handoff chapters --file examples/training-lesson.capstan --format te
 ```
 
 ```bash
-curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.handoff.chapters -H "Content-Type: application/json" -H "X-Capstan-Token: $CAPSTAN_TOKEN" --data '{"args":{"file":"examples/training-lesson.capstan","format":"text"},"dryRun":false,"confirmed":false}'
+curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.handoff.chapters -H "Content-Type: application/json" -H "X-Capstan-Token: $CAPSTAN_TOKEN" --data '{"args":{"path":"examples/training-lesson.capstan","format":"text"},"dryRun":false,"confirmed":false}'
 ```
 
 ### capstan.history.redo
@@ -1923,10 +2138,13 @@ capstan.ps1 history redo --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.history.redo",
+      "id": "step",
+      "app": "capstan",
+      "noun": "history",
+      "verb": "redo",
       "args": {}
     }
   ]
@@ -1947,10 +2165,13 @@ capstan.ps1 history undo --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.history.undo",
+      "id": "step",
+      "app": "capstan",
+      "noun": "history",
+      "verb": "undo",
       "args": {}
     }
   ]
@@ -1971,10 +2192,13 @@ capstan.ps1 host show --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.host.show",
+      "id": "step",
+      "app": "capstan",
+      "noun": "host",
+      "verb": "show",
       "args": {}
     }
   ]
@@ -1995,10 +2219,13 @@ capstan.ps1 hotkeys show --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.hotkeys.show",
+      "id": "step",
+      "app": "capstan",
+      "noun": "hotkeys",
+      "verb": "show",
       "args": {}
     }
   ]
@@ -2007,32 +2234,6 @@ capstan.ps1 hotkeys show --json
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.hotkeys.show -H "Content-Type: application/json" -H "X-Capstan-Token: $CAPSTAN_TOKEN" --data '{"args":{},"dryRun":false,"confirmed":false}'
-```
-
-### capstan.job.run
-
-Run a JSON job file. Each step is an action. The file must be .json. Runs in PowerShell.
-
-```powershell
-capstan.ps1 job run --file examples/training-to-course.job.json --json
-```
-
-```json
-{
-  "schema": "fleet.job/1",
-  "actions": [
-    {
-      "action": "capstan.job.run",
-      "args": {
-        "file": "examples/training-to-course.job.json"
-      }
-    }
-  ]
-}
-```
-
-```bash
-curl -sS -X POST http://127.0.0.1:8790/api/actions/capstan.job.run -H "Content-Type: application/json" -H "X-Capstan-Token: $CAPSTAN_TOKEN" --data '{"args":{"file":"examples/training-to-course.job.json"},"dryRun":false,"confirmed":false}'
 ```
 
 ### capstan.keyframe.clear
@@ -2045,10 +2246,13 @@ capstan.ps1 keyframe clear --clip id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.keyframe.clear",
+      "id": "step",
+      "app": "capstan",
+      "noun": "keyframe",
+      "verb": "clear",
       "args": {
         "clip": "id_example"
       }
@@ -2071,10 +2275,13 @@ capstan.ps1 keyframe ease --clip id_example --prop x --time 0 --ease linear --js
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.keyframe.ease",
+      "id": "step",
+      "app": "capstan",
+      "noun": "keyframe",
+      "verb": "ease",
       "args": {
         "clip": "id_example",
         "prop": "x",
@@ -2100,10 +2307,13 @@ capstan.ps1 keyframe remove --clip id_example --prop x --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.keyframe.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "keyframe",
+      "verb": "remove",
       "args": {
         "clip": "id_example",
         "prop": "x",
@@ -2128,10 +2338,13 @@ capstan.ps1 keyframe set --clip id_example --prop x --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.keyframe.set",
+      "id": "step",
+      "app": "capstan",
+      "noun": "keyframe",
+      "verb": "set",
       "args": {
         "clip": "id_example",
         "prop": "x",
@@ -2156,10 +2369,13 @@ capstan.ps1 library add --file example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.library.add",
+      "id": "step",
+      "app": "capstan",
+      "noun": "library",
+      "verb": "add",
       "args": {
         "file": "example"
       }
@@ -2182,10 +2398,13 @@ capstan.ps1 library list --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.library.list",
+      "id": "step",
+      "app": "capstan",
+      "noun": "library",
+      "verb": "list",
       "args": {}
     }
   ]
@@ -2206,10 +2425,13 @@ capstan.ps1 library remove --asset id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.library.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "library",
+      "verb": "remove",
       "args": {
         "asset": "id_example"
       }
@@ -2232,10 +2454,13 @@ capstan.ps1 library save --media id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.library.save",
+      "id": "step",
+      "app": "capstan",
+      "noun": "library",
+      "verb": "save",
       "args": {
         "media": "id_example"
       }
@@ -2258,10 +2483,13 @@ capstan.ps1 library use --asset id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.library.use",
+      "id": "step",
+      "app": "capstan",
+      "noun": "library",
+      "verb": "use",
       "args": {
         "asset": "id_example"
       }
@@ -2284,10 +2512,13 @@ capstan.ps1 marker add --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.marker.add",
+      "id": "step",
+      "app": "capstan",
+      "noun": "marker",
+      "verb": "add",
       "args": {
         "time": 0
       }
@@ -2310,10 +2541,13 @@ capstan.ps1 marker chapter --marker id_example --chapter true --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.marker.chapter",
+      "id": "step",
+      "app": "capstan",
+      "noun": "marker",
+      "verb": "chapter",
       "args": {
         "marker": "id_example",
         "chapter": true
@@ -2337,10 +2571,13 @@ capstan.ps1 marker export-chapters --format text --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.marker.export-chapters",
+      "id": "step",
+      "app": "capstan",
+      "noun": "marker",
+      "verb": "export-chapters",
       "args": {
         "format": "text"
       }
@@ -2363,10 +2600,13 @@ capstan.ps1 marker move --marker id_example --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.marker.move",
+      "id": "step",
+      "app": "capstan",
+      "noun": "marker",
+      "verb": "move",
       "args": {
         "marker": "id_example",
         "time": 0
@@ -2390,10 +2630,13 @@ capstan.ps1 marker remove --marker id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.marker.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "marker",
+      "verb": "remove",
       "args": {
         "marker": "id_example"
       }
@@ -2416,10 +2659,13 @@ capstan.ps1 marker rename --marker id_example --name example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.marker.rename",
+      "id": "step",
+      "app": "capstan",
+      "noun": "marker",
+      "verb": "rename",
       "args": {
         "marker": "id_example",
         "name": "example"
@@ -2443,10 +2689,13 @@ capstan.ps1 media add --name example --kind video --duration 0 --width 0 --heigh
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.media.add",
+      "id": "step",
+      "app": "capstan",
+      "noun": "media",
+      "verb": "add",
       "args": {
         "name": "example",
         "kind": "video",
@@ -2473,10 +2722,13 @@ capstan.ps1 media import --file example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.media.import",
+      "id": "step",
+      "app": "capstan",
+      "noun": "media",
+      "verb": "import",
       "args": {
         "file": "example"
       }
@@ -2499,10 +2751,13 @@ capstan.ps1 media import-captures --folder example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.media.import-captures",
+      "id": "step",
+      "app": "capstan",
+      "noun": "media",
+      "verb": "import-captures",
       "args": {
         "folder": "example"
       }
@@ -2525,10 +2780,13 @@ capstan.ps1 media remove --media id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.media.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "media",
+      "verb": "remove",
       "args": {
         "media": "id_example"
       }
@@ -2551,10 +2809,13 @@ capstan.ps1 package open --file example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.package.open",
+      "id": "step",
+      "app": "capstan",
+      "noun": "package",
+      "verb": "open",
       "args": {
         "file": "example"
       }
@@ -2577,10 +2838,13 @@ capstan.ps1 package save --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.package.save",
+      "id": "step",
+      "app": "capstan",
+      "noun": "package",
+      "verb": "save",
       "args": {}
     }
   ]
@@ -2601,10 +2865,13 @@ capstan.ps1 preset remove --name example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.preset.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "preset",
+      "verb": "remove",
       "args": {
         "name": "example"
       }
@@ -2627,10 +2894,13 @@ capstan.ps1 preset save --name example --format mp4 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.preset.save",
+      "id": "step",
+      "app": "capstan",
+      "noun": "preset",
+      "verb": "save",
       "args": {
         "name": "example",
         "format": "mp4"
@@ -2654,10 +2924,13 @@ capstan.ps1 project from-template --template builtin-tutorial-16x9 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.project.from-template",
+      "id": "step",
+      "app": "capstan",
+      "noun": "project",
+      "verb": "from-template",
       "args": {
         "template": "builtin-tutorial-16x9"
       }
@@ -2680,10 +2953,13 @@ capstan.ps1 project new --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.project.new",
+      "id": "step",
+      "app": "capstan",
+      "noun": "project",
+      "verb": "new",
       "args": {}
     }
   ]
@@ -2704,10 +2980,13 @@ capstan.ps1 project open --project {"example":true} --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.project.open",
+      "id": "step",
+      "app": "capstan",
+      "noun": "project",
+      "verb": "open",
       "args": {
         "project": {
           "example": true
@@ -2732,10 +3011,13 @@ capstan.ps1 project resize --width 16 --height 16 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.project.resize",
+      "id": "step",
+      "app": "capstan",
+      "noun": "project",
+      "verb": "resize",
       "args": {
         "width": 16,
         "height": 16
@@ -2759,10 +3041,13 @@ capstan.ps1 project save --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.project.save",
+      "id": "step",
+      "app": "capstan",
+      "noun": "project",
+      "verb": "save",
       "args": {}
     }
   ]
@@ -2783,10 +3068,13 @@ capstan.ps1 project set --name example --fps 1 --background example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.project.set",
+      "id": "step",
+      "app": "capstan",
+      "noun": "project",
+      "verb": "set",
       "args": {
         "name": "example",
         "fps": 1,
@@ -2811,10 +3099,13 @@ capstan.ps1 project show --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.project.show",
+      "id": "step",
+      "app": "capstan",
+      "noun": "project",
+      "verb": "show",
       "args": {}
     }
   ]
@@ -2835,10 +3126,13 @@ capstan.ps1 project theme --theme night-watch --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.project.theme",
+      "id": "step",
+      "app": "capstan",
+      "noun": "project",
+      "verb": "theme",
       "args": {
         "theme": "night-watch"
       }
@@ -2861,10 +3155,13 @@ capstan.ps1 projects delete --project id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.projects.delete",
+      "id": "step",
+      "app": "capstan",
+      "noun": "projects",
+      "verb": "delete",
       "args": {
         "project": "id_example"
       }
@@ -2887,10 +3184,13 @@ capstan.ps1 projects duplicate --project id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.projects.duplicate",
+      "id": "step",
+      "app": "capstan",
+      "noun": "projects",
+      "verb": "duplicate",
       "args": {
         "project": "id_example"
       }
@@ -2913,10 +3213,13 @@ capstan.ps1 projects list --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.projects.list",
+      "id": "step",
+      "app": "capstan",
+      "noun": "projects",
+      "verb": "list",
       "args": {}
     }
   ]
@@ -2937,10 +3240,13 @@ capstan.ps1 projects open --project id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.projects.open",
+      "id": "step",
+      "app": "capstan",
+      "noun": "projects",
+      "verb": "open",
       "args": {
         "project": "id_example"
       }
@@ -2963,10 +3269,13 @@ capstan.ps1 projects rename --project id_example --name example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.projects.rename",
+      "id": "step",
+      "app": "capstan",
+      "noun": "projects",
+      "verb": "rename",
       "args": {
         "project": "id_example",
         "name": "example"
@@ -2990,10 +3299,13 @@ capstan.ps1 range clear --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.range.clear",
+      "id": "step",
+      "app": "capstan",
+      "noun": "range",
+      "verb": "clear",
       "args": {}
     }
   ]
@@ -3014,10 +3326,13 @@ capstan.ps1 range mark-in --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.range.mark-in",
+      "id": "step",
+      "app": "capstan",
+      "noun": "range",
+      "verb": "mark-in",
       "args": {
         "time": 0
       }
@@ -3040,10 +3355,13 @@ capstan.ps1 range mark-out --time 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.range.mark-out",
+      "id": "step",
+      "app": "capstan",
+      "noun": "range",
+      "verb": "mark-out",
       "args": {
         "time": 0
       }
@@ -3066,10 +3384,13 @@ capstan.ps1 range set --start 0 --end 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.range.set",
+      "id": "step",
+      "app": "capstan",
+      "noun": "range",
+      "verb": "set",
       "args": {
         "start": 0,
         "end": 0
@@ -3093,10 +3414,13 @@ capstan.ps1 record cancel --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.record.cancel",
+      "id": "step",
+      "app": "capstan",
+      "noun": "record",
+      "verb": "cancel",
       "args": {}
     }
   ]
@@ -3117,10 +3441,13 @@ capstan.ps1 record discard --session id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.record.discard",
+      "id": "step",
+      "app": "capstan",
+      "noun": "record",
+      "verb": "discard",
       "args": {
         "session": "id_example"
       }
@@ -3143,10 +3470,13 @@ capstan.ps1 record pause --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.record.pause",
+      "id": "step",
+      "app": "capstan",
+      "noun": "record",
+      "verb": "pause",
       "args": {}
     }
   ]
@@ -3167,10 +3497,13 @@ capstan.ps1 record recover --session id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.record.recover",
+      "id": "step",
+      "app": "capstan",
+      "noun": "record",
+      "verb": "recover",
       "args": {
         "session": "id_example"
       }
@@ -3193,10 +3526,13 @@ capstan.ps1 record resume --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.record.resume",
+      "id": "step",
+      "app": "capstan",
+      "noun": "record",
+      "verb": "resume",
       "args": {}
     }
   ]
@@ -3217,10 +3553,13 @@ capstan.ps1 record start --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.record.start",
+      "id": "step",
+      "app": "capstan",
+      "noun": "record",
+      "verb": "start",
       "args": {}
     }
   ]
@@ -3241,10 +3580,13 @@ capstan.ps1 record stop --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.record.stop",
+      "id": "step",
+      "app": "capstan",
+      "noun": "record",
+      "verb": "stop",
       "args": {}
     }
   ]
@@ -3265,10 +3607,13 @@ capstan.ps1 redaction add --start 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.redaction.add",
+      "id": "step",
+      "app": "capstan",
+      "noun": "redaction",
+      "verb": "add",
       "args": {
         "start": 0
       }
@@ -3291,10 +3636,13 @@ capstan.ps1 redaction remove --redaction id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.redaction.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "redaction",
+      "verb": "remove",
       "args": {
         "redaction": "id_example"
       }
@@ -3317,10 +3665,13 @@ capstan.ps1 redaction update --redaction id_example --start 0 --duration 0.03333
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.redaction.update",
+      "id": "step",
+      "app": "capstan",
+      "noun": "redaction",
+      "verb": "update",
       "args": {
         "redaction": "id_example",
         "start": 0,
@@ -3351,10 +3702,13 @@ capstan.ps1 session end --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.session.end",
+      "id": "step",
+      "app": "capstan",
+      "noun": "session",
+      "verb": "end",
       "args": {}
     }
   ]
@@ -3375,10 +3729,13 @@ capstan.ps1 session show --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.session.show",
+      "id": "step",
+      "app": "capstan",
+      "noun": "session",
+      "verb": "show",
       "args": {}
     }
   ]
@@ -3399,10 +3756,13 @@ capstan.ps1 speech show --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.speech.show",
+      "id": "step",
+      "app": "capstan",
+      "noun": "speech",
+      "verb": "show",
       "args": {}
     }
   ]
@@ -3423,10 +3783,13 @@ capstan.ps1 template remove --template id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.template.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "template",
+      "verb": "remove",
       "args": {
         "template": "id_example"
       }
@@ -3449,10 +3812,13 @@ capstan.ps1 template save --name example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.template.save",
+      "id": "step",
+      "app": "capstan",
+      "noun": "template",
+      "verb": "save",
       "args": {
         "name": "example"
       }
@@ -3475,10 +3841,13 @@ capstan.ps1 template use --template id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.template.use",
+      "id": "step",
+      "app": "capstan",
+      "noun": "template",
+      "verb": "use",
       "args": {
         "template": "id_example"
       }
@@ -3501,10 +3870,13 @@ capstan.ps1 track add --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.track.add",
+      "id": "step",
+      "app": "capstan",
+      "noun": "track",
+      "verb": "add",
       "args": {}
     }
   ]
@@ -3525,10 +3897,13 @@ capstan.ps1 track remove --track id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.track.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "track",
+      "verb": "remove",
       "args": {
         "track": "id_example"
       }
@@ -3551,10 +3926,13 @@ capstan.ps1 track update --track id_example --name example --muted true --hidden
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.track.update",
+      "id": "step",
+      "app": "capstan",
+      "noun": "track",
+      "verb": "update",
       "args": {
         "track": "id_example",
         "name": "example",
@@ -3582,10 +3960,13 @@ capstan.ps1 transition clear --clip id_example --edge in --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.transition.clear",
+      "id": "step",
+      "app": "capstan",
+      "noun": "transition",
+      "verb": "clear",
       "args": {
         "clip": "id_example",
         "edge": "in"
@@ -3609,10 +3990,13 @@ capstan.ps1 transition set --clip id_example --edge in --type fade --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.transition.set",
+      "id": "step",
+      "app": "capstan",
+      "noun": "transition",
+      "verb": "set",
       "args": {
         "clip": "id_example",
         "edge": "in",
@@ -3637,10 +4021,13 @@ capstan.ps1 zoom accept --regions {"example":true} --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.zoom.accept",
+      "id": "step",
+      "app": "capstan",
+      "noun": "zoom",
+      "verb": "accept",
       "args": {
         "regions": {
           "example": true
@@ -3665,10 +4052,13 @@ capstan.ps1 zoom add --start 0 --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.zoom.add",
+      "id": "step",
+      "app": "capstan",
+      "noun": "zoom",
+      "verb": "add",
       "args": {
         "start": 0
       }
@@ -3691,10 +4081,13 @@ capstan.ps1 zoom duplicate --zoom id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.zoom.duplicate",
+      "id": "step",
+      "app": "capstan",
+      "noun": "zoom",
+      "verb": "duplicate",
       "args": {
         "zoom": "id_example"
       }
@@ -3717,10 +4110,13 @@ capstan.ps1 zoom remove --zoom id_example --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.zoom.remove",
+      "id": "step",
+      "app": "capstan",
+      "noun": "zoom",
+      "verb": "remove",
       "args": {
         "zoom": "id_example"
       }
@@ -3743,10 +4139,13 @@ capstan.ps1 zoom suggest --json
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.zoom.suggest",
+      "id": "step",
+      "app": "capstan",
+      "noun": "zoom",
+      "verb": "suggest",
       "args": {}
     }
   ]
@@ -3767,10 +4166,13 @@ capstan.ps1 zoom update --zoom id_example --start 0 --duration 0.033333333333333
 
 ```json
 {
-  "schema": "fleet.job/1",
-  "actions": [
+  "version": 1,
+  "steps": [
     {
-      "action": "capstan.zoom.update",
+      "id": "step",
+      "app": "capstan",
+      "noun": "zoom",
+      "verb": "update",
       "args": {
         "zoom": "id_example",
         "start": 0,
