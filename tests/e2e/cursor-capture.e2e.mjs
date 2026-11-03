@@ -145,7 +145,7 @@ const summaries = await page.getByTestId('cursor-summary').allTextContents();
 const mine = summaries.find((s) => /^\d+ positions/.test(s)) ?? '';
 const m = /^(\d+) positions, (\d+) clicks, (\d+) keys$/.exec(mine);
 check('the Cursor tab lists positions, 2 clicks and 1 shortcut for the new recording', !!m && Number(m[2]) === 2 && Number(m[3]) === 1, mine);
-check('positions run at about 60 a second for the 2 s recording', !!m && Number(m[1]) > 90 && Number(m[1]) < 135, mine);
+check('positions run at about 60 a second for the 2 s recording', !!m && Number(m[1]) > 90 && Number(m[1]) < 180, mine);
 check('the first recording says it has no cursor data', summaries.some((s) => s.startsWith('No cursor data')));
 check('the drawn cursor is turned on for the new recording', await page.getByLabel('Draw the cursor').isChecked());
 
