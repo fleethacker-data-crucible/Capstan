@@ -146,8 +146,8 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $have = @(Get-Module -ListAvailable Pester | Where-Object { $_.Version.Major -ge 5 })
-          if ($have.Count -eq 0) {
-            Install-Module Pester -MinimumVersion 5.0.0 -MaximumVersion 5.99.99 -Force -Scope CurrentUser
-          }
-          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests\ps\FleetAction.Tests.ps1
+          Import-Module .\vendor\Pester\Pester.psd1
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'tests\ps\FleetAction.Tests.ps1'
+          $cfg.Run.Exit = $true
+          Invoke-Pester -Configuration $cfg

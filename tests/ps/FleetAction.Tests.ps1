@@ -7,60 +7,9 @@ $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
 Import-Module (Join-Path $root 'vendor/FleetAction/FleetAction.psm1') -Force
 Import-Module (Join-Path $root 'actions/Capstan.Actions.psm1') -Force
-Import-Module Pester -MinimumVersion 5.0.0
-
-function New-SampleArgs($Schema) {
-    $props = Get-FleetProp $Schema 'properties'
-    $names = @()
-    $required = Get-FleetProp $Schema 'required'
-    if ($null -ne $required) { $names = @($required) }
-    $atLeast = Get-FleetProp $Schema 'atLeastOne'
-    if ($null -ne $atLeast) {
-        foreach ($name in @($atLeast)) {
-            $seen = $false
-            foreach ($have in $names) { if ($have -eq $name) { $seen = $true } }
-            if (-not $seen) { $names += $name }
-        }
-    }
-    $sample = @{}
-    foreach ($name in $names) {
-        if ([string]::IsNullOrEmpty([string]$name)) { continue }
-        $spec = Get-FleetProp $props ([string]$name)
-        $type = [string](Get-FleetProp $spec 'type')
-        if ($type -eq 'number' -or $type -eq 'integer') {
-            $min = Get-FleetProp $spec 'minimum'
-            $max = Get-FleetProp $spec 'maximum'
-            $n = 1.0
-            if ($null -ne $min) { $n = [double]$min }
-            if ($null -ne $max -and $n -gt [double]$max) { $n = [double]$max }
-            if ($null -ne $min -and $n -lt [double]$min) { $n = [double]$min }
-            if ($type -eq 'integer') { $sample[[string]$name] = [int][Math]::Round($n) } else { $sample[[string]$name] = $n }
-        } elseif ($type -eq 'boolean') {
-            $sample[[string]$name] = $true
-        } elseif ($type -eq 'array') {
-            $sample[[string]$name] = @('id_example')
-        } elseif ($type -eq 'object') {
-            $sample[[string]$name] = '{}'
-        } elseif ($null -ne (Get-FleetProp $spec 'enum')) {
-            $sample[[string]$name] = [string](@(Get-FleetProp $spec 'enum')[0])
-        } else {
-            $sample[[string]$name] = 'id_example'
-        }
-    }
-    return $sample
-}
-
-$pester = New-PesterConfiguration
-$pester.Run.Path = $PSCommandPath
-$pester.Run.PassThru = $true
-$pester.Output.Verbosity = 'Normal'
-# The tests below are discovered when this file is invoked by Pester, and also when it invokes itself.
-if (-not $env:CAPSTAN_PESTER_INNER) {
-    $env:CAPSTAN_PESTER_INNER = '1'
-    $result = Invoke-Pester -Configuration $pester
-    Remove-Item Env:CAPSTAN_PESTER_INNER
-    if ($result.FailedCount -gt 0) { exit 1 }
-    exit 0
+# Pester 5 is vendored. Do not reload it: a -Force import during discovery drops Pester's run state.
+if (-not (Get-Module Pester)) {
+    Import-Module (Join-Path $root 'vendor/Pester/Pester.psd1')
 }
 
 # Discovery reads this list when it builds one test per action. BeforeAll registers again for the run.
@@ -73,6 +22,46 @@ Describe 'Fleet action registry' {
         $script:root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         $script:doc = Get-FleetCommandsDocument
         $script:actions = @($script:doc.actions)
+        function script:New-SampleArgs($Schema) {
+            $props = Get-FleetProp $Schema 'properties'
+            $names = @()
+            $required = Get-FleetProp $Schema 'required'
+            if ($null -ne $required) { $names = @($required) }
+            $atLeast = Get-FleetProp $Schema 'atLeastOne'
+            if ($null -ne $atLeast) {
+                foreach ($name in @($atLeast)) {
+                    $seen = $false
+                    foreach ($have in $names) { if ($have -eq $name) { $seen = $true } }
+                    if (-not $seen) { $names += $name }
+                }
+            }
+            $sample = @{}
+            foreach ($name in $names) {
+                if ([string]::IsNullOrEmpty([string]$name)) { continue }
+                $spec = Get-FleetProp $props ([string]$name)
+                $type = [string](Get-FleetProp $spec 'type')
+                if ($type -eq 'number' -or $type -eq 'integer') {
+                    $min = Get-FleetProp $spec 'minimum'
+                    $max = Get-FleetProp $spec 'maximum'
+                    $n = 1.0
+                    if ($null -ne $min) { $n = [double]$min }
+                    if ($null -ne $max -and $n -gt [double]$max) { $n = [double]$max }
+                    if ($null -ne $min -and $n -lt [double]$min) { $n = [double]$min }
+                    if ($type -eq 'integer') { $sample[[string]$name] = [int][Math]::Round($n) } else { $sample[[string]$name] = $n }
+                } elseif ($type -eq 'boolean') {
+                    $sample[[string]$name] = $true
+                } elseif ($type -eq 'array') {
+                    $sample[[string]$name] = @('id_example')
+                } elseif ($type -eq 'object') {
+                    $sample[[string]$name] = '{}'
+                } elseif ($null -ne (Get-FleetProp $spec 'enum')) {
+                    $sample[[string]$name] = [string](@(Get-FleetProp $spec 'enum')[0])
+                } else {
+                    $sample[[string]$name] = 'id_example'
+                }
+            }
+            return $sample
+        }
     }
 
     It 'uses the fleet commands document' {
@@ -90,7 +79,7 @@ Describe 'Fleet action registry' {
 
     It 'lists every action from commands --json and from help --json' {
         $exe = if ($PSVersionTable.PSEdition -eq 'Desktop') { 'powershell.exe' } else { 'pwsh' }
-        $cli = Join-Path $root 'capstan.ps1'
+        $cli = Join-Path $script:root 'capstan.ps1'
         $commands = & $exe -NoProfile -NonInteractive -File $cli commands --json
         $help = & $exe -NoProfile -NonInteractive -File $cli help --json
         $LASTEXITCODE | Should -Be 0
@@ -184,7 +173,7 @@ Describe 'GUI parity' {
 
     It 'maps every data-action to a registered action' {
         $ids = @()
-        $files = @(Get-ChildItem -Path (Join-Path $root 'src') -Recurse -Include *.tsx,*.html,*.jsx -File)
+        $files = @(Get-ChildItem -Path (Join-Path $script:root 'src') -Recurse -Include *.tsx,*.html,*.jsx -File)
         $idRx = [regex]'capstan\.[a-z0-9-]+\.[a-z0-9-]+'
         foreach ($f in $files) {
             $text = [IO.File]::ReadAllText($f.FullName)
@@ -206,7 +195,7 @@ Describe 'GUI parity' {
         $exe = if ($PSVersionTable.PSEdition -eq 'Desktop') { 'powershell.exe' } else { 'pwsh' }
         $out = Join-Path ([IO.Path]::GetTempPath()) ('capstan-commands-' + [guid]::NewGuid().ToString('N') + '.json')
         try {
-            & $exe -NoProfile -NonInteractive -File (Join-Path $root 'capstan.ps1') commands --json --out $out | Out-Null
+            & $exe -NoProfile -NonInteractive -File (Join-Path $script:root 'capstan.ps1') commands --json --out $out | Out-Null
             $LASTEXITCODE | Should -Be 0
             $bytes = [IO.File]::ReadAllBytes($out)
             $bytes[0] | Should -Not -Be 0xEF

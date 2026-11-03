@@ -4,7 +4,8 @@
 .clip:has(.clip-waveform) .clip-wave { display: none; }
 .clip-waveform {
   position: absolute; left: 0; top: 2px; width: 100%; height: calc(100% - 16px);
-  color: var(--clip-ink); opacity: 0.75; pointer-events: none;
+  /* Foreground, not accent ink: accent ink matches the page background, so the wave failed contrast. */
+  color: var(--fl-foreground); opacity: 0.75; pointer-events: none;
 }
 .clip-waveform.over-video { top: auto; bottom: 14px; height: 40%; opacity: 0.8; }
 
