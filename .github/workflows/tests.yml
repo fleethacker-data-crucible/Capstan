@@ -146,6 +146,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\vendor\Pester\Restore.ps1
           Import-Module .\vendor\Pester\Pester.psd1
           $cfg = New-PesterConfiguration
           $cfg.Run.Path = 'tests\ps\FleetAction.Tests.ps1'

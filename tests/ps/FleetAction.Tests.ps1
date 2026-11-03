@@ -7,8 +7,9 @@ $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
 Import-Module (Join-Path $root 'vendor/FleetAction/FleetAction.psm1') -Force
 Import-Module (Join-Path $root 'actions/Capstan.Actions.psm1') -Force
-# Pester 5 is vendored. Do not reload it: a -Force import during discovery drops Pester's run state.
+# Pester 5 is vendored as script plus base64. Materialise the assembly, then import once.
 if (-not (Get-Module Pester)) {
+    & (Join-Path $root 'vendor/Pester/Restore.ps1')
     Import-Module (Join-Path $root 'vendor/Pester/Pester.psd1')
 }
 

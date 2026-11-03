@@ -114,14 +114,32 @@ function Format-CapstanVtt {
 
 function Get-CapstanChapters {
     param($Project)
-    $rows = @()
+    # A List of pscustomobjects, sorted by hand. Windows PowerShell 5.1 sorts a hashtable's
+    # time of 0 as if it were empty, and appending a hashtable to an array unwraps it.
+    $rows = New-Object System.Collections.Generic.List[object]
     foreach ($m in @(Get-CapstanProjectList $Project 'markers')) {
         if ((Get-FleetProp $m 'chapter') -ne $true) { continue }
         $name = [string](Get-FleetProp $m 'name')
         if ([string]::IsNullOrWhiteSpace($name)) { $name = 'Chapter' }
-        $rows += @{ time = [double](Get-FleetProp $m 'time'); name = $name.Trim() }
+        $rows.Add([pscustomobject]@{ time = [double](Get-FleetProp $m 'time'); name = $name.Trim() })
     }
-    return @($rows | Sort-Object -Property time, name)
+    for ($i = 0; $i -lt $rows.Count; $i++) {
+        for ($j = $i + 1; $j -lt $rows.Count; $j++) {
+            $swap = $false
+            $ti = [double]$rows[$i].time
+            $tj = [double]$rows[$j].time
+            if ($tj -lt $ti) { $swap = $true }
+            elseif ($tj -eq $ti -and [string]$rows[$j].name -lt [string]$rows[$i].name) { $swap = $true }
+            if ($swap) {
+                $tmp = $rows[$i]
+                $rows[$i] = $rows[$j]
+                $rows[$j] = $tmp
+            }
+        }
+    }
+    $out = @()
+    foreach ($row in $rows) { $out += $row }
+    return $out
 }
 
 function Format-CapstanClock {
@@ -139,8 +157,10 @@ function Format-CapstanChaptersText {
     $list = @($Chapters)
     if ($list.Count -eq 0) { return '' }
     if ([double]$list[0].time -ge 1) {
-        $withStart = @(@{ time = 0.0; name = 'Start' }) + $list
-        $list = $withStart
+        $withStart = New-Object System.Collections.Generic.List[object]
+        $withStart.Add([pscustomobject]@{ time = 0.0; name = 'Start' })
+        foreach ($c in $list) { $withStart.Add($c) }
+        $list = @($withStart)
     }
     $long = $false
     foreach ($c in $list) { if ([double]$c.time -ge 3600) { $long = $true } }
