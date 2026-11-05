@@ -9,6 +9,7 @@ jobs:
   build-and-test:
     # Self-hosted Windows build PC (GitHub-hosted jobs are blocked by the account's spending limit).
     # Node comes from the pinned setup action; Bun and ffmpeg (test-only) from pinned, hash-checked downloads.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     defaults:
@@ -120,6 +121,7 @@ jobs:
   windows-host:
     # The real PowerShell 5.1 host: lifecycle rule with simulated time, then a live host that must
     # write its runtime file, accept the heartbeat and leaving beacon, and stop itself.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 10
     steps:
