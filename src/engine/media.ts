@@ -76,6 +76,19 @@ function thumbFrom(source: CanvasImageSource, w: number, h: number): string {
   return canvas.toDataURL('image/jpeg', 0.7);
 }
 
+/**
+ * The duration to trust, from the element's header value and what the caller knows (a recorder's own
+ * count). The known value wins when the header is missing or clearly shorter: Firefox can read a duration
+ * from only the first part of a long recording written to disk in pieces (a 20-minute take came in as
+ * 0.4 s). 0 means neither is usable and the caller has to probe.
+ */
+export function pickDuration(header: number, known: number): number {
+  const h = Number.isFinite(header) && header > 0 ? header : 0;
+  const k = Number.isFinite(known) && known > 0 ? known : 0;
+  if (k && (!h || h < k * 0.95)) return k;
+  return h;
+}
+
 /** What the caller already knows about a file (a fresh recording knows all three). */
 export interface MediaHints {
   duration?: number;
@@ -112,7 +125,7 @@ export async function probeMedia(file: Blob & { name?: string }, nameOverride?: 
     // A known duration skips the seek-past-the-end probe: browsers suspend decoding of muted
     // video in a hidden window, so that probe can stall after a recording stopped in the background.
     const known = hints.duration && hints.duration > 0 ? hints.duration : 0;
-    const duration = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : known || (await resolveDuration(el));
+    const duration = pickDuration(el.duration, known) || (await resolveDuration(el));
     if (!duration) throw new Error(`${name}: could not read the media duration`);
     if (kind === 'audio') {
       return { ...base, duration, width: 0, height: 0, hasAudio: true };
