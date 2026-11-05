@@ -38,6 +38,7 @@ Launch-Capstan.bat -DefaultBrowser   rem use the default browser instead of an E
 Launch-Capstan.bat -Diagnostics      rem check PowerShell, policy, loopback binding and Edge, then exit
 Launch-Capstan.bat --stay            rem keep the server running after the window closes
 Launch-Capstan.bat --replace         rem stop a running Capstan and start fresh without asking
+Launch-Capstan.bat --no-hotkeys      rem no global hotkeys or tray icon (or set CAPSTAN_HOTKEYS=0)
 ```
 
 Set `CAPSTAN_AUTO_STOP=0` in the environment to turn off stopping when the window closes, like `--stay`. While it runs, the host writes `logs\capstan-server-<pid>.json` (process ID, port, address and start time, never the session token) so `Stop-Capstan.ps1` and the launcher can find it; the file is removed when it stops.
@@ -57,11 +58,11 @@ Use a current **Edge or Chrome**: Capstan needs WebCodecs (video encoding) and s
 | Annotations | Text, callouts, arrows, lines, shapes, highlight and spotlight, with fonts, colours and style presets. Arrows and shapes can draw themselves on. Blur and pixelate regions hide personal details. All are timed, move and resize in the preview, and appear in a lane under the tracks. |
 | Animation | Keyframes with easing on position, scale, rotation and opacity; zoom-n-pan regions; transitions (fade, slide, wipe, zoom, pop); entrance, emphasis and exit presets. |
 | Effects | Colour adjustment and tint, green-screen removal, drop shadow, border, rounded corners, circle and ellipse masks, 13 blend modes, and device frames (browser, laptop, phone, tablet, monitor). |
-| Cursor | Attach a cursor-data file (`.cursor.json`, [format](docs/cursor-data.md)) to a recording to re-draw the cursor smoothed, highlighted, magnified or spotlit, with click rings and sounds, key callouts and suggested zooms. Capstan cannot capture the cursor itself yet. |
+| Cursor | Attach a cursor-data file (`.cursor.json`, [format](docs/cursor-data.md)) to a recording to re-draw the cursor smoothed, highlighted, magnified or spotlit, with click rings and sounds, key callouts and suggested zooms. The Windows host writes that file itself when you choose **Capture cursor and keys for effects** in the Record dialog (entire-screen recordings only). |
 | Audio | Fades and volume points, waveforms on the timeline, noise removal, levelling, and ducking music under narration. Noise removal and levelling are applied to a new audio file. |
-| Captions | Import SRT or WebVTT, edit them in a list and a timeline lane, burn them into the export, and save SRT or WebVTT. |
+| Captions | Import SRT or WebVTT, or transcribe the timeline with Windows' offline speech recogniser through the host (**Transcribe speech** in the Captions tab), edit them in a list and a timeline lane, burn them into the export, and save SRT or WebVTT. |
 | Export | MP4 (H.264 with AAC, or Opus where AAC is unavailable), animated GIF, a PNG of one frame, and WAV or M4A audio only. Export the whole timeline or just the part between the I and O marks. Saved presets and a batch queue. Save straight to a file as it renders so long exports do not fill memory. Every frame is rendered with the same compositor as the preview; if the hardware video encoder stops responding, the export carries on with the software encoder. |
-| Projects | Projects and media autosave inside the browser on this computer. A project list, templates, a reusable asset library, and **Save package** writes a single `.capstanz` file with the project and its media, which opens on any computer. **Save project file** still writes the small `.capstan` edit-only file. |
+| Projects | Projects and media autosave inside the browser on this computer; when the Windows host runs, it also keeps a copy of each media file under `%LOCALAPPDATA%\Capstan\library`, so a project opened on another port or after a cleared browser finds its media. A project list, templates, a reusable asset library, and **Save package** writes a single `.capstanz` file with the project and its media, which opens on any computer. **Save project file** still writes the small `.capstan` edit-only file. |
 
 Press ? in the editor for every shortcut.
 
@@ -69,12 +70,12 @@ Making a demo video? [docs/DEMO-RECIPE.md](docs/DEMO-RECIPE.md) has the exact st
 
 ## Known limitations
 
-- **Media lives in the browser's storage for this address.** If port 8790 is taken and Capstan falls back to another port, your earlier projects will not show until it runs on 8790 again (the console says so). Use **Save package** to move a project between ports or computers. Moving the library to files on disk needs host support that is not built yet.
-- **No cursor or keyboard capture.** A browser cannot read the cursor or keys while it records another app, so the cursor effects need a data file from a tool that can. Global hotkeys and a tray icon, which need the same host support, are not built either.
-- **No speech-to-text and no background removal.** Both need a model or a Windows service the host does not provide yet.
+- **Projects live in the browser's storage for this address.** If port 8790 is taken and Capstan falls back to another port, your earlier projects will not show until it runs on 8790 again (the console says so); their media is still found in the host's library on disk. Use **Save package** to move a project between ports or computers.
+- **Cursor and keyboard capture, global hotkeys and the tray icon need the Windows host.** A browser cannot read the cursor or keys while it records another app, so the host (started by `Launch-Capstan.bat`) samples them during an entire-screen recording and writes the `.cursor.json` sidecar; without the host, the cursor effects need a data file from another tool. The host also registers the global hotkeys and shows the tray icon. Both are tested with synthetic input only; a run on a real desktop is still outstanding.
+- **No background removal.** It needs a model the host does not provide. Speech-to-text runs offline through Windows' own recogniser (System.Speech) and only recognises the speech languages installed on the PC; quality depends on that language pack.
 - Where the browser's H.264 recorder writes nothing for screen capture (seen in Edge with some hardware encoders), Capstan records WebM instead, after a two-second check when you press Start.
 - Two touching clips on one track fade through the background instead of cross-dissolving; put them on two tracks for a true dissolve.
-- Fast video decoding covers H.264 in MP4 and VP8 or VP9 in WebM; other sources fall back to seeking, which is slower.
+- Fast video decoding covers H.264, VP9, AV1 and (where the browser decodes it) HEVC in plain or fragmented MP4, and VP8, VP9 and AV1 in WebM; other sources fall back to seeking, which is slower.
 - The editor command registry is described in [docs/CLI.md](docs/CLI.md). `Capstan-CLI.bat` is not built. The Fleet action CLI is [capstan.ps1](capstan.ps1) ([docs/CLI-API.md](docs/CLI-API.md)): `commands --json` lists every action, and `help --json` is the same list.
 
 ## Privacy and security
@@ -96,7 +97,7 @@ npm run test:e2e         # headless Chromium on a free port: exports validated w
 node tests/e2e/run-all.mjs captions   # or only the e2e files whose name contains "captions"
 ```
 
-On Windows, `powershell -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1` checks the real host's lifecycle (CI runs it on `windows-latest`).
+On Windows, `powershell -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1` checks the real host's lifecycle; the other `tests\ps\*.Tests.ps1` scripts cover the captures, library, speech, cursor-capture and hotkey routes the same way (CI runs them all on a self-hosted Windows runner).
 
 See [TechStack.md](TechStack.md) for how the shared stack applies and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit.
 
