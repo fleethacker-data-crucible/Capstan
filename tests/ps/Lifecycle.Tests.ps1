@@ -2,7 +2,7 @@
   Windows-only checks for the host lifecycle (TechStack.md, "Lifecycle rules"). Plain PowerShell 5.1,
   no Pester needed: each check prints PASS/FAIL and the script exits 1 if any failed.
   Run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\ps\Lifecycle.Tests.ps1
-  CI runs it on windows-latest (.github/workflows/tests.yml).
+  CI runs it on the windows-host job (.github/workflows/tests.yml).
 #>
 [CmdletBinding()]
 param([int]$Port = 18790)
