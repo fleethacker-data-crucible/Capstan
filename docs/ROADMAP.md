@@ -134,4 +134,4 @@ Each release ends with the editor usable and tested. Order is by what blocks the
 | Library on disk, survives browser resets and port changes | Host endpoints under `%LOCALAPPDATA%\Capstan` | 0.2 | ✅ (media is also stored under %LOCALAPPDATA%\Capstan\library through the host, so a project opened on another port finds it; the browser store is still used first and alone when there is no host) |
 | Self-contained project package | Zip with media | 0.2 | ✅ (`.capstanz`) |
 | Templates, themes, reusable assets | Library collections | 1.0 | ✅ |
-| Import SnapShackle captures | Read `%LOCALAPPDATA%\SnapShackle\Captures` (older installs: `CutterMk` or `Lasso`) | 0.2 | 🟡 (through a folder picker; no host access) |
+| Import SnapShackle captures | Read `%LOCALAPPDATA%\SnapShackle\Captures` (older installs: `CutterMk` or `Lasso`) | 0.2 | 🟡 (the host serves the folder read-only over `/api/snapshackle/captures` and the editor imports from it; without a host, or when no folder is found, the editor falls back to a folder picker; a run against a real SnapShackle folder is outstanding) |

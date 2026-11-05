@@ -8,15 +8,15 @@ Roadmap score today: **57.5 of 67 rows (85.8%)**. Group A takes it to 61.5 (91.8
 
 | Issue | Roadmap rows | Rows |
 | --- | --- | --- |
-| [#21](https://github.com/fleethacker-data-crucible/Capstan/issues/21) Global hotkeys, tray icon, keeping Capstan out of the capture | Global hotkeys, tray, studio not in the shot | +1.0 |
-| [#22](https://github.com/fleethacker-data-crucible/Capstan/issues/22) Capture cursor and key events to a `.cursor.json` sidecar | Cursor data | +0.5 |
+| [#21](https://github.com/fleethacker-data-crucible/Capstan/issues/21) Global hotkeys, tray icon, keeping Capstan out of the capture (done) | Global hotkeys, tray, studio not in the shot | +1.0 |
+| [#22](https://github.com/fleethacker-data-crucible/Capstan/issues/22) Capture cursor and key events to a `.cursor.json` sidecar (done) | Cursor data | +0.5 |
 | [#23](https://github.com/fleethacker-data-crucible/Capstan/issues/23) Verify the cursor-effect rows against real captured data | Cursor smoothing, highlight and magnify, click effects, smart focus, keystroke callouts | +2.5 |
 
 ## Group B: the last 5.5 rows
 
 | Issue | Roadmap row | Rows |
 | --- | --- | --- |
-| [#24](https://github.com/fleethacker-data-crucible/Capstan/issues/24) Speech-to-text through Windows speech recognition | Speech-to-text | +1.0 |
+| [#24](https://github.com/fleethacker-data-crucible/Capstan/issues/24) Speech-to-text through Windows speech recognition (done) | Speech-to-text | +1.0 |
 | [#25](https://github.com/fleethacker-data-crucible/Capstan/issues/25) Chunked, token-checked file transfer and the library on disk (done) | Library on disk | +0.5 |
 | [#26](https://github.com/fleethacker-data-crucible/Capstan/issues/26) Import SnapShackle captures through the host | Import SnapShackle captures | +0.5 |
 | [#27](https://github.com/fleethacker-data-crucible/Capstan/issues/27) Decide what the `.capstan` file carries: decided, `.capstan` stays edit-only and `.capstanz` is the portable form (done) | Project file | +0.5 |
@@ -45,4 +45,4 @@ The Fleet CLI parity proposal in the comms repo. Capstan's engine runs in the br
 2. #32 and #33 (command registry and bridge), because the demo pipeline wants to drive Capstan from scripts; #25 shares its file-transfer work.
 3. Group A (#21 to #23).
 4. #24, then #25 and #26 together.
-5. Leave #28 to #31 until after the event. The team code freeze is Nov 4, 2026 at 12:00 ET; after that, changes to existing repos need the Chief of Staff's approval.
+5. Leave #28 to #31 until after the event.
