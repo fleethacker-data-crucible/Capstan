@@ -431,10 +431,10 @@ namespace FleetTray
             }
         }
 
-        /// <summary>A multi-size .ico for a tool (16 to 256 px): the fallback file a tool ships.</summary>
+        /// <summary>A multi-size .ico for a tool (16 to 48 px, every size a tray uses up to 300 % scale): the fallback file a tool ships. No 256 px frame: uncompressed it alone is 260 KB, and a tray never asks for it.</summary>
         public static byte[] AppIcoBytes(string app)
         {
-            int[] sizes = new int[] { 16, 20, 24, 28, 32, 40, 48, 64, 256 };
+            int[] sizes = new int[] { 16, 20, 24, 28, 32, 40, 48 };
             if (!Apps.ContainsKey(app ?? "")) throw new ArgumentException("Unknown tool: " + app);
             var frames = new Bitmap[sizes.Length];
             try
