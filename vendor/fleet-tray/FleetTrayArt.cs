@@ -8,7 +8,7 @@
 // size Windows wants for the current display scale (16 px at 100 %, 20 at 125 %, 24 at 150 %...).
 //
 // Rules this file keeps so every tool can carry it unchanged:
-// - C# 5 (Windows PowerShell 5.1's Add-Type compiler) and .NET Framework or .NET 8+ WinForms.
+// - C# 5 (the Add-Type compiler of Windows PS 5.1) and .NET Framework or .NET 8+ WinForms.
 // - No P/Invoke, no network, no files written: phoenix-lai's source guard allows only kernel32
 //   and vulkan imports, and Constrained Language Mode sites load it with Add-Type alone.
 // - Icons are built as in-memory .ico data with a real alpha channel, never through GetHicon.

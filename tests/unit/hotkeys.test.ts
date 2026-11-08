@@ -641,7 +641,7 @@ describe('host code', () => {
     expect(hostCs).toContain("@(@('idle', ''), @('recording', 'bad'), @('paused', 'busy'))");
     expect(hostCs).toContain('Get-FleetTrayIcon -App capstan');
     expect(hostCs).toMatch(/if \(\$real\) \{ try \{ Set-CapstanTrayIcons \}/);
-    expect(read('vendor/fleet-tray/VERSION').trim()).toBe('edge-ops ui-kit/tray v1.0.0, commit 6498eaa');
+    expect(read('vendor/fleet-tray/VERSION').trim()).toBe('edge-ops ui-kit/tray v1.0.0, commit 8d6627b');
     expect(read('vendor/fleet-tray/FleetTrayArt.cs')).toContain('namespace FleetTray');
     expect(read('vendor/fleet-tray/FleetTrayArt.cs')).not.toContain('GetHicon(');
   });
