@@ -18,7 +18,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -276,32 +275,35 @@ namespace Capstan.Hotkeys {
         }
     }
 
-    // The tray icon is drawn at run time, so no icon file ships.
-    static class TrayArt {
-        [DllImport("user32.dll")] static extern bool DestroyIcon(IntPtr handle);
-        public static Icon Make(string state) {
-            using (Bitmap bmp = new Bitmap(32, 32)) {
-                using (Graphics g = Graphics.FromImage(bmp)) {
-                    g.SmoothingMode = SmoothingMode.AntiAlias;
-                    g.Clear(Color.Transparent);
-                    using (Brush disc = new SolidBrush(Color.FromArgb(18, 38, 58))) g.FillEllipse(disc, 1, 1, 29, 29);
-                    using (Pen ring = new Pen(Color.FromArgb(201, 162, 75), 3f)) g.DrawEllipse(ring, 2, 2, 27, 27);
-                    if (state == "recording") {
-                        using (Brush dot = new SolidBrush(Color.FromArgb(229, 72, 77))) g.FillEllipse(dot, 9, 9, 14, 14);
-                    } else if (state == "paused") {
-                        using (Brush bar = new SolidBrush(Color.FromArgb(224, 160, 48))) {
-                            g.FillRectangle(bar, 10, 9, 4, 14);
-                            g.FillRectangle(bar, 18, 9, 4, 14);
-                        }
-                    } else {
-                        using (Brush hub = new SolidBrush(Color.FromArgb(201, 162, 75))) g.FillEllipse(hub, 11, 11, 10, 10);
-                    }
-                }
-                IntPtr h = bmp.GetHicon();
-                try {
-                    using (Icon tmp = Icon.FromHandle(h)) return (Icon)tmp.Clone();
-                } finally { DestroyIcon(h); }
+    // The tray icons come from the FleetHacker tray kit (vendor/fleet-tray): drawn at the tray's real size and
+    // handed in by Set-CapstanTrayIcons before the service starts. Each tray gets its own copies. A state with no
+    // icon handed in shows Windows' application icon.
+    public static class TrayIcons {
+        public static readonly string[] States = new string[] { "idle", "recording", "paused" };
+        static readonly object gate = new object();
+        static readonly Dictionary<string, Icon> supplied = new Dictionary<string, Icon>();
+
+        // Keeps a copy of the icon; the caller still owns the one it passed.
+        public static void Use(string state, Icon icon) {
+            if (Array.IndexOf(States, state) < 0) throw new ArgumentException("Unknown tray state.");
+            if (icon == null) throw new ArgumentNullException("icon");
+            Icon copy = (Icon)icon.Clone();
+            lock (gate) {
+                Icon old;
+                if (supplied.TryGetValue(state, out old)) old.Dispose();
+                supplied[state] = copy;
             }
+        }
+
+        public static bool Has(string state) { lock (gate) { return supplied.ContainsKey(state); } }
+
+        // A new icon the caller owns and disposes.
+        public static Icon Copy(string state) {
+            lock (gate) {
+                Icon icon;
+                if (supplied.TryGetValue(state, out icon)) return (Icon)icon.Clone();
+            }
+            return (Icon)SystemIcons.Application.Clone();
         }
     }
 
@@ -447,9 +449,7 @@ namespace Capstan.Hotkeys {
 
         // ---- tray ----
         void CreateTray() {
-            icons["idle"] = TrayArt.Make("idle");
-            icons["recording"] = TrayArt.Make("recording");
-            icons["paused"] = TrayArt.Make("paused");
+            foreach (string state in TrayIcons.States) icons[state] = TrayIcons.Copy(state);
             menu = new ContextMenuStrip();
             startItem = new ToolStripMenuItem("Start recording");
             pauseItem = new ToolStripMenuItem("Pause");
@@ -740,6 +740,10 @@ namespace Capstan.Hotkeys {
 # ---------------------------------------------------------------------------------------------
 # Host side
 # ---------------------------------------------------------------------------------------------
+# Tray icons: the FleetHacker tray kit (vendor/fleet-tray, edge-ops ui-kit/tray) draws a C tile at the tray's
+# size for this display, so the icon is crisp at 16, 20 or 24 px. Get-FleetTrayIcon compiles it on first use.
+. (Join-Path (Split-Path -Parent $PSScriptRoot) 'vendor/fleet-tray/FleetTray.ps1')
+$script:CapstanTrayFallback = Join-Path (Split-Path -Parent $PSScriptRoot) 'assets/brand/tray.ico'
 $script:CapstanHotkeysNote = ''
 $script:CapstanParkedPolls = New-Object System.Collections.ArrayList
 $script:CapstanMaxParkedPolls = 8
@@ -763,6 +767,18 @@ function Test-CapstanHotkeysEnabled {
     return -not ($v.Trim() -match '^(0|false|no|off)$')
 }
 
+function Set-CapstanTrayIcons {
+    <#
+      Hands the kit's icons to the service: idle is the plain C tile, recording has a red badge and paused an
+      amber one. If the kit cannot be compiled here, Capstan's own tray.ico is used for every state.
+    #>
+    foreach ($pair in @(@('idle', ''), @('recording', 'bad'), @('paused', 'busy'))) {
+        $icon = Get-FleetTrayIcon -App capstan -Status $pair[1] -FallbackPath $script:CapstanTrayFallback
+        try { [Capstan.Hotkeys.TrayIcons]::Use($pair[0], $icon) }
+        finally { if (-not [object]::ReferenceEquals($icon, [System.Drawing.SystemIcons]::Application)) { $icon.Dispose() } }
+    }
+}
+
 function New-CapstanHotkeyService {
     <# Starts the service. Returns $null (and sets $script:CapstanHotkeysNote) when hotkeys are off or cannot start. #>
     param([string]$OpenUrl = '')
@@ -770,6 +786,8 @@ function New-CapstanHotkeyService {
     if (-not (Test-CapstanHotkeysEnabled)) { $script:CapstanHotkeysNote = 'Hotkeys are turned off (CAPSTAN_HOTKEYS=0 or -no-hotkeys).'; return $null }
     try {
         $real = -not (Test-CapstanHotkeyTestMode)
+        # A missing icon never stops the hotkeys: the tray then shows the application icon.
+        if ($real) { try { Set-CapstanTrayIcons } catch { Write-Verbose ('Tray icons: ' + $_.Exception.Message) } }
         $svc = New-Object Capstan.Hotkeys.HotkeyService -ArgumentList $OpenUrl, $real, $real, $real
         if (-not $svc.Start()) {
             $script:CapstanHotkeysNote = 'The hotkey thread could not start.'

@@ -633,6 +633,19 @@ describe('host code', () => {
     expect(csharp).toContain('tray.Visible = false');
   });
 
+  test('tray icons come from the FleetHacker tray kit, not GetHicon', () => {
+    expect(csharp).not.toContain('GetHicon');
+    expect(csharp).not.toContain('DestroyIcon');
+    expect(csharp).toContain('foreach (string state in TrayIcons.States) icons[state] = TrayIcons.Copy(state);');
+    expect(hostCs).toContain("'vendor/fleet-tray/FleetTray.ps1'");
+    expect(hostCs).toContain("@(@('idle', ''), @('recording', 'bad'), @('paused', 'busy'))");
+    expect(hostCs).toContain('Get-FleetTrayIcon -App capstan');
+    expect(hostCs).toMatch(/if \(\$real\) \{ try \{ Set-CapstanTrayIcons \}/);
+    expect(read('vendor/fleet-tray/VERSION').trim()).toBe('edge-ops ui-kit/tray v1.0.0, commit 2f90369');
+    expect(read('vendor/fleet-tray/FleetTrayArt.cs')).toContain('namespace FleetTray');
+    expect(read('vendor/fleet-tray/FleetTrayArt.cs')).not.toContain('GetHicon(');
+  });
+
   test('the menu is Start or Stop, Pause, Open Capstan and Quit tray', () => {
     for (const label of ['"Start recording"', '"Stop recording"', '"Pause"', '"Resume"', '"Open Capstan"', '"Quit tray"']) expect(csharp).toContain(label);
   });
