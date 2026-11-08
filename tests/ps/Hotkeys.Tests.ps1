@@ -72,6 +72,26 @@ for ($i = 0; $i -lt 150; $i++) { [void]$q.Add('marker') }
 Check 'the queue keeps at most 100 events' (@($q.Since(0)).Count -eq 100)
 Check 'ids keep increasing past the cap' ($q.LastId -eq 153)
 
+# ---- Tray icons from the FleetHacker tray kit (drawn in memory; no icon is shown) ----
+$want = Get-FleetTraySize
+Set-CapstanTrayIcons
+Check 'the tray kit compiled (FleetTray.Art)' ([bool]('FleetTray.Art' -as [type]))
+$px = @{}
+foreach ($state in @('idle', 'recording', 'paused')) {
+    $icon = [Capstan.Hotkeys.TrayIcons]::Copy($state)
+    try {
+        Check ("tray icon '" + $state + "' is handed in at the tray size (" + $want + ' px)') ([Capstan.Hotkeys.TrayIcons]::Has($state) -and $icon.Width -eq $want -and $icon.Height -eq $want) ($icon.Width.ToString() + 'x' + $icon.Height)
+        $bmp = $icon.ToBitmap()
+        try { $px[$state] = $bmp.GetPixel($want - 3, $want - 3).ToArgb() } finally { $bmp.Dispose() }
+    } finally { $icon.Dispose() }
+}
+Check 'recording and paused carry different corner badges than idle' (($px['idle'] -ne $px['recording']) -and ($px['idle'] -ne $px['paused']) -and ($px['recording'] -ne $px['paused']))
+$expected = [FleetTray.Art]::DrawApp('capstan', 'bad', $want)
+try { Check 'recording is the kit capstan tile with the bad badge' ($expected.GetPixel($want - 3, $want - 3).ToArgb() -eq $px['recording']) } finally { $expected.Dispose() }
+$threw = $false
+try { [Capstan.Hotkeys.TrayIcons]::Use('sleeping', [System.Drawing.SystemIcons]::Application) } catch { $threw = $true }
+Check 'an unknown tray state is refused' $threw
+
 # ---- Service without a thread (the seam): registering, releasing and a clash ----
 $svc = New-Object Capstan.Hotkeys.HotkeyService -ArgumentList 'http://127.0.0.1:1/', $false, $false, $false
 Check 'a service before Start has no results' (@($svc.Results()).Count -eq 0)
