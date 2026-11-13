@@ -54,10 +54,7 @@ const FILLED = new Set(['record', 'play']);
 
 const camel = (s) => s.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 
-/**
- * Where an HTML comment that starts at `from` (just after `<!--`) ends.
- * Browsers close a comment on `-->` and on `--!>`. Returns the index after the closer, or -1.
- */
+// Shared fleet HTML/SVG comment stripper. `<!-->` and `<!--->` are empty comments.
 function commentEnd(s, from) {
   for (let j = from; j < s.length - 2; j++) {
     if (s[j] !== '-' || s[j + 1] !== '-') continue;
@@ -66,32 +63,25 @@ function commentEnd(s, from) {
   }
   return -1;
 }
-
-/**
- * Removes HTML comments from an SVG source.
- * A one-shot replace of `<!--...-->` leaves `<!--` behind (`<!<!--...-->` reassembles it, and
- * `--!>` is also a comment end). An unclosed comment runs to the end of the file, as in HTML.
- */
-export function stripHtmlComments(input) {
-  let cur = input;
-  let prev = null;
-  while (cur !== prev) {
-    prev = cur;
-    let out = '';
-    let i = 0;
-    while (i < cur.length) {
-      const start = cur.indexOf('<!--', i);
-      if (start < 0) {
-        out += cur.slice(i);
-        break;
-      }
-      out += cur.slice(i, start);
-      const end = commentEnd(cur, start + 4);
-      if (end < 0) break;
-      i = end;
-    }
-    cur = out;
+function stripOnce(s) {
+  let out = '';
+  let i = 0;
+  while (i < s.length) {
+    const start = s.indexOf('<!--', i);
+    if (start < 0) return out + s.slice(i);
+    out += s.slice(i, start);
+    if (s[start + 4] === '>') { i = start + 5; continue; }
+    if (s[start + 4] === '-' && s[start + 5] === '>') { i = start + 6; continue; }
+    const end = commentEnd(s, start + 4);
+    if (end < 0) return out;
+    i = end;
   }
+  return out;
+}
+export function stripHtmlComments(input) {
+  let cur = String(input);
+  let prev;
+  do { prev = cur; cur = stripOnce(cur); } while (cur !== prev);
   return cur;
 }
 

@@ -32,4 +32,15 @@ describe('gen-icons comment stripping', () => {
   test('an unclosed comment is dropped through the end of the file', () => {
     expect(stripHtmlComments('before<!-- never closed')).toBe('before');
   });
+
+  test('empty comments and reassembled markers match the shared helper', () => {
+    expect(stripHtmlComments('a<!-- x -->b')).toBe('ab');
+    expect(stripHtmlComments('a<!-->b')).toBe('ab');
+    expect(stripHtmlComments('a<!--->b')).toBe('ab');
+    expect(stripHtmlComments('a<!-- x --!>b')).toBe('ab');
+    expect(stripHtmlComments('a<!--unclosed <path d="1"/>')).toBe('a');
+    expect(stripHtmlComments('<!<!---->-->x')).toBe('x');
+    expect(stripHtmlComments('<<!-- -->!--<path/>-->y')).toBe('y');
+    expect(stripHtmlComments('<path d="1"/>')).toBe('<path d="1"/>');
+  });
 });
