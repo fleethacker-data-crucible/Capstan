@@ -123,11 +123,15 @@ function vttStamp(t: number): string {
   return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)}.${p(ms % 1000, 3)}`;
 }
 
-/** WebVTT chapters track (`kind="chapters"`): each chapter runs until the next one, the last until `duration`. */
+/**
+ * WebVTT chapters track (`kind="chapters"`): each chapter runs until the next one, the last until `duration`.
+ * `&`, `<` and `>` are escaped, so a title cannot close a tag or end an HTML comment (`-->` or `--!>`).
+ */
 export function formatChaptersVtt(chapters: Chapter[], duration: number): string {
+  const escape = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const cues = chapters.map((c, i) => {
     const end = i + 1 < chapters.length ? chapters[i + 1].time : Math.max(duration, c.time + 1);
-    const title = c.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/-->/g, '--&gt;');
+    const title = escape(c.name);
     return `${i + 1}\n${vttStamp(c.time)} --> ${vttStamp(Math.max(end, c.time + 0.001))}\n${title}\n`;
   });
   return `WEBVTT\n\n${cues.join('\n')}`;

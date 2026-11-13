@@ -140,6 +140,21 @@ describe('chapters', () => {
     ]);
   });
 
+  test('chapter titles escape &, < and >, so --> and --!> cannot end a comment', () => {
+    const vtt = formatChaptersVtt(
+      [
+        { time: 0, name: 'A & B <C> --> D --!> E' },
+        { time: 1, name: 'Next' },
+      ],
+      5,
+    );
+    expect(vtt).toContain('A &amp; B &lt;C&gt; --&gt; D --!&gt; E');
+    expect(vtt).not.toContain('--!>');
+    const title = vtt.split('\n').find((line) => line.startsWith('A ')) ?? '';
+    expect(title).not.toContain('-->');
+    expect(parseSubtitles(vtt)[0].text).toBe('A & B <C> --> D --!> E');
+  });
+
   test('blank marker names become "Chapter"', () => {
     const q = addMarker(createProject(), 1, 'x', true).project;
     const named = renameMarker(q, q.markers[0].id, '   ');
@@ -338,5 +353,20 @@ Bye`;
   test('empty input and an end before the start are skipped', () => {
     expect(parseSubtitles('')).toEqual([]);
     expect(parseSubtitles('1\n00:00:05,000 --> 00:00:01,000\nbackwards\n')).toEqual([]);
+  });
+
+  test('styling tags are dropped, including one nested so a script tag would reassemble', () => {
+    const text = '1\n00:00:00,000 --> 00:00:01,000\nHello <i>there</i> <scr<script>ipt>alert(1)</script>\n';
+    expect(parseSubtitles(text)[0].text).toBe('Hello there ipt>alert(1)');
+    expect(parseSubtitles(text)[0].text).not.toContain('<script');
+  });
+
+  test('a comparison, a heart and a URL stay; an unclosed script tag does not', () => {
+    const kept = '1\n00:00:00,000 --> 00:00:01,000\na < b and <3, see <https://example.com and <scripting\n';
+    expect(parseSubtitles(kept)[0].text).toBe('a < b and <3, see <https://example.com and <scripting');
+    const open = '1\n00:00:00,000 --> 00:00:01,000\nHello <SCRIPT\n';
+    expect(parseSubtitles(open)[0].text).toBe('Hello');
+    const iframe = '1\n00:00:00,000 --> 00:00:02,000\nEnd <iframe src=x\n';
+    expect(parseSubtitles(iframe)[0].text).toBe('End');
   });
 });

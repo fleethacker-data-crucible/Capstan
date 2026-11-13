@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# GITHUB_TOKEN only reads the repo (checkout). Artifact upload uses the Actions runtime token.
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     # Self-hosted Windows build PC (GitHub-hosted jobs are blocked by the account's spending limit).

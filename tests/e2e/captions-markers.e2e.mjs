@@ -155,7 +155,7 @@ const texts = await page.locator('.caption-row textarea').evaluateAll((els) => e
 check('split at the playhead makes two captions that keep all the words', `${texts[0]} ${texts[1]}` === 'Hello from Capstan' && texts[0] && texts[1], JSON.stringify(texts));
 await page.getByRole('button', { name: 'Merge with next' }).click();
 await page.waitForFunction(() => document.querySelectorAll('.caption-row').length === 3);
-check('merge with next joins them again', (await page.locator('.caption-row textarea').first().inputValue()).replace('\n', ' ') === 'Hello from Capstan');
+check('merge with next joins them again', (await page.locator('.caption-row textarea').first().inputValue()).replace(/\n/g, ' ') === 'Hello from Capstan');
 await page.keyboard.press('Escape');
 await page.getByRole('button', { name: 'Delete caption 3' }).click();
 check('the list delete button removes a caption', (await page.locator('.caption-row').count()) === 2);

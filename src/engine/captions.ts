@@ -13,6 +13,52 @@ function seconds(stamp: string): number | null {
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', nbsp: ' ', lrm: '', rlm: '' };
 const decodeEntities = (s: string): string => s.replace(/&(amp|lt|gt|nbsp|lrm|rlm);/g, (_, e: string) => ENTITIES[e]);
 
+const DANGEROUS_TAG = new Set(['script', 'iframe', 'style']);
+
+/** Tag name at `s[i]` when `s[i]` is `<`, without the brackets. Empty when it is not a name. */
+function tagNameAt(s: string, i: number): string {
+  let j = i + 1;
+  if (s[j] === '/') j++;
+  const start = j;
+  while (j < s.length && ((s[j] >= 'A' && s[j] <= 'Z') || (s[j] >= 'a' && s[j] <= 'z'))) j++;
+  return s.slice(start, j).toLowerCase();
+}
+
+/**
+ * Drops `<...>` styling tags (`<i>`, `<v Speaker>`, and the rest).
+ * Pairs are removed by a scan, then again if a cut uncovered another: a one-shot replace of
+ * `<...>` can leave `<script`. A `<` with no `>` stays (`a < b`, `<3`, a URL), except an
+ * unclosed `script`, `iframe` or `style` tag, which is not cue text.
+ */
+function stripTags(line: string): string {
+  let prev = '';
+  let cur = line;
+  while (cur !== prev) {
+    prev = cur;
+    let out = '';
+    for (let i = 0; i < cur.length; i++) {
+      if (cur[i] !== '<') {
+        out += cur[i];
+        continue;
+      }
+      const end = cur.indexOf('>', i + 1);
+      if (end < 0) {
+        out += cur.slice(i);
+        break;
+      }
+      i = end;
+    }
+    for (let i = 0; i < out.length; i++) {
+      if (out[i] === '<' && DANGEROUS_TAG.has(tagNameAt(out, i))) {
+        out = out.slice(0, i);
+        break;
+      }
+    }
+    cur = out;
+  }
+  return cur;
+}
+
 /** Parses SRT or WebVTT text. Cues without a valid time line are skipped; styling tags are dropped. */
 export function parseSubtitles(text: string): Caption[] {
   const out: Caption[] = [];
@@ -28,7 +74,7 @@ export function parseSubtitles(text: string): Caption[] {
     if (start === null || end === null || end <= start) continue;
     const body = lines
       .slice(at + 1)
-      .map((l) => decodeEntities(l.replace(/<[^>]*>/g, '').replace(/\{\\[^}]*\}/g, '')).trim())
+      .map((l) => decodeEntities(stripTags(l).replace(/\{\\[^}]*\}/g, '')).trim())
       .filter(Boolean)
       .join('\n')
       .slice(0, MAX_CAPTION_CHARS);
