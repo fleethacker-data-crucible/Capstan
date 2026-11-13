@@ -166,10 +166,16 @@ async function recordsData(track: MediaStreamTrack, type: string, ms = 2000): Pr
   }
 }
 
-/** The first candidate that actually records this track: MP4 only after a test, WebM as is. */
+/**
+ * The first candidate that actually records this track. Every candidate with a codec list is tested:
+ * Edge's H.264 recorder can write nothing for screen capture, and Firefox accepts
+ * `video/webm;codecs=vp8,opus` for a video-only screen stream and then never delivers data or stops.
+ * Plain `video/webm` lets the browser choose its codecs and is taken as is.
+ */
 async function workingRecorderType(track: MediaStreamTrack): Promise<string> {
   for (const type of recorderCandidates()) {
-    if (!type.startsWith('video/mp4') || (await recordsData(track, type))) return type;
+    if (!type.includes(';') && type.startsWith('video/webm')) return type;
+    if (await recordsData(track, type)) return type;
   }
   return '';
 }
