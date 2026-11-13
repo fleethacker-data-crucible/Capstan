@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describeCommands, listCommands } from '../../src/engine/commands/registry';
-import { CLI_DOC_PATH, END_MARKER, START_MARKER, applyCommandsBlock, checkCliDoc, describeOption, renderCommandsBlock } from '../../scripts/gen-cli-doc';
+import { CLI_DOC_PATH, END_MARKER, START_MARKER, applyCommandsBlock, cell, checkCliDoc, describeOption, renderCommandsBlock } from '../../scripts/gen-cli-doc';
 
 const root = join(import.meta.dir, '..', '..');
 const doc = readFileSync(CLI_DOC_PATH, 'utf8');
@@ -19,6 +19,15 @@ function runCheck(): { status: number | null; stderr: string } {
   const run = Bun.spawnSync([process.execPath, join(root, 'scripts', 'gen-cli-doc.ts'), '--check'], { cwd: root, stdout: 'pipe', stderr: 'pipe' });
   return { status: run.exitCode, stderr: run.stderr.toString() };
 }
+
+describe('markdown table cells', () => {
+  test('backslashes are escaped before pipes, and whitespace becomes one space', () => {
+    expect(cell('a|b')).toBe('a\\|b');
+    expect(cell('a\\b')).toBe('a\\\\b');
+    expect(cell('a\\|b')).toBe('a\\\\\\|b');
+    expect(cell('a\nb\tc')).toBe('a b c');
+  });
+});
 
 describe('docs/CLI.md', () => {
   test('`gen-cli-doc.ts --check` passes: the commands table is current', () => {

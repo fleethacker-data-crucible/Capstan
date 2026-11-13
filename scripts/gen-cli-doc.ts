@@ -17,7 +17,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const CLI_DOC_PATH = join(root, 'docs', 'CLI.md');
 
 const kebab = (name: string): string => name.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
-const cell = (text: string): string => text.replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim();
+/** One markdown table cell: a single line, with `\` escaped before `|`, so a pipe cannot break the row. */
+export const cell = (text: string): string => text.replace(/\s+/g, ' ').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').trim();
 const sentence = (text: string): string => (/[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`);
 
 type Input = CommandDescription['inputs'][number];
